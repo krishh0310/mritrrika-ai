@@ -50,3 +50,7 @@ playwright-report/
 test-results/
 htmlcov/
 .coverage
+
+# Screenshot helpers used during development
+apps/web/shot.mjs
+apps/web/flow.mjs

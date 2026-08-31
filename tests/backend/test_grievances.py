@@ -7,8 +7,35 @@ the review workflow.
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
 import pytest
 from demo_users import CITIZEN_A, CITIZEN_B, DEO, TEHSILDAR, VERIFIER
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+@pytest.fixture(autouse=True, scope="module")
+def clean_grievances():
+    """Remove the grievances this module files.
+
+    Unlike the other suites, these tests CREATE rows on every run, and they
+    surface on the demo citizen's dashboard. Left alone they accumulate until
+    the seeded citizen appears to have forty open complaints.
+    """
+    yield
+
+    sys.path.insert(0, str(REPO_ROOT / "apps" / "api"))
+    sys.path.insert(0, str(REPO_ROOT / "packages" / "domain"))
+    from sqlalchemy import delete
+
+    from app.db import SessionLocal
+    from app.models import Grievance
+
+    with SessionLocal() as session:
+        session.execute(delete(Grievance))
+        session.commit()
 
 
 def _my_parcel(client, auth, email: str) -> str:

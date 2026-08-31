@@ -1,0 +1,23 @@
+{
+  "name": "mrittika-ai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Intelligent digitization for India's land records",
+  "workspaces": [
+    "apps/web",
+    "apps/mobile",
+    "packages/ui",
+    "packages/shared-types"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace @mrittika/web",
+    "build": "npm run build --workspace @mrittika/web",
+    "lint": "npm run lint --workspace @mrittika/web",
+    "typecheck": "npm run typecheck --workspace @mrittika/web",
+    "test": "npm run test --workspace @mrittika/web"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "unrs-resolver@1.12.2": true
+  }
+}

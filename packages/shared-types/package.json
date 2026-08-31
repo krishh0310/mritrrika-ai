@@ -1,0 +1,8 @@
+{
+  "name": "@mrittika/shared-types",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Generated from packages/domain. Do not hand-edit src/generated.ts.",
+  "main": "./src/generated.ts",
+  "types": "./src/generated.ts"
+}

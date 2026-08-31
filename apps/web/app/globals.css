@@ -1,0 +1,186 @@
+@import "tailwindcss";
+
+/* packages/ui lives outside this app, so Tailwind's automatic source
+   detection never walks into it and every class used only there -- every
+   button background, every status chip -- would go ungenerated. */
+@source "../../../packages/ui/src";
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Mrittika AI design tokens
+
+   The palette is fixed by §57 and is not a free choice. What IS chosen here is
+   the type system, and it is driven by the one fact that makes this product
+   different from a generic admin console: the records are in Devanagari.
+
+     --font-record   Noto Serif Devanagari. Anything that came off a document
+                     -- an owner's name, a village, a land class -- is set in
+                     it. Serif because that is what a record of rights looks
+                     like, and this face is drawn for the script rather than
+                     left to an OS fallback that would render राम प्रसाद सिंह
+                     in a different weight and baseline from the Latin beside
+                     it.
+     --font-ui       Inter. Chrome: labels, buttons, navigation. Deliberately
+                     recessive.
+     --font-id       JetBrains Mono. Identifiers and numbers. §11 makes
+                     parcel_id the spine of the whole system, so identifiers
+                     get their own treatment: monospaced and letterspaced so
+                     PARCEL-UP-DEMO-0142 can be compared at a glance, and so
+                     confidence figures align down a column.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@theme {
+  /* §57 -- the specified identity. Do not add to this set. */
+  --color-navy: #1e3a5f;
+  --color-burnt: #d2691e;
+  --color-warm: #f4a460;
+  --color-cream: #fdf6e3;
+  --color-offwhite: #f7f5ef;
+  --color-ink: #1a1a1a;
+
+  /* Navy, stepped. Derived from the specified navy rather than a stock slate
+     ramp, so every surface in the app stays in the same family. */
+  --color-navy-900: #14273f;
+  --color-navy-800: #1e3a5f;
+  --color-navy-700: #2b4d78;
+  --color-navy-600: #3c6291;
+  --color-navy-300: #93aac4;
+  --color-navy-100: #d5dfea;
+
+  /* Neutrals, warmed toward the cream so nothing reads as cold grey. */
+  --color-paper: #ffffff;
+  --color-sand-50: #faf8f3;
+  --color-sand-100: #f0ece1;
+  --color-sand-200: #e2dccd;
+  --color-sand-300: #cdc5b2;
+  --color-sand-500: #8b8272;
+  --color-sand-700: #4f4a40;
+
+  /* §8 confidence bands. §86 requires text and an icon alongside these, never
+     colour on its own. */
+  --color-high: #1b7a4b;
+  --color-high-bg: #e6f3ec;
+  --color-medium: #a86a12;
+  --color-medium-bg: #fbf1de;
+  --color-low: #b3261e;
+  --color-low-bg: #fbeae9;
+
+  --font-ui: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-record: var(--font-noto-devanagari), "Noto Serif Devanagari", Georgia, serif;
+  --font-id: var(--font-jetbrains), ui-monospace, "SF Mono", Menlo, monospace;
+
+  --radius-card: 6px;
+  --radius-chip: 3px;
+
+  /* Government forms are ruled, not shadowed. Elevation here is a hairline
+     plus a whisper of shadow, never a floating card. */
+  --shadow-panel: 0 1px 2px rgb(20 39 63 / 0.06), 0 1px 1px rgb(20 39 63 / 0.04);
+  --shadow-raised: 0 4px 12px rgb(20 39 63 / 0.1), 0 1px 3px rgb(20 39 63 / 0.06);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-sand-200);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background: var(--color-offwhite);
+    color: var(--color-ink);
+    font-family: var(--font-ui);
+    font-feature-settings: "cv02", "cv03", "cv04";
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Focus must be visible without being decorative. Burnt orange on navy
+     chrome and navy on cream surfaces both clear 3:1. */
+  :focus-visible {
+    outline: 2px solid var(--color-burnt);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  ::selection {
+    background: var(--color-warm);
+    color: var(--color-ink);
+  }
+
+  /* Identifiers are selectable and comparable everywhere they appear. */
+  .id {
+    font-family: var(--font-id);
+    font-size: 0.8125rem;
+    letter-spacing: 0.04em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Anything transcribed from a document. */
+  .record-text {
+    font-family: var(--font-record);
+    font-feature-settings: normal;
+  }
+
+  /* A small-caps eyebrow used to label a region of a form. Encodes hierarchy,
+     not decoration -- it always names the section that follows it. */
+  .eyebrow {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: var(--color-sand-500);
+  }
+
+  table {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer components {
+  /* ── The signature element ────────────────────────────────────────────────
+     §26 forbids destroying the raw OCR value; §68 says an officer needs raw,
+     normalized, confidence and source together. Rather than hiding that in a
+     tooltip, every AI-derived value in the officer UI renders as one strip:
+
+         १४२ / २  →  142/2   0.95 HIGH
+
+     It repeats on every field on every screen, and it is what makes this read
+     as a records system rather than a form. */
+  .provenance {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .provenance-raw {
+    font-family: var(--font-record);
+    color: var(--color-sand-500);
+    font-size: 0.9375rem;
+  }
+
+  .provenance-arrow {
+    color: var(--color-sand-300);
+    font-size: 0.75rem;
+    line-height: 1;
+  }
+
+  .provenance-value {
+    font-family: var(--font-id);
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--color-ink);
+  }
+}
+
+/* §85 -- reduced motion is respected, not merely shortened. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
