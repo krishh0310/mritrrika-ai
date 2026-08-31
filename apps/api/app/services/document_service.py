@@ -1,0 +1,276 @@
+"""Document lifecycle: upload, state transitions, quality gate (§21-§23, §37).
+
+Every state change goes through `transition`, which validates the move against
+the §37 graph and writes an audit event in the SAME transaction. There is no
+other sanctioned way to change `Document.state` -- a service that assigns the
+column directly bypasses both the graph and the audit trail.
+"""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime
+
+import numpy as np
+from mrittika_domain import DocumentState, assert_transition
+from mrittika_domain.state_machine import IllegalTransitionError
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.models import Document, DocumentPage, Location, Parcel, ProcessingJob
+from app.services import audit_service, storage_service
+from app.services.auth_service import Principal
+from app.services.storage_service import UnsupportedFileType
+
+
+class DocumentNotFound(Exception):
+    pass
+
+
+def _snapshot(document: Document) -> dict:
+    """The slice of a document worth recording in the audit trail."""
+    return {
+        "state": document.state,
+        "document_type": document.document_type,
+        "quality_recommendation": document.quality_recommendation,
+        "parcel_id": document.parcel_id,
+    }
+
+
+def transition(
+    session: Session,
+    document: Document,
+    target: DocumentState,
+    *,
+    principal: Principal | None = None,
+    action: str | None = None,
+    reason: str | None = None,
+) -> Document:
+    """Move a document to `target`, or refuse.
+
+    Raises IllegalTransitionError for any move the §37 graph forbids, including
+    the one the spec singles out: UPLOADED -> APPROVED.
+    """
+    current = DocumentState(document.state)
+    assert_transition(current, target)
+
+    before = _snapshot(document)
+    document.state = target.value
+    session.flush()
+
+    audit_service.record(
+        session,
+        action=action or audit_service.STATE_CHANGED,
+        entity_type="document",
+        entity_id=document.external_id,
+        actor_id=principal.id if principal else None,
+        actor_role=principal.primary_role if principal else None,
+        before_state=before,
+        after_state=_snapshot(document),
+        reason=reason,
+    )
+    return document
+
+
+def next_external_id(session: Session) -> str:
+    """Sequential, human-readable document ids (DOC-00001).
+
+    Readable ids matter here: officers quote them to each other, and the demo
+    script follows one document by name through every screen.
+    """
+    latest = session.execute(
+        select(Document.external_id).order_by(Document.external_id.desc()).limit(1)
+    ).scalar_one_or_none()
+    if latest is None:
+        return "DOC-00001"
+    try:
+        return f"DOC-{int(latest.split('-')[1]) + 1:05d}"
+    except (IndexError, ValueError):
+        return f"DOC-{session.query(Document).count() + 1:05d}"
+
+
+def upload(
+    session: Session,
+    *,
+    principal: Principal,
+    data: bytes,
+    filename: str | None,
+    declared_mime: str | None,
+    document_type: str,
+    village_external_id: str | None = None,
+    record_year: str | None = None,
+    declared_khasra: str | None = None,
+    declared_khata: str | None = None,
+    parcel_external_id: str | None = None,
+) -> Document:
+    """Store an uploaded file and run the §22 quality gate immediately.
+
+    Order is deliberate: the bytes are validated and stored first, then quality
+    is assessed, then the document is transitioned. A page that fails quality
+    is still stored -- an operator needs to see WHY it was rejected, and the
+    original is the evidence.
+    """
+    stored = storage_service.put_document(
+        data, declared_mime=declared_mime, prefix="documents"
+    )
+
+    village = None
+    if village_external_id:
+        village = session.execute(
+            select(Location).where(Location.external_id == village_external_id)
+        ).scalar_one_or_none()
+
+    parcel = None
+    if parcel_external_id:
+        parcel = session.execute(
+            select(Parcel).where(Parcel.external_id == parcel_external_id)
+        ).scalar_one_or_none()
+
+    document = Document(
+        external_id=next_external_id(session),
+        document_type=document_type,
+        state=DocumentState.UPLOADED.value,
+        parcel_id=parcel.id if parcel else None,
+        village_id=village.id if village else None,
+        record_year=record_year,
+        declared_khasra=declared_khasra,
+        declared_khata=declared_khata,
+        uploaded_by_id=principal.id,
+        storage_key=stored.key,
+        original_filename=storage_service.sanitize_filename(filename),
+        mime_type=stored.detected_mime,
+        size_bytes=stored.size_bytes,
+        checksum_sha256=stored.checksum_sha256,
+    )
+    session.add(document)
+    session.flush()
+
+    audit_service.record(
+        session,
+        action=audit_service.UPLOAD,
+        entity_type="document",
+        entity_id=document.external_id,
+        actor_id=principal.id,
+        actor_role=principal.primary_role,
+        after_state=_snapshot(document) | {
+            "filename": document.original_filename,
+            "size_bytes": document.size_bytes,
+            "checksum_sha256": document.checksum_sha256,
+        },
+    )
+
+    run_quality_gate(session, document, data, principal=principal)
+    session.commit()
+    return document
+
+
+def run_quality_gate(
+    session: Session,
+    document: Document,
+    data: bytes,
+    *,
+    principal: Principal | None = None,
+) -> dict:
+    """Assess the page and record the verdict (§22)."""
+    from quality.assessment import assess_bytes
+
+    transition(session, document, DocumentState.QUALITY_CHECK, principal=principal,
+               action=audit_service.QUALITY_CHECK)
+
+    try:
+        report = assess_bytes(data)
+        payload = report.to_dict()
+        document.quality_score = report.overall_score
+        document.quality_report = payload
+        document.quality_recommendation = report.recommended_action
+    except ValueError as exc:
+        # An undecodable upload is a quality failure, not a server error.
+        payload = {"error": str(exc), "recommended_action": "REJECT_QUALITY"}
+        document.quality_score = 0.0
+        document.quality_report = payload
+        document.quality_recommendation = "REJECT_QUALITY"
+
+    session.flush()
+
+    # Also create the first page row so downstream stages have somewhere to
+    # attach OCR results.
+    if not document.pages:
+        page = DocumentPage(
+            document_id=document.id,
+            page_number=1,
+            storage_key=document.storage_key,
+        )
+        try:
+            import cv2
+            image = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
+            if image is not None:
+                page.height, page.width = image.shape[:2]
+        except Exception:  # pragma: no cover - width/height are advisory
+            pass
+        session.add(page)
+        session.flush()
+
+    if document.quality_recommendation == "REJECT_QUALITY":
+        transition(session, document, DocumentState.RESCAN_REQUIRED,
+                   principal=principal, reason="failed quality gate")
+
+    audit_service.record(
+        session,
+        action=audit_service.QUALITY_CHECK,
+        entity_type="document",
+        entity_id=document.external_id,
+        actor_id=principal.id if principal else None,
+        after_state={"quality": payload},
+    )
+    return payload
+
+
+def get_by_external_id(session: Session, external_id: str) -> Document:
+    document = session.execute(
+        select(Document).where(Document.external_id == external_id)
+    ).scalar_one_or_none()
+    if document is None:
+        raise DocumentNotFound(external_id)
+    return document
+
+
+def latest_job(session: Session, document: Document) -> ProcessingJob | None:
+    return session.execute(
+        select(ProcessingJob)
+        .where(ProcessingJob.document_id == document.id)
+        .order_by(ProcessingJob.created_at.desc())
+        .limit(1)
+    ).scalar_one_or_none()
+
+
+def start_processing(
+    session: Session, document: Document, *, principal: Principal
+) -> ProcessingJob:
+    """Queue the AI pipeline (§23).
+
+    Refuses documents the quality gate sent back, so a page already known to be
+    unreadable does not consume OCR time.
+    """
+    if document.quality_recommendation == "REJECT_QUALITY":
+        raise IllegalTransitionError(
+            DocumentState(document.state), DocumentState.PROCESSING
+        )
+
+    transition(session, document, DocumentState.PROCESSING, principal=principal,
+               action=audit_service.PROCESSING_STARTED)
+
+    job = ProcessingJob(
+        document_id=document.id,
+        stage="upload",
+        progress=0,
+        status="QUEUED",
+        started_at=datetime.now(UTC),
+    )
+    session.add(job)
+    session.commit()
+    return job
+
+
+__all__ = [
+    "DocumentNotFound", "UnsupportedFileType", "get_by_external_id",
+    "latest_job", "run_quality_gate", "start_processing", "transition", "upload",
+]

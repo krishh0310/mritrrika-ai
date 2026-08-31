@@ -1,0 +1,42 @@
+[project]
+name = "mrittika-ai"
+version = "0.1.0"
+description = "Intelligent digitization for India's land records"
+requires-python = ">=3.12,<3.13"
+
+# Python is pinned to 3.12 deliberately. paddlepaddle 3.3.1 publishes
+# macOS-arm64 wheels for cp39-cp313 only -- there is no cp314 wheel, so the
+# system Python 3.14 on the dev machine cannot run the AI worker.
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "apps/api/tests"]
+markers = [
+    "slow: loads an ML model or hits the network (deselect with '-m \"not slow\"')",
+    "integration: requires postgres/redis/minio to be up",
+    "e2e: full-stack browser test",
+]
+filterwarnings = [
+    "ignore::UserWarning:paddle.*",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+# B008 forbids a function call in a default argument. FastAPI's entire
+# dependency system is `x = Depends(...)` / `Form(...)` / `Query(...)` in a
+# default, so the rule fires on every correctly-written route. Suppressed
+# repository-wide rather than with 135 inline noqa comments.
+ignore = ["B008"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests and scripts must put the repo on sys.path before importing from it,
+# which necessarily places imports after statements.
+"tests/**" = ["E402"]
+"scripts/**" = ["E402"]
+# Alembic writes these; reformatting a migration to satisfy a linter risks
+# changing what it does for no benefit.
+"apps/api/alembic/versions/**" = ["E501"]

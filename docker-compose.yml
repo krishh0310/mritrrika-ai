@@ -1,0 +1,91 @@
+# Mrittika AI — LOCAL DEV infrastructure only.
+#
+# Deliberately NOT the full §75 stack. On this Apple-Silicon dev machine the
+# FastAPI app, the Celery AI worker and the Next.js web app all run natively,
+# because paddlepaddle has no reliable linux/arm64 wheel and x86 emulation
+# makes OCR too slow to demo. This file therefore brings up only the stateful
+# backing services.
+#
+# The full all-in-Docker stack (web + api + worker + infra) lives in
+# infrastructure/docker/compose.full.yml for x86 demo/deploy machines.
+#
+#   docker compose up -d
+#
+name: mrittika-ai
+
+services:
+  postgres:
+    build:
+      context: ./infrastructure/docker/postgres
+    image: mrittika/postgres-postgis-pgvector:16
+    container_name: mrittika-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mrittika}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_locally}
+      POSTGRES_DB: ${POSTGRES_DB:-mrittika}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # Checks the app database specifically, not just that the server is up.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mrittika} -d ${POSTGRES_DB:-mrittika}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: mrittika-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:latest
+    container_name: mrittika-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-change_me_locally}
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # web console
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  # Creates the buckets the API expects, then exits. Not a long-running service.
+  minio-init:
+    image: minio/mc:latest
+    container_name: mrittika-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 ${MINIO_ACCESS_KEY:-minioadmin} ${MINIO_SECRET_KEY:-change_me_locally} &&
+      mc mb --ignore-existing local/${MINIO_BUCKET_DOCUMENTS:-mrittika-documents} &&
+      mc mb --ignore-existing local/${MINIO_BUCKET_DERIVED:-mrittika-derived} &&
+      echo 'Mrittika AI: buckets ready'
+      "
+    restart: "no"
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:

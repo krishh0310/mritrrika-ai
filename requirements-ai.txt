@@ -1,0 +1,46 @@
+# services/ai-worker — runs NATIVELY on macOS-arm64, not in Docker.
+#
+# Why native: paddlepaddle's linux/arm64 wheel story is far weaker than its
+# macOS-arm64 story, and x86 emulation makes OCR too slow for a live demo.
+# See docs/architecture.md "Runtime topology".
+#
+# Install into a python3.12 venv:
+#   /opt/homebrew/bin/python3.12 -m venv .venv
+#   .venv/bin/pip install -r requirements-ai.txt
+#
+# IMPORTANT — Devanagari rendering prerequisite:
+#   Pillow must be linked against libraqm or Devanagari shaping is wrong and
+#   the synthetic dataset's ground truth will not match its images.
+#     brew install libraqm
+#     PKG_CONFIG_PATH=/opt/homebrew/lib/pkgconfig \
+#       pip install --force-reinstall --no-binary :all: --no-cache-dir Pillow
+#   Guarded by tests/ai/test_devanagari_stack.py
+
+paddlepaddle==3.3.1
+paddleocr==3.7.0
+
+opencv-python-headless==4.10.0.84
+numpy>=2.0
+Pillow>=11.0            # must be a libraqm-linked build; see note above
+scikit-image>=0.24
+scipy>=1.14
+
+# Async pipeline (§23)
+celery[redis]>=5.4
+redis>=5.0
+
+# Storage + DB access from the worker
+boto3>=1.35             # MinIO via S3-compatible API
+SQLAlchemy>=2.0
+psycopg[binary]>=3.2
+
+# ML (§7 anomaly detection)
+scikit-learn>=1.5
+
+# Providers (§81)
+google-genai>=1.0       # LLM + embeddings + OCR fallback
+groq>=0.11
+
+pydantic>=2.9
+pydantic-settings>=2.5
+python-dotenv>=1.0

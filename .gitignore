@@ -1,0 +1,52 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Node
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+.turbo/
+
+# Secrets — never commit (§76)
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Generated data — reproducible via scripts/, not tracked (§78 "datasets")
+datasets/generated/
+datasets/annotations/
+datasets/splits/
+datasets/reports/
+datasets/gis/*.geojson
+datasets/metadata/*.json
+
+# Model weights — never commit large binaries (§78 "models")
+models/checkpoints/
+*.pdparams
+*.pdmodel
+*.onnx
+*.safetensors
+
+# Local infra state
+.minio-data/
+.pgdata/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Test artifacts
+playwright-report/
+test-results/
+htmlcov/
+.coverage
