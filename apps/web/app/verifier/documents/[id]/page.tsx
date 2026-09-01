@@ -82,8 +82,11 @@ export default function VerificationWorkspacePage({
       {(data) => {
         // Lowest confidence first; already-handled fields sink to the bottom.
         const ordered = [...data.fields].sort((a, b) => {
+          // Statuses are packages/domain's FieldStatus (see field-editor.tsx).
           const handled = (f: typeof a) =>
-            f.corrected_value || f.status === "ACCEPTED" || f.status === "AUTO_ACCEPTED"
+            f.corrected_value ||
+            f.status === "VERIFIER_APPROVED" ||
+            f.status === "AUTO_ACCEPTED"
               ? 1
               : 0;
           if (handled(a) !== handled(b)) return handled(a) - handled(b);

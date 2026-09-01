@@ -111,6 +111,34 @@ test.describe("the land-record lifecycle", () => {
     await expect(page.getByText("Corrected").first()).toBeVisible();
     await expect(page.getByText(/the model predicted/i).first()).toBeVisible();
 
+    // Then work the rest of the queue, which is what a verifier actually does.
+    // The server refuses to submit while any field still needs review, and how
+    // MANY need it depends on what OCR made of this particular scan -- so the
+    // test clears them all rather than assuming a count. An earlier version
+    // corrected one field and submitted, which passed only because that page
+    // happened to have a single low-confidence field.
+    const acceptButtons = page.getByRole("button", { name: "Accept" });
+    for (
+      let remaining = await acceptButtons.count();
+      remaining > 0;
+      remaining = await acceptButtons.count()
+    ) {
+      // Wait on the request, not on the button disappearing: the list
+      // re-renders after each acceptance, so a locator captured beforehand
+      // resolves to a different button and never settles.
+      await Promise.all([
+        page.waitForResponse(
+          (response) =>
+            response.url().includes("/approve") &&
+            response.request().method() === "POST",
+        ),
+        acceptButtons.first().click(),
+      ]);
+      await expect
+        .poll(() => acceptButtons.count(), { timeout: 15_000 })
+        .toBeLessThan(remaining);
+    }
+
     await page.getByRole("button", { name: /submit verification/i }).click();
     await expect(page.getByText(/now with the tehsildar/i)).toBeVisible();
   });

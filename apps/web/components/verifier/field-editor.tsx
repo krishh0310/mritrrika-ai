@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, Check, Pencil, RotateCcw } from "lucide-react";
 
+import type { FieldStatus } from "@mrittika/shared-types";
+
 import type { ExtractionField, ValidationFinding } from "@/lib/queries";
 import {
   Button, ConfidenceBadge, Field, Input, ProvenanceCaption, cn,
@@ -79,7 +81,14 @@ export function FieldEditor({
 
   const relevant = findings.filter((f) => f.field === field.field);
   const corrected = Boolean(field.corrected_value);
-  const accepted = field.status === "AUTO_ACCEPTED" || field.status === "ACCEPTED";
+
+  // The vocabulary is packages/domain's FieldStatus, generated into
+  // shared-types. Typing it against that is what stops this drifting from what
+  // the API writes -- an earlier version checked for "ACCEPTED", which the
+  // server never emits, so accepting a field changed nothing on screen.
+  const status = field.status as FieldStatus;
+  const accepted =
+    status === "AUTO_ACCEPTED" || status === "VERIFIER_APPROVED";
 
   return (
     <div

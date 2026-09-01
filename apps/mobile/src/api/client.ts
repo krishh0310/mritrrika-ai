@@ -17,7 +17,10 @@ import { clearTokens, readTokens, writeTokens } from "../storage/session";
 /**
  * Where the API lives.
  *
- * `extra.apiUrl` wins when it names a real host. The default is localhost,
+ * `EXPO_PUBLIC_API_URL` wins when set -- that is Expo's own mechanism for
+ * build-time configuration, and it lets a TestFlight or field build point at a
+ * real server without editing app.json. Otherwise `extra.apiUrl`. The default
+ * is localhost,
  * which is correct in a simulator and useless on a physical phone -- there,
  * localhost is the phone. So when the configured host is loopback we borrow
  * the LAN address Expo is already serving the bundle from, which is by
@@ -26,6 +29,7 @@ import { clearTokens, readTokens, writeTokens } from "../storage/session";
  */
 function resolveApiUrl(): string {
   const configured =
+    process.env.EXPO_PUBLIC_API_URL ??
     (Constants.expoConfig?.extra?.apiUrl as string | undefined) ??
     "http://localhost:8000";
 

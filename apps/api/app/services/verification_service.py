@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from mrittika_domain import DocumentState
+from mrittika_domain import DocumentState, FieldStatus
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -176,7 +176,7 @@ def correct_field(
 
     previous = extraction.effective_value
     extraction.corrected_value = new_value
-    extraction.status = "VERIFIER_CORRECTED"
+    extraction.status = FieldStatus.VERIFIER_CORRECTED
 
     session.add(
         FieldCorrection(
@@ -209,7 +209,7 @@ def approve_field(session: Session, extraction_id: str, *,
     extraction = session.get(Extraction, extraction_id)
     if extraction is None:
         raise VerificationError(f"no extraction {extraction_id}")
-    extraction.status = "VERIFIER_APPROVED"
+    extraction.status = FieldStatus.VERIFIER_APPROVED
     session.commit()
     return extraction
 
@@ -224,7 +224,7 @@ def submit_verification(session: Session, document: Document, *,
     outstanding = session.execute(
         select(Extraction).where(
             Extraction.document_id == document.id,
-            Extraction.status == "NEEDS_REVIEW",
+            Extraction.status == FieldStatus.NEEDS_REVIEW,
         )
     ).scalars().all()
     if outstanding:
