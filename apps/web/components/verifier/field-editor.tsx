@@ -58,7 +58,7 @@ export function FieldEditor({
   readOnly?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(field.effective_value ?? "");
+  const [draft, setDraft] = useState("");
   const input = useRef<HTMLInputElement>(null);
   const container = useRef<HTMLDivElement>(null);
 
@@ -73,11 +73,6 @@ export function FieldEditor({
   useEffect(() => {
     if (editing) input.current?.focus();
   }, [editing]);
-
-  // A correction from elsewhere (a refetch) must not be masked by a stale draft.
-  useEffect(() => {
-    if (!editing) setDraft(field.effective_value ?? "");
-  }, [field.effective_value, editing]);
 
   const relevant = findings.filter((f) => f.field === field.field);
   const corrected = Boolean(field.corrected_value);
@@ -179,7 +174,14 @@ export function FieldEditor({
           </p>
           {!readOnly ? (
             <div className="ml-auto flex gap-1">
-              <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setDraft(field.effective_value ?? "");
+                  setEditing(true);
+                }}
+              >
                 <Pencil aria-hidden />
                 Correct
               </Button>

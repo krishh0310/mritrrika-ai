@@ -42,7 +42,9 @@ export function ParcelMap({
   // Keep the latest callback without re-registering the map handler, which
   // would otherwise stack a new listener on every parent render.
   const onSelectRef = useRef(onSelect);
-  onSelectRef.current = onSelect;
+  useEffect(() => {
+    onSelectRef.current = onSelect;
+  }, [onSelect]);
 
   useEffect(() => {
     if (!container.current || map.current) return;

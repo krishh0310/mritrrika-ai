@@ -57,6 +57,9 @@ cp .env.example .env
 # 5. Web
 npm install
 npm run dev
+
+# Optional: Expo citizen/field app
+npm run mobile
 ```
 
 Then open <http://localhost:3000> and follow **[docs/demo.md](docs/demo.md)**.
@@ -118,9 +121,11 @@ Why each directory exists is documented in
 ## Tests
 
 ```bash
-.venv/bin/python -m pytest tests apps/api/tests   # 309 tests
-npm run typecheck                                  # web + packages/ui
-npx playwright test --config apps/web/playwright.config.ts   # 11 e2e
+.venv/bin/python -m pytest tests                  # 322 collected; 1 data-dependent skip
+npm test                                          # 12 web/mobile unit tests
+npm run lint && npm run typecheck                 # web + mobile
+npm run build && npm run build:mobile             # production web + mobile export
+npx playwright test --config apps/web/playwright.config.ts  # 11 browser e2e
 .venv/bin/python -m ruff check .
 ```
 
@@ -166,8 +171,9 @@ where it stops:
 - No accuracy claim that has not been measured.
   `scripts/evaluate_extraction.py` reports per difficulty tier; that is the only
   number to quote.
-- No rate limiting, no token revocation, partial jurisdiction scoping. See
-  [security.md](docs/security.md#known-limitations).
+- No claim of production security or penetration testing. Authentication,
+  token rotation, jurisdiction scoping, and their remaining limitations are
+  documented in [security.md](docs/security.md#known-limitations).
 
 ## Licence
 

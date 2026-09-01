@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { MapPin } from "lucide-react";
 
 import { QueryBoundary } from "@/components/shared/query-boundary";
@@ -26,18 +26,14 @@ const ParcelMap = dynamic(
 export default function TehsildarMapPage() {
   const villages = useLocations("VILLAGE");
   const anomalies = useAnomalies("OPEN");
-  const [villageId, setVillageId] = useState<string | null>(null);
+  const [chosenVillageId, setChosenVillageId] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
 
-  // Memoized because `?? []` is a fresh array each render, which would make
-  // the effect below re-run on every render.
   const options = useMemo(
     () => villages.data?.locations ?? [],
     [villages.data],
   );
-  useEffect(() => {
-    if (!villageId && options.length > 0) setVillageId(options[0].location_id);
-  }, [villageId, options]);
+  const villageId = chosenVillageId ?? options[0]?.location_id ?? null;
 
   const geo = useVillageParcels(villageId);
 
@@ -63,7 +59,7 @@ export default function TehsildarMapPage() {
             <SyntheticNotice className="self-center" />
             <Select
               value={villageId ?? ""}
-              onChange={(e) => setVillageId(e.target.value)}
+              onChange={(e) => setChosenVillageId(e.target.value)}
               className="w-48"
               aria-label="Village"
             >

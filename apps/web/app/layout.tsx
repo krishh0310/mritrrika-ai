@@ -4,6 +4,8 @@ import { Providers } from "@/components/providers";
 
 import "./globals.css";
 
+// See: https://nextjs.org/docs/app/guides/migrating-to-cache-components
+
 export const metadata: Metadata = {
   title: {
     default: "Mrittika AI",

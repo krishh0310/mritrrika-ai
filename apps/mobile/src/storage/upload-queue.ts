@@ -99,7 +99,12 @@ export const uploadQueue = {
     const items = await readAll();
     return items
       .filter((item) => item.status !== "UPLOADED")
-      .sort((a, b) => a.capturedAt.localeCompare(b.capturedAt));
+      .map((item, index) => ({ item, index }))
+      .sort(
+        (a, b) =>
+          a.item.capturedAt.localeCompare(b.item.capturedAt) || b.index - a.index,
+      )
+      .map(({ item }) => item);
   },
 
   async clearUploaded(): Promise<void> {

@@ -34,6 +34,7 @@ from app.models import (
     OwnershipRecord,
     Parcel,
 )
+from app.services.auth_service import Principal, jurisdiction_location_ids
 
 logger = logging.getLogger(__name__)
 
@@ -256,10 +257,15 @@ def flags_for_parcel(session: Session, parcel: Parcel) -> list[dict]:
     ]
 
 
-def analyse_all(session: Session) -> dict:
+def analyse_all(session: Session, principal: Principal | None = None) -> dict:
     """Batch pass over the whole cadastre. Used by scripts and the demo seed."""
     detector = fitted_detector(session)
-    parcels = session.execute(select(Parcel)).scalars().all()
+    stmt = select(Parcel)
+    if principal is not None:
+        allowed = jurisdiction_location_ids(session, principal)
+        if allowed is not None:
+            stmt = stmt.where(Parcel.village_id.in_(allowed))
+    parcels = session.execute(stmt).scalars().all()
 
     total = 0
     for parcel in parcels:

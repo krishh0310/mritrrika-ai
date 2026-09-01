@@ -22,6 +22,7 @@ DATASETS = REPO_ROOT / "datasets"
 
 #: A parcel citizen A holds, so approval becomes visible to a real citizen.
 TARGET_PARCEL = "PARCEL-UP-DEMO-0181"
+TARGET_VILLAGE = "LOC-VIL-02"
 
 
 def _pick_document() -> Path:
@@ -51,7 +52,7 @@ def uploaded(client, token_for):
             files={"file": (image.name, fh, "image/jpeg")},
             data={
                 "document_type": "KHASRA",
-                "village_id": "LOC-VIL-01",
+                "village_id": TARGET_VILLAGE,
                 "record_year": "1998-99",
                 "khasra_number": "142/2",
                 "parcel_id": TARGET_PARCEL,
@@ -92,7 +93,7 @@ class TestStep1Upload:
         r = client.post(
             "/api/v1/documents",
             files={"file": ("payload.pdf", b"MZ\x90\x00 not a pdf", "application/pdf")},
-            data={"document_type": "KHASRA"},
+            data={"document_type": "KHASRA", "village_id": "LOC-VIL-01"},
             headers=auth(DEO),
         )
         assert r.status_code == 415

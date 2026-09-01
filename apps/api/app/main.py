@@ -8,10 +8,11 @@ from __future__ import annotations
 
 import time
 
-from fastapi import FastAPI, Request, Response
+from fastapi import Depends, FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
+from app.auth.dependencies import require
 from app.config.settings import get_settings
 from app.db import SessionLocal, engine
 from app.routers import (
@@ -113,11 +114,11 @@ def ready() -> dict:
 
 
 @app.get("/metrics", tags=["ops"])
-def metrics() -> Response:
+def metrics(_principal=Depends(require("analytics:view"))) -> Response:
     """Prometheus exposition (§74).
 
-    Unauthenticated, like /health and /ready: it carries counts and latencies,
-    never record content. Restrict it at the ingress in a real deployment.
+    Operational metrics reveal workload and processing state, so only the
+    Tehsildar's existing analytics permission may read them.
     """
     with SessionLocal() as session:
         body = metrics_service.render(session)

@@ -11,6 +11,8 @@ __pycache__/
 node_modules/
 .next/
 out/
+apps/mobile/dist/
+apps/mobile/.expo/
 *.tsbuildinfo
 .turbo/
 

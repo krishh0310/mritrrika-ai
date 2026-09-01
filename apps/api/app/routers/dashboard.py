@@ -48,4 +48,4 @@ def analytics(
     session: Session = Depends(get_session),
 ) -> dict:
     """Distributions for the tehsildar's charts. Tehsildar-only (§36)."""
-    return dashboard_service.analytics(session)
+    return dashboard_service.analytics(session, principal)

@@ -32,17 +32,17 @@ jobs:
 
       - run: npm ci
 
-      - name: Typecheck web and packages/ui
+      - name: Typecheck web and mobile
         run: npm run typecheck
-
-      - name: Typecheck mobile
-        run: npm run typecheck --workspace @mrittika/mobile
 
       - name: Lint
         run: npm run lint
 
       - name: Component tests
         run: npm test
+
+      - name: Export mobile web bundle
+        run: npm run build:mobile
 
       - name: Build
         # A production build catches what dev mode forgives: bad server/client
@@ -113,7 +113,7 @@ jobs:
 
       - name: Tests
         # Deselect anything that loads an ML model or reaches the network.
-        run: pytest tests apps/api/tests -q -m "not slow"
+        run: pytest tests -q -m "not slow"
         env:
           DATABASE_URL: postgresql+psycopg://mrittika:mrittika@localhost:5432/mrittika
           REDIS_URL: redis://localhost:6379/0
@@ -156,3 +156,7 @@ jobs:
 
       - name: Validate the compose file
         run: docker compose config --quiet
+
+      - name: Validate the full-stack compose file
+        run: JWT_SECRET_KEY=ci-only-compose-validation docker compose \
+          -f infrastructure/docker/compose.full.yml config --quiet

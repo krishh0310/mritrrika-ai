@@ -32,7 +32,7 @@ type AuthState = {
   /** True until the first /auth/me resolves, so guards do not flash. */
   loading: boolean;
   signIn: (email: string, password: string) => Promise<CurrentUser>;
-  signOut: () => void;
+  signOut: () => Promise<void>;
   /** Convenience for conditional rendering. Never a security decision. */
   can: (permission: string) => boolean;
   hasRole: (role: string) => boolean;
@@ -86,9 +86,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return me;
   }, []);
 
-  const signOut = useCallback(() => {
+  const signOut = useCallback(async () => {
+    const refreshToken = readSession()?.refreshToken;
     clearSession();
     setUser(null);
+    if (refreshToken) {
+      try {
+        await api.anonymousPost("/api/v1/auth/logout", {
+          refresh_token: refreshToken,
+        });
+      } catch {
+        // Local sign-out must still succeed while offline.
+      }
+    }
   }, []);
 
   const value = useMemo<AuthState>(

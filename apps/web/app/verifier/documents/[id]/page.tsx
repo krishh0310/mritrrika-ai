@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { use, useMemo, useState } from "react";
+import { use, useState } from "react";
 import { AlertTriangle, ArrowLeft, Send } from "lucide-react";
 
 import { QueryBoundary } from "@/components/shared/query-boundary";

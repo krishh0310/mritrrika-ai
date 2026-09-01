@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from uuid import uuid4
 
 import jwt
 
@@ -32,6 +33,7 @@ def _create(subject: str, token_type: str, expires: timedelta,
         "type": token_type,
         "iat": int(now.timestamp()),
         "exp": int((now + expires).timestamp()),
+        "jti": str(uuid4()),
     }
     if extra:
         payload.update(extra)
@@ -65,7 +67,7 @@ def decode_token(token: str, expected_type: str = ACCESS) -> dict[str, Any]:
             token,
             settings.jwt_secret_key,
             algorithms=[settings.jwt_algorithm],
-            options={"require": ["exp", "sub", "type"]},
+            options={"require": ["exp", "sub", "type", "jti"]},
         )
     except jwt.ExpiredSignatureError as exc:
         raise TokenError("token has expired") from exc

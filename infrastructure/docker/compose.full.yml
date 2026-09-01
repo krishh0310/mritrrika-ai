@@ -94,7 +94,9 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-mrittika}:${POSTGRES_PASSWORD:-mrittika}@postgres:5432/${POSTGRES_DB:-mrittika}
-      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set}
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
     command: >
       /bin/sh -c "
         alembic -c apps/api/alembic.ini upgrade head &&
@@ -117,15 +119,34 @@ services:
         condition: service_completed_successfully
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-mrittika}:${POSTGRES_PASSWORD:-mrittika}@postgres:5432/${POSTGRES_DB:-mrittika}
-      REDIS_URL: redis://redis:6379/0
-      MINIO_ENDPOINT: http://minio:9000
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      AUTH_STATE_REDIS_URL: redis://redis:6379/2
+      MINIO_ENDPOINT: minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-mrittika}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-mrittika-dev-secret}
-      JWT_SECRET: ${JWT_SECRET:-change-me-in-any-real-deployment}
-      CORS_ORIGINS: http://localhost:3000
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set}
+      CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-http://localhost:3000}
+      LLM_PROVIDER: ${LLM_PROVIDER:-gemini}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_LLM_MODEL: ${GEMINI_LLM_MODEL:-gemini-3.6-flash}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-openai/gpt-oss-20b}
       ENVIRONMENT: docker
     ports:
       - "8000:8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import json,urllib.request; data=json.load(urllib.request.urlopen('http://localhost:8000/ready'));
+          raise SystemExit(0 if data.get('ready') else 1)
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
 
   worker:
     build:
@@ -138,11 +159,16 @@ services:
         condition: service_completed_successfully
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-mrittika}:${POSTGRES_PASSWORD:-mrittika}@postgres:5432/${POSTGRES_DB:-mrittika}
-      REDIS_URL: redis://redis:6379/0
-      MINIO_ENDPOINT: http://minio:9000
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      MINIO_ENDPOINT: minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-mrittika}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-mrittika-dev-secret}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set}
       OCR_PROVIDER: ${OCR_PROVIDER:-paddle}
+      OCR_FALLBACK_PROVIDER: ${OCR_FALLBACK_PROVIDER:-gemini}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_LLM_MODEL: ${GEMINI_LLM_MODEL:-gemini-3.6-flash}
     volumes:
       # Model weights survive a restart rather than being re-downloaded.
       - modelcache:/models

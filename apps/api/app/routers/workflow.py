@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.auth.dependencies import require
 from app.db import get_session
 from app.services import approval_service, verification_service
-from app.services.auth_service import Principal
+from app.services.auth_service import Principal, document_in_jurisdiction
 from app.services.document_service import DocumentNotFound, get_by_external_id
 from app.services.verification_service import VerificationError
 
@@ -17,11 +17,14 @@ verification_router = APIRouter(prefix="/api/v1/verifications", tags=["verificat
 approval_router = APIRouter(prefix="/api/v1/approvals", tags=["approval"])
 
 
-def _document_or_404(session: Session, document_id: str):
+def _document_or_404(session: Session, document_id: str, principal: Principal):
     try:
-        return get_by_external_id(session, document_id)
+        document = get_by_external_id(session, document_id)
     except DocumentNotFound:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No such document") from None
+    if not document_in_jurisdiction(session, principal, document):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such document")
+    return document
 
 
 @verification_router.get("")
@@ -29,7 +32,7 @@ def list_queue(
     principal: Principal = Depends(require("document:verify")),
     session: Session = Depends(get_session),
 ) -> dict:
-    tasks = verification_service.queue(session)
+    tasks = verification_service.queue(session, principal)
     return {"count": len(tasks), "tasks": tasks}
 
 
@@ -40,7 +43,9 @@ def workspace(
     session: Session = Depends(get_session),
 ) -> dict:
     """Everything the split-screen workspace renders (§28)."""
-    return verification_service.workspace(session, _document_or_404(session, document_id))
+    return verification_service.workspace(
+        session, _document_or_404(session, document_id, principal)
+    )
 
 
 @verification_router.patch("/extractions/{extraction_id}")
@@ -90,7 +95,7 @@ def submit(
     principal: Principal = Depends(require("document:verify")),
     session: Session = Depends(get_session),
 ) -> dict:
-    document = _document_or_404(session, document_id)
+    document = _document_or_404(session, document_id, principal)
     try:
         verification_service.submit_verification(
             session, document, principal=principal, note=note
@@ -105,7 +110,7 @@ def list_approvals(
     principal: Principal = Depends(require("document:approve")),
     session: Session = Depends(get_session),
 ) -> dict:
-    queue = verification_service.approval_queue(session)
+    queue = verification_service.approval_queue(session, principal)
     return {"count": len(queue), "documents": queue}
 
 
@@ -116,7 +121,9 @@ def approval_workspace(
     session: Session = Depends(get_session),
 ) -> dict:
     """The full §32 review: record, corrections, history, anomalies, audit."""
-    return approval_service.workspace(session, _document_or_404(session, document_id))
+    return approval_service.workspace(
+        session, _document_or_404(session, document_id, principal)
+    )
 
 
 @approval_router.post("/{document_id}/approve")
@@ -126,7 +133,7 @@ def approve_document(
     principal: Principal = Depends(require("document:approve")),
     session: Session = Depends(get_session),
 ) -> dict:
-    document = _document_or_404(session, document_id)
+    document = _document_or_404(session, document_id, principal)
     try:
         verification_service.approve(session, document, principal=principal,
                                      reason=reason)
@@ -143,7 +150,7 @@ def return_document(
     principal: Principal = Depends(require("document:return")),
     session: Session = Depends(get_session),
 ) -> dict:
-    document = _document_or_404(session, document_id)
+    document = _document_or_404(session, document_id, principal)
     try:
         verification_service.return_to_verifier(session, document,
                                                 principal=principal, reason=reason)
@@ -159,7 +166,7 @@ def reject_document(
     principal: Principal = Depends(require("document:reject")),
     session: Session = Depends(get_session),
 ) -> dict:
-    document = _document_or_404(session, document_id)
+    document = _document_or_404(session, document_id, principal)
     try:
         verification_service.reject(session, document, principal=principal,
                                     reason=reason)

@@ -5,17 +5,31 @@
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "splash": { "backgroundColor": "#1E3A5F", "resizeMode": "contain" },
-    "assetBundlePatterns": ["**/*"],
-    "ios": { "supportsTablet": true, "bundleIdentifier": "ai.mrittika.demo" },
-    "android": { "package": "ai.mrittika.demo" },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "ai.mrittika.demo"
+    },
+    "android": {
+      "package": "ai.mrittika.demo"
+    },
     "plugins": [
       [
         "expo-camera",
         {
           "cameraPermission": "Mrittika needs the camera to photograph land records in the field."
         }
-      ]
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#1E3A5F"
+        }
+      ],
+      "expo-secure-store",
+      "expo-status-bar"
     ],
     "extra": {
       "apiUrl": "http://localhost:8000"

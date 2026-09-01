@@ -12,7 +12,7 @@ officials can search, inspect and query through a grounded AI assistant.
 ## 1. Runtime topology
 
 ```
-   apps/web (Next.js)              apps/mobile (Expo — deferred)
+   apps/web (Next.js)              apps/mobile (Expo)
             \                             /
              \_______ HTTPS + JWT _______/
                           |

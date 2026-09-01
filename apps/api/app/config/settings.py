@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
     refresh_token_expire_days: int = 7
+    auth_state_redis_url: str | None = None
+    login_rate_limit_failures: int = 5
+    login_rate_limit_ip_failures: int = 20
+    login_rate_limit_window_seconds: int = 60
 
     # ── storage ───────────────────────────────────────────────────────────
     minio_endpoint: str = "localhost:9000"

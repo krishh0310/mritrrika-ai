@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { MapPin, Sparkles, X } from "lucide-react";
 
 import { OwnershipTimeline } from "@/components/shared/ownership-timeline";
@@ -41,17 +41,14 @@ function CitizenMapScreen() {
     return [...seen.entries()];
   }, [holdings]);
 
-  const [villageId, setVillageId] = useState<string | null>(null);
+  const [chosenVillageId, setChosenVillageId] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(requested);
 
   // Default to the village of the requested parcel, or the first one held.
-  useEffect(() => {
-    if (villageId || villages.length === 0) return;
-    const target = requested
-      ? holdings.find((h) => h.parcel_id === requested)?.village_id
-      : null;
-    setVillageId(target ?? villages[0][0]);
-  }, [villageId, villages, requested, holdings]);
+  const requestedVillageId = requested
+    ? holdings.find((holding) => holding.parcel_id === requested)?.village_id
+    : null;
+  const villageId = chosenVillageId ?? requestedVillageId ?? villages[0]?.[0] ?? null;
 
   const geo = useVillageParcels(villageId);
   const mine = useMemo(() => holdings.map((h) => h.parcel_id), [holdings]);
@@ -67,7 +64,7 @@ function CitizenMapScreen() {
           villages.length > 1 ? (
             <Select
               value={villageId ?? ""}
-              onChange={(e) => setVillageId(e.target.value)}
+              onChange={(e) => setChosenVillageId(e.target.value)}
               className="w-48"
               aria-label="Village"
             >

@@ -104,8 +104,12 @@ class TestObservability:
     def test_health_needs_no_token(self, client):
         assert client.get("/health").status_code == 200
 
-    def test_metrics_is_prometheus_text(self, client):
-        response = client.get("/metrics")
+    def test_metrics_requires_analytics_permission(self, client, auth):
+        assert client.get("/metrics").status_code == 401
+        assert client.get("/metrics", headers=auth(CITIZEN_A)).status_code == 403
+
+    def test_metrics_is_prometheus_text(self, client, auth):
+        response = client.get("/metrics", headers=auth(TEHSILDAR))
         assert response.status_code == 200
         assert response.headers["content-type"].startswith("text/plain")
 
@@ -120,18 +124,18 @@ class TestObservability:
         ):
             assert metric in body, f"{metric} missing from /metrics"
 
-    def test_every_metric_has_help_and_type(self, client):
+    def test_every_metric_has_help_and_type(self, client, auth):
         """Malformed exposition silently breaks a scraper, so check the form."""
-        body = client.get("/metrics").text
+        body = client.get("/metrics", headers=auth(TEHSILDAR)).text
         helps = {line.split()[2] for line in body.splitlines() if line.startswith("# HELP")}
         types = {line.split()[2] for line in body.splitlines() if line.startswith("# TYPE")}
         assert helps == types, f"HELP/TYPE mismatch: {helps ^ types}"
 
-    def test_request_counter_advances(self, client):
+    def test_request_counter_advances(self, client, auth):
         def total() -> int:
             return sum(
                 int(line.rsplit(" ", 1)[1])
-                for line in client.get("/metrics").text.splitlines()
+                for line in client.get("/metrics", headers=auth(TEHSILDAR)).text.splitlines()
                 if line.startswith("mrittika_http_requests_total{")
             )
 
@@ -139,8 +143,8 @@ class TestObservability:
         client.get("/health")
         assert total() > before
 
-    def test_histogram_buckets_are_cumulative(self, client):
-        body = client.get("/metrics").text
+    def test_histogram_buckets_are_cumulative(self, client, auth):
+        body = client.get("/metrics", headers=auth(TEHSILDAR)).text
         counts = [
             int(line.rsplit(" ", 1)[1])
             for line in body.splitlines()

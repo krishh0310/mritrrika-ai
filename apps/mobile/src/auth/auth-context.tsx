@@ -89,8 +89,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
+    const tokens = await readTokens();
     await clearTokens();
     setUser(null);
+    if (tokens?.refreshToken) {
+      try {
+        await api.anonymousPost("/api/v1/auth/logout", {
+          refresh_token: tokens.refreshToken,
+        });
+      } catch {
+        // Local sign-out must still succeed while offline.
+      }
+    }
   }, []);
 
   const value = useMemo<AuthState>(

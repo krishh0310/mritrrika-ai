@@ -4,6 +4,8 @@ import { ArrowRight } from "lucide-react";
 import { LifecycleChain } from "@/components/marketing/lifecycle-chain";
 import { Button, SyntheticNotice } from "@mrittika/ui";
 
+// See: https://nextjs.org/docs/app/guides/migrating-to-cache-components
+
 /**
  * The landing page (§57).
  *

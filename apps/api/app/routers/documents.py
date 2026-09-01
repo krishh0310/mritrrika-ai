@@ -21,8 +21,8 @@ from sse_starlette.sse import EventSourceResponse
 from app.auth.dependencies import require
 from app.db import SessionLocal, get_session
 from app.services import document_service, pipeline_service, storage_service
-from app.services.auth_service import Principal
-from app.services.document_service import DocumentNotFound
+from app.services.auth_service import Principal, document_in_jurisdiction
+from app.services.document_service import DocumentAccessDenied, DocumentNotFound
 from app.services.storage_service import UnsupportedFileType
 
 router = APIRouter(prefix="/api/v1/documents", tags=["documents"])
@@ -42,6 +42,16 @@ def _summary(document) -> dict:
         "declared_khasra": document.declared_khasra,
         "is_synthetic": document.is_synthetic,
     }
+
+
+def _document_or_404(session: Session, document_id: str, principal: Principal):
+    try:
+        document = document_service.get_by_external_id(session, document_id)
+    except DocumentNotFound:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such document") from None
+    if not document_in_jurisdiction(session, principal, document):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such document")
+    return document
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -78,6 +88,11 @@ async def upload_document(
         raise HTTPException(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail=str(exc)
         ) from None
+    except DocumentAccessDenied:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="The selected location is outside your jurisdiction",
+        ) from None
     return _summary(document)
 
 
@@ -87,10 +102,7 @@ def get_document(
     principal: Principal = Depends(require("ocr:view")),
     session: Session = Depends(get_session),
 ) -> dict:
-    try:
-        document = document_service.get_by_external_id(session, document_id)
-    except DocumentNotFound:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such document") from None
+    document = _document_or_404(session, document_id, principal)
     return _summary(document)
 
 
@@ -107,10 +119,7 @@ def start_processing(
     machines with no broker running -- it executes the SAME pipeline code, so
     it is not a mock path.
     """
-    try:
-        document = document_service.get_by_external_id(session, document_id)
-    except DocumentNotFound:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such document") from None
+    document = _document_or_404(session, document_id, principal)
 
     try:
         job = document_service.start_processing(session, document, principal=principal)
@@ -151,10 +160,7 @@ def processing_status(
     principal: Principal = Depends(require("ocr:view")),
     session: Session = Depends(get_session),
 ) -> dict:
-    try:
-        document = document_service.get_by_external_id(session, document_id)
-    except DocumentNotFound:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such document") from None
+    document = _document_or_404(session, document_id, principal)
 
     job = document_service.latest_job(session, document)
     return {
@@ -185,8 +191,8 @@ async def processing_stream(
         for _ in range(600):  # ~5 minutes at 0.5s
             with SessionLocal() as session:
                 try:
-                    document = document_service.get_by_external_id(session, document_id)
-                except DocumentNotFound:
+                    document = _document_or_404(session, document_id, principal)
+                except HTTPException:
                     yield {"event": "error", "data": json.dumps({"error": "not found"})}
                     return
                 job = document_service.latest_job(session, document)
@@ -215,10 +221,7 @@ def document_file(
     session: Session = Depends(get_session),
 ) -> dict:
     """Short-lived presigned URL for the original scan (§61)."""
-    try:
-        document = document_service.get_by_external_id(session, document_id)
-    except DocumentNotFound:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such document") from None
+    document = _document_or_404(session, document_id, principal)
     return {
         "document_id": document.external_id,
         "url": storage_service.presigned_url(document.storage_key),

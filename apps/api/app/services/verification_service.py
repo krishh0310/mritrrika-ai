@@ -30,14 +30,24 @@ from app.models import (
     VerificationTask,
 )
 from app.services import audit_service, document_service
-from app.services.auth_service import Principal
+from app.services.auth_service import (
+    Principal,
+    document_in_jurisdiction,
+    document_jurisdiction_clause,
+)
 
 
 class VerificationError(Exception):
     pass
 
 
-def queue(session: Session, *, limit: int = 50, only_pending: bool = True) -> list[dict]:
+def queue(
+    session: Session,
+    principal: Principal,
+    *,
+    limit: int = 50,
+    only_pending: bool = True,
+) -> list[dict]:
     """The verifier's work queue, hardest first (§27)."""
     stmt = (
         select(VerificationTask, Document)
@@ -45,6 +55,7 @@ def queue(session: Session, *, limit: int = 50, only_pending: bool = True) -> li
     )
     if only_pending:
         stmt = stmt.where(VerificationTask.status.in_(("PENDING", "IN_PROGRESS")))
+    stmt = stmt.where(document_jurisdiction_clause(session, principal))
     stmt = stmt.order_by(
         VerificationTask.priority,
         VerificationTask.lowest_confidence.nulls_last(),
@@ -154,6 +165,8 @@ def correct_field(
         raise VerificationError(f"no extraction {extraction_id}")
 
     document = session.get(Document, extraction.document_id)
+    if not document_in_jurisdiction(session, principal, document):
+        raise VerificationError(f"no extraction {extraction_id}")
     if document.state not in (
         DocumentState.NEEDS_VERIFICATION.value, DocumentState.UNDER_VERIFICATION.value
     ):
@@ -208,6 +221,9 @@ def approve_field(session: Session, extraction_id: str, *,
     """Accept the model's value as-is."""
     extraction = session.get(Extraction, extraction_id)
     if extraction is None:
+        raise VerificationError(f"no extraction {extraction_id}")
+    document = session.get(Document, extraction.document_id)
+    if not document_in_jurisdiction(session, principal, document):
         raise VerificationError(f"no extraction {extraction_id}")
     extraction.status = FieldStatus.VERIFIER_APPROVED
     session.commit()
@@ -306,13 +322,14 @@ def reject(session: Session, document: Document, *, principal: Principal,
     return document
 
 
-def approval_queue(session: Session, limit: int = 50) -> list[dict]:
+def approval_queue(session: Session, principal: Principal, limit: int = 50) -> list[dict]:
     stmt = (
         select(Document)
         .where(Document.state == DocumentState.PENDING_APPROVAL.value)
         .order_by(Document.updated_at)
         .limit(limit)
     )
+    stmt = stmt.where(document_jurisdiction_clause(session, principal))
     return [
         {
             "document_id": d.external_id,

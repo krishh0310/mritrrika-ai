@@ -21,7 +21,11 @@ from app.models import (
     ProcessingJob,
     VerificationTask,
 )
-from app.services.auth_service import Principal
+from app.services.auth_service import (
+    Principal,
+    anomaly_jurisdiction_clause,
+    document_jurisdiction_clause,
+)
 
 #: §8 bands. Kept here as the reporting cut-points; the fusion that produces
 #: the scores lives in packages/domain/confidence.py.
@@ -45,9 +49,12 @@ def _start_of_today() -> datetime:
     return now.replace(hour=0, minute=0, second=0, microsecond=0)
 
 
-def _count_documents(session: Session, *states: str) -> int:
+def _count_documents(session: Session, principal: Principal, *states: str) -> int:
     return session.execute(
-        select(func.count(Document.id)).where(Document.state.in_(states))
+        select(func.count(Document.id)).where(
+            document_jurisdiction_clause(session, principal),
+            Document.state.in_(states),
+        )
     ).scalar_one()
 
 
@@ -120,7 +127,9 @@ def verifier_dashboard(session: Session, principal: Principal) -> dict:
 
     def tasks_where(*conditions) -> int:
         return session.execute(
-            select(func.count(VerificationTask.id)).where(*conditions)
+            select(func.count(VerificationTask.id))
+            .join(Document, Document.id == VerificationTask.document_id)
+            .where(document_jurisdiction_clause(session, principal), *conditions)
         ).scalar_one()
 
     return {
@@ -147,10 +156,13 @@ def verifier_dashboard(session: Session, principal: Principal) -> dict:
     }
 
 
-def _average_verification_seconds(session: Session) -> float | None:
+def _average_verification_seconds(session: Session, principal: Principal) -> float | None:
     """Mean wall-clock time from picking a task up to completing it."""
     rows = session.execute(
-        select(VerificationTask.started_at, VerificationTask.completed_at).where(
+        select(VerificationTask.started_at, VerificationTask.completed_at)
+        .join(Document, Document.id == VerificationTask.document_id)
+        .where(
+            document_jurisdiction_clause(session, principal),
             VerificationTask.completed_at.is_not(None),
             VerificationTask.started_at.is_not(None),
         )
@@ -165,30 +177,41 @@ def tehsildar_dashboard(session: Session, principal: Principal) -> dict:
     """§31 cards plus the digitization-progress figure."""
     today = _start_of_today()
 
-    total = session.execute(select(func.count(Document.id))).scalar_one()
-    approved = _count_documents(session, DocumentState.APPROVED)
+    scope = document_jurisdiction_clause(session, principal)
+    total = session.execute(select(func.count(Document.id)).where(scope)).scalar_one()
+    approved = _count_documents(session, principal, DocumentState.APPROVED)
 
     approved_today = session.execute(
-        select(func.count(ApprovalAction.id)).where(
+        select(func.count(ApprovalAction.id))
+        .join(Document, Document.id == ApprovalAction.document_id)
+        .where(
+            scope,
             ApprovalAction.decision == "APPROVED", ApprovalAction.created_at >= today
         )
     ).scalar_one()
     returned = session.execute(
-        select(func.count(ApprovalAction.id)).where(ApprovalAction.decision == "RETURNED")
+        select(func.count(ApprovalAction.id))
+        .join(Document, Document.id == ApprovalAction.document_id)
+        .where(scope, ApprovalAction.decision == "RETURNED")
     ).scalar_one()
 
     average_confidence = session.execute(
         select(func.avg(Extraction.final_confidence))
+        .join(Document, Document.id == Extraction.document_id)
+        .where(scope)
     ).scalar_one()
 
     open_anomalies = session.execute(
-        select(func.count(AnomalyFlag.id)).where(AnomalyFlag.status == "OPEN")
+        select(func.count(AnomalyFlag.id)).where(
+            anomaly_jurisdiction_clause(session, principal),
+            AnomalyFlag.status == "OPEN",
+        )
     ).scalar_one()
 
     return {
         "cards": {
             "pending_approval": _count_documents(
-                session, DocumentState.VERIFIED, DocumentState.PENDING_APPROVAL
+                session, principal, DocumentState.VERIFIED, DocumentState.PENDING_APPROVAL
             ),
             "approved_today": approved_today,
             "returned": returned,
@@ -196,7 +219,7 @@ def tehsildar_dashboard(session: Session, principal: Principal) -> dict:
             "average_ai_confidence": (
                 round(float(average_confidence), 3) if average_confidence else None
             ),
-            "average_verification_seconds": _average_verification_seconds(session),
+            "average_verification_seconds": _average_verification_seconds(session, principal),
             "digitization_progress": (
                 round(approved / total, 3) if total else 0.0
             ),
@@ -206,7 +229,7 @@ def tehsildar_dashboard(session: Session, principal: Principal) -> dict:
     }
 
 
-def analytics(session: Session) -> dict:
+def analytics(session: Session, principal: Principal) -> dict:
     """District/tehsil analytics for the tehsildar's charts (§31).
 
     Distributions rather than headline numbers: which states documents are
@@ -214,32 +237,42 @@ def analytics(session: Session) -> dict:
     """
     by_state = dict(
         session.execute(
-            select(Document.state, func.count(Document.id)).group_by(Document.state)
+            select(Document.state, func.count(Document.id))
+            .where(document_jurisdiction_clause(session, principal))
+            .group_by(Document.state)
         ).all()
     )
     by_type = dict(
         session.execute(
             select(Document.document_type, func.count(Document.id))
+            .where(document_jurisdiction_clause(session, principal))
             .group_by(Document.document_type)
         ).all()
     )
     by_quality = dict(
         session.execute(
             select(Document.quality_recommendation, func.count(Document.id))
-            .where(Document.quality_recommendation.is_not(None))
+            .where(
+                document_jurisdiction_clause(session, principal),
+                Document.quality_recommendation.is_not(None),
+            )
             .group_by(Document.quality_recommendation)
         ).all()
     )
     by_anomaly = dict(
         session.execute(
             select(AnomalyFlag.anomaly_type, func.count(AnomalyFlag.id))
+            .where(anomaly_jurisdiction_clause(session, principal))
             .group_by(AnomalyFlag.anomaly_type)
         ).all()
     )
 
     confidences = session.execute(
-        select(Extraction.final_confidence).where(
-            Extraction.final_confidence.is_not(None)
+        select(Extraction.final_confidence)
+        .join(Document, Document.id == Extraction.document_id)
+        .where(
+            document_jurisdiction_clause(session, principal),
+            Extraction.final_confidence.is_not(None),
         )
     ).scalars().all()
     bands = {"HIGH": 0, "MEDIUM": 0, "LOW": 0}
@@ -256,7 +289,10 @@ def analytics(session: Session) -> dict:
         {"role": "DEO", "user_id": user_id, "documents": count}
         for user_id, count in session.execute(
             select(Document.uploaded_by_id, func.count(Document.id))
-            .where(Document.uploaded_by_id.is_not(None))
+            .where(
+                document_jurisdiction_clause(session, principal),
+                Document.uploaded_by_id.is_not(None),
+            )
             .group_by(Document.uploaded_by_id)
         ).all()
     ]

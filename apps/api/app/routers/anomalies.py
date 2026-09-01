@@ -15,7 +15,7 @@ from app.auth.dependencies import require
 from app.db import get_session
 from app.models import AnomalyFlag, Parcel
 from app.services import anomaly_service, audit_service
-from app.services.auth_service import Principal
+from app.services.auth_service import Principal, anomaly_jurisdiction_clause
 
 router = APIRouter(prefix="/api/v1/anomalies", tags=["anomalies"])
 
@@ -34,7 +34,10 @@ def list_flags(
     rows = session.execute(
         select(AnomalyFlag, Parcel)
         .outerjoin(Parcel, Parcel.id == AnomalyFlag.parcel_id)
-        .where(AnomalyFlag.status == flag_status)
+        .where(
+            anomaly_jurisdiction_clause(session, principal),
+            AnomalyFlag.status == flag_status,
+        )
         .order_by(AnomalyFlag.score.desc())
         .limit(limit)
     ).all()
@@ -78,7 +81,12 @@ def record_verdict(
             f"verdict must be one of {', '.join(OFFICER_VERDICTS)}",
         )
 
-    flag = session.get(AnomalyFlag, flag_id)
+    flag = session.execute(
+        select(AnomalyFlag).where(
+            AnomalyFlag.id == flag_id,
+            anomaly_jurisdiction_clause(session, principal),
+        )
+    ).scalar_one_or_none()
     if flag is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No such flag")
 
@@ -109,4 +117,4 @@ def reanalyse(
     Controlled reprocessing rather than automatic: §29 says not to rerun models
     on every edit, and refitting the forest is a corpus-wide operation.
     """
-    return anomaly_service.analyse_all(session)
+    return anomaly_service.analyse_all(session, principal)

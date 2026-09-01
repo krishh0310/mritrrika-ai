@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Grievance, Parcel, User
 from app.services import audit_service, storage_service
-from app.services.auth_service import Principal
+from app.services.auth_service import Principal, grievance_jurisdiction_clause
 from app.services.citizen_service import assert_can_access_parcel
 
 #: §19 issue types. A closed vocabulary rather than free text so the officer
@@ -176,6 +176,7 @@ def for_citizen(session: Session, principal: Principal) -> list[dict]:
 def review_queue(
     session: Session,
     *,
+    principal: Principal,
     status: str | None = None,
     limit: int = 100,
 ) -> list[dict]:
@@ -187,6 +188,7 @@ def review_queue(
     )
     if status:
         stmt = stmt.where(Grievance.status == status)
+    stmt = stmt.where(grievance_jurisdiction_clause(session, principal))
     stmt = stmt.order_by(Grievance.created_at.desc()).limit(limit)
     return [_serialize(g, p, u) for g, p, u in session.execute(stmt).all()]
 
@@ -252,8 +254,10 @@ def update_status(
 def counts_by_status(session: Session, principal: Principal | None = None) -> dict[str, int]:
     """Status histogram, scoped to one citizen when a principal is given."""
     stmt = select(Grievance.status, Grievance.id)
-    if principal is not None:
+    if principal is not None and principal.is_citizen():
         stmt = stmt.where(Grievance.raised_by_id == principal.user.id)
+    elif principal is not None:
+        stmt = stmt.where(grievance_jurisdiction_clause(session, principal))
     counts = {status.value: 0 for status in GrievanceStatus}
     for status_value, _ in session.execute(stmt).all():
         counts[status_value] = counts.get(status_value, 0) + 1

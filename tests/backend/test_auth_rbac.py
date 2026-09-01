@@ -69,6 +69,38 @@ class TestAuthentication:
         assert client.get("/api/v1/citizen/my-parcels",
                           headers={"Authorization": f"Bearer {token}"}).status_code == 200
 
+    def test_refresh_token_is_single_use(self, client):
+        login = client.post("/api/v1/auth/login",
+                            json={"email": CITIZEN_A, "password": DEMO_PASSWORD})
+        refresh = login.json()["refresh_token"]
+        assert client.post("/api/v1/auth/refresh",
+                           json={"refresh_token": refresh}).status_code == 200
+        assert client.post("/api/v1/auth/refresh",
+                           json={"refresh_token": refresh}).status_code == 401
+
+    def test_logout_revokes_refresh_token(self, client):
+        login = client.post("/api/v1/auth/login",
+                            json={"email": CITIZEN_A, "password": DEMO_PASSWORD})
+        refresh = login.json()["refresh_token"]
+        assert client.post("/api/v1/auth/logout",
+                           json={"refresh_token": refresh}).status_code == 204
+        assert client.post("/api/v1/auth/refresh",
+                           json={"refresh_token": refresh}).status_code == 401
+
+    def test_failed_logins_are_rate_limited(self, client):
+        from app.security.auth_state import reset_memory_state
+
+        reset_memory_state()
+        try:
+            payload = {"email": "limited@mrittika.demo", "password": "wrong"}
+            for _ in range(5):
+                assert client.post("/api/v1/auth/login", json=payload).status_code == 401
+            response = client.post("/api/v1/auth/login", json=payload)
+            assert response.status_code == 429
+            assert int(response.headers["Retry-After"]) >= 1
+        finally:
+            reset_memory_state()
+
 
 class TestRoleAssignment:
     @pytest.mark.parametrize(

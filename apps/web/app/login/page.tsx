@@ -3,6 +3,8 @@ import { Suspense } from "react";
 import { LoginScreen } from "@/components/auth/login-screen";
 import { LoadingState } from "@mrittika/ui";
 
+// See: https://nextjs.org/docs/app/guides/migrating-to-cache-components
+
 export const metadata = { title: "Sign in" };
 
 /**

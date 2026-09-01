@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 from app.auth.dependencies import require, require_any
 from app.db import get_session
 from app.services import grievance_service, storage_service
-from app.services.auth_service import Principal
+from app.services.auth_service import Principal, grievance_in_jurisdiction
 from app.services.citizen_service import ParcelAccessDenied
 from app.services.grievance_service import GrievanceError, GrievanceNotFound
 from app.services.storage_service import UnsupportedFileType
@@ -111,12 +111,12 @@ def review_queue(
             f"unknown status {grievance_status!r}",
         )
     rows = grievance_service.review_queue(
-        session, status=grievance_status, limit=limit
+        session, principal=principal, status=grievance_status, limit=limit
     )
     return {
         "count": len(rows),
         "grievances": rows,
-        "counts_by_status": grievance_service.counts_by_status(session),
+        "counts_by_status": grievance_service.counts_by_status(session, principal),
         "is_synthetic": True,
     }
 
@@ -136,6 +136,8 @@ def _visible_or_404(session: Session, grievance_id: str, principal: Principal):
         "grievance:review_limited"
     )
     if not is_reviewer and grievance.raised_by_id != principal.user.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such grievance")
+    if is_reviewer and not grievance_in_jurisdiction(session, principal, grievance):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No such grievance")
     return grievance
 
@@ -184,7 +186,7 @@ def set_status(
 ) -> dict:
     """Advance a grievance. Only the full reviewer role may close one (§36)."""
     try:
-        grievance = grievance_service.get(session, grievance_id)
+        grievance = _visible_or_404(session, grievance_id, principal)
     except GrievanceNotFound:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No such grievance") from None
 

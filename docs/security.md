@@ -38,12 +38,21 @@ comparing status codes. The refusal must not confirm the target.
 | | |
 |---|---|
 | Passwords | Argon2 (`app/security/passwords.py`), with rehash-on-login when parameters change |
-| Access token | short-lived JWT, carries only `sub` and expiry |
-| Refresh token | separate type, checked against a live user row |
+| Access token | short-lived JWT with a unique `jti`; carries no role or permission claims |
+| Refresh token | single-use JWT; rotation and logout revocation are stored atomically in Redis |
 | Failure modes | wrong password, unknown email and disabled account are **indistinguishable** to the caller |
 
 `authenticate()` runs a dummy hash comparison when the user does not exist, so
 response timing does not reveal which emails are registered.
+
+Login failures are throttled in fixed windows by both source IP and the
+IP/email pair. Production and full-compose environments share that state in
+Redis; the in-memory fallback exists only for single-process local development.
+A successful login clears the account-specific failure bucket.
+
+Refresh tokens are rotated on use. Replaying a consumed token returns 401, and
+logout idempotently revokes the supplied refresh token. The already-issued
+access token remains usable only for its short configured lifetime.
 
 The token carries a subject id and **nothing that grants anything**. Role,
 permissions, jurisdiction and owner link are re-read from the database on every
@@ -163,21 +172,20 @@ is a hope:
 | `UPLOADED → APPROVED` is impossible | `test_canonical_schema.py`, `test_end_to_end.py` |
 | The audit chain verifies after every action | `test_audit_chain.py` |
 | Login failure modes are indistinguishable | `test_auth_rbac.py` |
+| Replayed and logged-out refresh tokens are rejected | `test_auth_rbac.py`, `test_auth_state.py` |
+| Login failures are throttled by IP and account | `test_auth_rbac.py`, `test_auth_state.py` |
+| Officers cannot read or queue documents outside their jurisdiction | `test_jurisdiction_scoping.py` |
+| Metrics require the analytics permission | `test_dashboards_and_metrics.py` |
 
 ## Known limitations
 
 Honest list, because a prototype that claims to be production-secure is worse
 than one that says where it stops:
 
-* **No rate limiting.** §61 lists it; it is not implemented. A brute-force
-  attempt against `/auth/login` is currently unthrottled.
-* **No token revocation.** A refresh token is valid until it expires; there is
-  no denylist, so signing out on one device does not invalidate another.
-* **Jurisdiction scoping is partial.** `Principal` carries `jurisdiction_id`
-  and citizen isolation is fully enforced, but officer queries are not yet
-  filtered by tehsil — every officer sees the whole demo district.
-* **`/metrics` is unauthenticated.** It carries counts and latencies, never
-  record content, but it should sit behind an ingress rule in a real
-  deployment.
+* **Access tokens are not denylisted.** Logout revokes refresh capability, but
+  an access token already issued remains valid until its short expiry. Immediate
+  access-token revocation would require a per-request denylist lookup.
+* **The local auth-state fallback is single-process.** Multi-worker execution
+  must configure `AUTH_STATE_REDIS_URL`; the full Compose stack already does.
 * **No penetration testing.** Nothing here has been adversarially reviewed by
   anyone but its authors.

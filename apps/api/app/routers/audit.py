@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.auth.dependencies import require, require_any
 from app.db import get_session
 from app.services import audit_service
-from app.services.auth_service import Principal
+from app.services.auth_service import Principal, document_in_jurisdiction
 from app.services.document_service import DocumentNotFound, get_by_external_id
 
 router = APIRouter(prefix="/api/v1/audit", tags=["audit"])
@@ -22,9 +22,11 @@ def document_timeline(
 ) -> dict:
     """Every recorded action on one document, oldest first (§32)."""
     try:
-        get_by_external_id(session, document_id)
+        document = get_by_external_id(session, document_id)
     except DocumentNotFound:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No such document") from None
+    if not document_in_jurisdiction(session, principal, document):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such document")
 
     events = audit_service.timeline_for(session, "document", document_id)
     return {

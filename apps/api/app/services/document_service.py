@@ -18,11 +18,15 @@ from sqlalchemy.orm import Session
 
 from app.models import Document, DocumentPage, Location, Parcel, ProcessingJob
 from app.services import audit_service, storage_service
-from app.services.auth_service import Principal
+from app.services.auth_service import Principal, location_in_jurisdiction
 from app.services.storage_service import UnsupportedFileType
 
 
 class DocumentNotFound(Exception):
+    pass
+
+
+class DocumentAccessDenied(Exception):
     pass
 
 
@@ -109,21 +113,31 @@ def upload(
     is still stored -- an operator needs to see WHY it was rejected, and the
     original is the evidence.
     """
-    stored = storage_service.put_document(
-        data, declared_mime=declared_mime, prefix="documents"
-    )
-
     village = None
     if village_external_id:
         village = session.execute(
             select(Location).where(Location.external_id == village_external_id)
         ).scalar_one_or_none()
+        if village is None:
+            raise DocumentAccessDenied("unknown or inaccessible village")
 
     parcel = None
     if parcel_external_id:
         parcel = session.execute(
             select(Parcel).where(Parcel.external_id == parcel_external_id)
         ).scalar_one_or_none()
+        if parcel is None:
+            raise DocumentAccessDenied("unknown or inaccessible parcel")
+
+    effective_village_id = village.id if village else (parcel.village_id if parcel else None)
+    if village and parcel and village.id != parcel.village_id:
+        raise DocumentAccessDenied("parcel does not belong to the selected village")
+    if not location_in_jurisdiction(session, principal, effective_village_id):
+        raise DocumentAccessDenied("document is outside your jurisdiction")
+
+    stored = storage_service.put_document(
+        data, declared_mime=declared_mime, prefix="documents"
+    )
 
     document = Document(
         external_id=next_external_id(session),
@@ -271,6 +285,6 @@ def start_processing(
 
 
 __all__ = [
-    "DocumentNotFound", "UnsupportedFileType", "get_by_external_id",
+    "DocumentAccessDenied", "DocumentNotFound", "UnsupportedFileType", "get_by_external_id",
     "latest_job", "run_quality_gate", "start_processing", "transition", "upload",
 ]
