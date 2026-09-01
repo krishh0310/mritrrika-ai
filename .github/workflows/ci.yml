@@ -1,0 +1,155 @@
+name: CI
+
+# §76. Four independent jobs rather than one long script, so a frontend type
+# error does not hide a backend test failure behind it.
+#
+# The heavy AI dependencies (paddlepaddle, opencv) are deliberately NOT
+# installed here. The backend suite runs against requirements-api.txt and the
+# pipeline is exercised by tests that do not load a model; installing 2GB of
+# wheels to run the same assertions would make every push slow enough that
+# people stop reading the result.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  PYTHON_VERSION: "3.12"
+  NODE_VERSION: "22"
+
+jobs:
+  frontend:
+    name: Frontend — lint, types, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck web and packages/ui
+        run: npm run typecheck
+
+      - name: Typecheck mobile
+        run: npm run typecheck --workspace @mrittika/mobile
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        # A production build catches what dev mode forgives: bad server/client
+        # boundaries, and prerender failures.
+        run: npm run build
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8000
+
+  backend:
+    name: Backend — lint and tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        # PostGIS and pgvector both required; app/main.py:/ready checks for them.
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: mrittika
+          POSTGRES_PASSWORD: mrittika
+          POSTGRES_DB: mrittika
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U mrittika"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-api.txt
+          pip install ruff pytest
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Enable extensions
+        run: |
+          PGPASSWORD=mrittika psql -h localhost -U mrittika -d mrittika \
+            -c "CREATE EXTENSION IF NOT EXISTS postgis;" \
+            -c "CREATE EXTENSION IF NOT EXISTS vector;"
+
+      - name: Migrate and seed
+        run: |
+          cp .env.example .env
+          alembic -c apps/api/alembic.ini upgrade head
+          python scripts/seed_demo.py
+        env:
+          DATABASE_URL: postgresql+psycopg://mrittika:mrittika@localhost:5432/mrittika
+          REDIS_URL: redis://localhost:6379/0
+
+      - name: Tests
+        # Deselect anything that loads an ML model or reaches the network.
+        run: pytest tests apps/api/tests -q -m "not slow"
+        env:
+          DATABASE_URL: postgresql+psycopg://mrittika:mrittika@localhost:5432/mrittika
+          REDIS_URL: redis://localhost:6379/0
+
+  dataset:
+    name: Dataset — schema QA
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-api.txt
+          pip install pytest
+
+      - name: Domain and dataset schema tests
+        # These are pure — they check the canonical record shape, the state
+        # machine, and split-leakage rules without touching a database.
+        run: pytest tests/dataset -q
+
+  docker:
+    name: Docker — build images
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build the postgres image
+        uses: docker/build-push-action@v6
+        with:
+          context: infrastructure/docker/postgres
+          push: false
+
+      - name: Validate the compose file
+        run: docker compose config --quiet

@@ -29,7 +29,12 @@ export default function TehsildarMapPage() {
   const [villageId, setVillageId] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
 
-  const options = villages.data?.locations ?? [];
+  // Memoized because `?? []` is a fresh array each render, which would make
+  // the effect below re-run on every render.
+  const options = useMemo(
+    () => villages.data?.locations ?? [],
+    [villages.data],
+  );
   useEffect(() => {
     if (!villageId && options.length > 0) setVillageId(options[0].location_id);
   }, [villageId, options]);

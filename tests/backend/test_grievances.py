@@ -28,10 +28,9 @@ def clean_grievances():
 
     sys.path.insert(0, str(REPO_ROOT / "apps" / "api"))
     sys.path.insert(0, str(REPO_ROOT / "packages" / "domain"))
-    from sqlalchemy import delete
-
     from app.db import SessionLocal
     from app.models import Grievance
+    from sqlalchemy import delete
 
     with SessionLocal() as session:
         session.execute(delete(Grievance))

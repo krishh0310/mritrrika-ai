@@ -25,7 +25,9 @@ export default function VerifierQueuePage() {
   const [band, setBand] = useState("");
   const [flagged, setFlagged] = useState("");
 
-  const tasks = queue.data?.tasks ?? [];
+  // `?? []` is a fresh array identity each render, which would make the
+  // useMemo below recompute every time regardless of whether data changed.
+  const tasks = useMemo(() => queue.data?.tasks ?? [], [queue.data]);
 
   const documentTypes = useMemo(
     () => [...new Set(tasks.map((t) => t.document_type))].sort(),

@@ -1,0 +1,44 @@
+{
+  "_comment": [
+    "The §64 model registry. Every prediction stores which version made it,",
+    "so a field can always be traced to the model that produced it.",
+    "scripts/seed_demo.py loads this into the model_versions table."
+  ],
+  "versions": [
+    {
+      "name": "ocr-v1",
+      "kind": "ocr",
+      "description": "PaddleOCR PP-OCRv5, Devanagari + Latin",
+      "trained": false,
+      "notes": "Pretrained. §66 says do not fine-tune before measuring."
+    },
+    {
+      "name": "layout-v1",
+      "kind": "layout",
+      "description": "PP-Structure table and region detection",
+      "trained": false,
+      "notes": "Baseline. LayoutLMv3 is wired behind the same interface but not trained."
+    },
+    {
+      "name": "extractor-v1",
+      "kind": "extraction",
+      "description": "Deterministic rules over OCR blocks, with optional IndicBERT assist",
+      "trained": false,
+      "notes": "Rules first (§7). Explainable, and it can say why it chose a value."
+    },
+    {
+      "name": "confidence-v1",
+      "kind": "confidence",
+      "description": "Weighted fusion of OCR, extraction, layout and validation signals",
+      "trained": false,
+      "notes": "Not calibrated. ECE and reliability diagrams are §65 work not yet done."
+    },
+    {
+      "name": "anomaly-v1",
+      "kind": "anomaly",
+      "description": "Deterministic history rules plus an Isolation Forest over 10 features",
+      "trained": true,
+      "notes": "The forest is fitted on the corpus at analysis time, not shipped as a checkpoint."
+    }
+  ]
+}
