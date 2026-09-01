@@ -77,11 +77,15 @@ export function DocumentViewer({
     if (field) scrollToField(field);
   }, [selectedField, fields, scrollToField]);
 
+  // SVG `fill`/`stroke` cannot take a Tailwind class, so the band colours are
+  // repeated here as literals. They must stay in step with the --color-high /
+  // --color-medium / --color-low tokens in globals.css, which were chosen to
+  // pass a colour-vision check rather than by eye.
   function bandColour(score: number | null) {
     const band = bandFor(score);
-    if (band === "HIGH") return "#1b7a4b";
-    if (band === "MEDIUM") return "#a86a12";
-    if (band === "LOW") return "#b3261e";
+    if (band === "HIGH") return "#14663d";
+    if (band === "MEDIUM") return "#c4841a";
+    if (band === "LOW") return "#a61d18";
     return "#8b8272";
   }
 

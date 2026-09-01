@@ -32,9 +32,13 @@ export default function DeoDocumentPage({
 
   const document = useDocument(id);
   const state = document.data?.state;
-  const isLive =
-    state === "QUALITY_CHECK" || state === "PROCESSING" || state === "UPLOADED";
-  const status = useProcessingStatus(id, Boolean(state) && state !== "UPLOADED");
+
+  // §37: the legal move into the pipeline is QUALITY_CHECK -> PROCESSING, and
+  // upload leaves a document in QUALITY_CHECK. UPLOADED is accepted too, for
+  // a document whose quality gate has not run yet.
+  const canStart = state === "QUALITY_CHECK" || state === "UPLOADED";
+  const isLive = canStart || state === "PROCESSING";
+  const status = useProcessingStatus(id, Boolean(state) && !canStart);
 
   const start = useMutation({
     // synchronous=true runs the same pipeline inline. It exists so the demo
@@ -75,7 +79,7 @@ export default function DeoDocumentPage({
               actions={
                 <>
                   <DocumentStatus state={data.state} className="self-center" />
-                  {data.state === "UPLOADED" ? (
+                  {canStart ? (
                     <Button busy={start.isPending} onClick={() => start.mutate()}>
                       <Play aria-hidden />
                       Start processing
@@ -136,6 +140,11 @@ export default function DeoDocumentPage({
                 <div className="p-5">
                   {status.data ? (
                     <PipelineProgress status={status.data} />
+                  ) : data.quality_recommendation === "REJECT_QUALITY" ? (
+                    <p className="text-sm text-sand-700">
+                      This scan is too poor to read reliably. Rescan the page
+                      before putting it through the pipeline.
+                    </p>
                   ) : (
                     <p className="text-sm text-sand-500">
                       Processing has not started. Use “Start processing” above.

@@ -55,14 +55,24 @@
   --color-sand-500: #8b8272;
   --color-sand-700: #4f4a40;
 
-  /* §8 confidence bands. §86 requires text and an icon alongside these, never
-     colour on its own. */
-  --color-high: #1b7a4b;
-  --color-high-bg: #e6f3ec;
-  --color-medium: #a86a12;
-  --color-medium-bg: #fbf1de;
-  --color-low: #b3261e;
-  --color-low-bg: #fbeae9;
+  /* §8 confidence bands, and the status palette everywhere else.
+
+     These three are not eyeballed. The first set drawn here failed a
+     colour-vision check twice over: amber against green measured ΔE 5.4 under
+     protanopia, and amber against red measured 13.8 for NORMAL vision -- close
+     enough that a full-colour reader could confuse them. §86's icon-and-label
+     rule rescues the first failure but not the second. Re-stepped until all
+     six checks pass on a white surface (worst adjacent pair: 16.5 protan,
+     22.8 normal, every step over 3:1 contrast).
+
+     They are still never used alone: every band ships with its word and its
+     icon (§86). The colour is the third signal, not the only one. */
+  --color-high: #14663d;
+  --color-high-bg: #e6f1eb;
+  --color-medium: #c4841a;
+  --color-medium-bg: #fbf1dd;
+  --color-low: #a61d18;
+  --color-low-bg: #faeae8;
 
   --font-ui: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-record: var(--font-noto-devanagari), "Noto Serif Devanagari", Georgia, serif;

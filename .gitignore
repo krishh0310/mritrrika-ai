@@ -54,3 +54,4 @@ htmlcov/
 # Screenshot helpers used during development
 apps/web/shot.mjs
 apps/web/flow.mjs
+apps/web/test-results/
