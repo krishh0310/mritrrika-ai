@@ -231,34 +231,72 @@ def explain(answer: Answer, question: str) -> Answer:
     is returned unchanged and flagged `degraded` -- never a fabricated one
     (§82).
     """
-    settings = get_settings()
-    if not settings.gemini_api_key or not answer.records:
-        answer.degraded = not bool(settings.gemini_api_key)
+    if not answer.records:
         return answer
 
-    try:
-        from google import genai
+    settings = get_settings()
+    prompt = (
+        "You are helping a citizen understand their own land record.\n"
+        "Answer ONLY from the facts below. Do not add, infer or estimate "
+        "anything. If the facts do not answer the question, say so plainly.\n\n"
+        f"QUESTION: {question}\n\n"
+        f"FACTS: {answer.records}\n\n"
+        "Reply in two or three plain sentences."
+    )
+    providers = {
+        "gemini": lambda: _generate_gemini(settings, prompt),
+        "groq": lambda: _generate_groq(settings, prompt),
+    }
+    order = [settings.llm_provider, "groq", "gemini"]
 
-        client = genai.Client(api_key=settings.gemini_api_key)
-        response = client.models.generate_content(
-            model=settings.gemini_llm_model,
-            contents=(
-                "You are helping a citizen understand their own land record.\n"
-                "Answer ONLY from the facts below. Do not add, infer or "
-                "estimate anything. If the facts do not answer the question, "
-                "say so plainly.\n\n"
-                f"QUESTION: {question}\n\n"
-                f"FACTS: {answer.records}\n\n"
-                "Reply in two or three plain sentences."
-            ),
-        )
-        text = (response.text or "").strip()
-        if text:
-            answer.answer = text
-            answer.llm_used = True
-    except Exception as exc:
-        # Degrade to the structured answer rather than failing the request.
-        logger.warning("LLM unavailable, returning structured answer: %s", exc)
-        answer.degraded = True
+    for name in dict.fromkeys(order):
+        generate = providers.get(name)
+        if generate is None:
+            continue
+        try:
+            text = generate()
+            if text:
+                answer.answer = text
+                answer.llm_used = True
+                return answer
+        except Exception as exc:
+            logger.warning("LLM provider %s unavailable: %s", name, exc)
+
+    # Degrade to the structured answer rather than failing the request.
+    answer.degraded = True
 
     return answer
+
+
+def _generate_gemini(settings, prompt: str) -> str:
+    if not settings.gemini_api_key:
+        return ""
+    import httpx
+
+    response = httpx.post(
+        "https://generativelanguage.googleapis.com/v1beta/interactions",
+        headers={"x-goog-api-key": settings.gemini_api_key},
+        json={"model": settings.gemini_llm_model, "input": prompt},
+        timeout=30,
+    )
+    response.raise_for_status()
+    return "\n".join(
+        content["text"]
+        for step in response.json().get("steps", [])
+        if step.get("type") == "model_output"
+        for content in step.get("content", [])
+        if content.get("type") == "text" and content.get("text")
+    ).strip()
+
+
+def _generate_groq(settings, prompt: str) -> str:
+    if not settings.groq_api_key:
+        return ""
+    from groq import Groq
+
+    response = Groq(api_key=settings.groq_api_key).chat.completions.create(
+        model=settings.groq_model,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0,
+    )
+    return (response.choices[0].message.content or "").strip()

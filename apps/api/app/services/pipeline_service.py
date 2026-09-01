@@ -53,6 +53,7 @@ def get_engine():
             provider=settings.ocr_provider,
             lang=settings.ocr_lang,
             gemini_api_key=settings.gemini_api_key,
+            gemini_model=settings.gemini_llm_model,
         )
     return _engine
 

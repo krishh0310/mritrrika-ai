@@ -1,37 +1,8 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono, Noto_Serif_Devanagari } from "next/font/google";
 
 import { Providers } from "@/components/providers";
 
 import "./globals.css";
-
-/**
- * Three faces, three jobs (see globals.css for the reasoning).
- *
- * Noto Serif Devanagari is loaded for the Devanagari subset specifically: the
- * records are in that script, and letting it fall back to whatever the OS
- * offers puts owner names in a different weight and baseline from the Latin
- * beside them.
- */
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-  display: "swap",
-});
-
-const notoDevanagari = Noto_Serif_Devanagari({
-  subsets: ["devanagari", "latin"],
-  weight: ["400", "500", "600"],
-  variable: "--font-noto-devanagari",
-  display: "swap",
-});
-
-const jetbrains = JetBrains_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  variable: "--font-jetbrains",
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: {
@@ -44,10 +15,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html
-      lang="en"
-      className={`${inter.variable} ${notoDevanagari.variable} ${jetbrains.variable}`}
-    >
+    <html lang="en">
       <body>
         <a
           href="#main"

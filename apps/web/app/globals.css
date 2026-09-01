@@ -12,16 +12,12 @@
    the type system, and it is driven by the one fact that makes this product
    different from a generic admin console: the records are in Devanagari.
 
-     --font-record   Noto Serif Devanagari. Anything that came off a document
-                     -- an owner's name, a village, a land class -- is set in
-                     it. Serif because that is what a record of rights looks
-                     like, and this face is drawn for the script rather than
-                     left to an OS fallback that would render राम प्रसाद सिंह
-                     in a different weight and baseline from the Latin beside
-                     it.
-     --font-ui       Inter. Chrome: labels, buttons, navigation. Deliberately
-                     recessive.
-     --font-id       JetBrains Mono. Identifiers and numbers. §11 makes
+     --font-record   A native Devanagari-first serif stack. Anything that came
+                     off a document -- an owner's name, a village, a land
+                     class -- is set in it.
+     --font-ui       Native system sans. Chrome: labels, buttons, navigation.
+                     Deliberately recessive.
+     --font-id       Native system mono. Identifiers and numbers. §11 makes
                      parcel_id the spine of the whole system, so identifiers
                      get their own treatment: monospaced and letterspaced so
                      PARCEL-UP-DEMO-0142 can be compared at a glance, and so
@@ -74,9 +70,11 @@
   --color-low: #a61d18;
   --color-low-bg: #faeae8;
 
-  --font-ui: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  --font-record: var(--font-noto-devanagari), "Noto Serif Devanagari", Georgia, serif;
-  --font-id: var(--font-jetbrains), ui-monospace, "SF Mono", Menlo, monospace;
+  /* Native stacks keep production and offline hackathon builds deterministic:
+     no page or CI build depends on Google Fonts being reachable. */
+  --font-ui: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-record: "Noto Serif Devanagari", "Kohinoor Devanagari", "Nirmala UI", Georgia, serif;
+  --font-id: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
   --radius-card: 6px;
   --radius-chip: 3px;

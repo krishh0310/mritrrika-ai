@@ -39,6 +39,7 @@ scikit-learn>=1.5
 
 # Providers (§81)
 google-genai>=1.0       # LLM + embeddings + OCR fallback
+httpx>=0.28             # Gemini authorization-key REST calls
 groq>=0.11
 
 pydantic>=2.9

@@ -219,13 +219,17 @@ test.describe("citizen ownership isolation", () => {
   test("each citizen sees only their own parcels", async ({ page }) => {
     await signIn(page, USERS.citizenA);
     await page.goto("/citizen/my-land");
-    const aParcels = await page.locator("text=/PARCEL-[A-Z0-9-]+/").allInnerTexts();
+    const citizenAParcels = page.locator(".id").filter({ hasText: /^PARCEL-/ });
+    await expect(citizenAParcels.first()).toBeVisible();
+    const aParcels = await citizenAParcels.allInnerTexts();
     expect(aParcels.length).toBeGreaterThan(0);
 
     await signOut(page);
     await signIn(page, USERS.citizenB);
     await page.goto("/citizen/my-land");
-    const bParcels = await page.locator("text=/PARCEL-[A-Z0-9-]+/").allInnerTexts();
+    const citizenBParcels = page.locator(".id").filter({ hasText: /^PARCEL-/ });
+    await expect(citizenBParcels.first()).toBeVisible();
+    const bParcels = await citizenBParcels.allInnerTexts();
     expect(bParcels.length).toBeGreaterThan(0);
 
     const shared = aParcels.filter((p) => bParcels.includes(p));

@@ -52,11 +52,11 @@ class Settings(BaseSettings):
     # ── providers (§81) ───────────────────────────────────────────────────
     llm_provider: str = "gemini"
     gemini_api_key: str | None = None
-    gemini_llm_model: str = "gemini-2.0-flash"
+    gemini_llm_model: str = "gemini-3.6-flash"
     gemini_embedding_model: str = "text-embedding-004"
     embedding_dim: int = 768
     groq_api_key: str | None = None
-    groq_model: str = "llama-3.3-70b-versatile"
+    groq_model: str = "openai/gpt-oss-20b"
     ocr_provider: str = "paddle"
     ocr_fallback_provider: str = "gemini"
     ocr_lang: str = "hi"

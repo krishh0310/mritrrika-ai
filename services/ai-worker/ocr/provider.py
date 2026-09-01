@@ -14,6 +14,7 @@ matras and the anusvara inflate box heights -- see group_lines().
 
 from __future__ import annotations
 
+import base64
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -204,7 +205,7 @@ class GeminiVisionOcrProvider(OcrProvider):
 
     name = "gemini"
 
-    def __init__(self, api_key: str | None = None, model: str = "gemini-2.0-flash",
+    def __init__(self, api_key: str | None = None, model: str = "gemini-3.6-flash",
                  model_version: str = "ocr-v1-gemini") -> None:
         self.api_key = api_key
         self.model = model
@@ -218,27 +219,46 @@ class GeminiVisionOcrProvider(OcrProvider):
             raise OcrUnavailable("GEMINI_API_KEY is not configured")
         try:
             import cv2
-            from google import genai
-            from google.genai import types
+            import httpx
         except ImportError as exc:
-            raise OcrUnavailable(f"google-genai is not installed: {exc}") from exc
+            raise OcrUnavailable(f"Gemini OCR dependency is not installed: {exc}") from exc
 
         ok, buffer = cv2.imencode(".png", image)
         if not ok:
             raise OcrUnavailable("could not encode image for the vision model")
 
         try:
-            client = genai.Client(api_key=self.api_key)
-            response = client.models.generate_content(
-                model=self.model,
-                contents=[
-                    types.Part.from_bytes(data=buffer.tobytes(), mime_type="image/png"),
-                    "Transcribe every line of visible text exactly as written, "
-                    "preserving Devanagari digits and spelling. One line per "
-                    "output line. Do not translate, explain or add commentary.",
-                ],
+            response = httpx.post(
+                "https://generativelanguage.googleapis.com/v1beta/interactions",
+                headers={"x-goog-api-key": self.api_key},
+                json={
+                    "model": self.model,
+                    "input": [
+                        {
+                            "type": "image",
+                            "mime_type": "image/png",
+                            "data": base64.b64encode(buffer.tobytes()).decode("ascii"),
+                        },
+                        {
+                            "type": "text",
+                            "text": (
+                                "Transcribe every line of visible text exactly as written, "
+                                "preserving Devanagari digits and spelling. One line per "
+                                "output line. Do not translate, explain or add commentary."
+                            ),
+                        },
+                    ],
+                },
+                timeout=60,
             )
-            text = (response.text or "").strip()
+            response.raise_for_status()
+            text = "\n".join(
+                content["text"]
+                for step in response.json().get("steps", [])
+                if step.get("type") == "model_output"
+                for content in step.get("content", [])
+                if content.get("type") == "text" and content.get("text")
+            ).strip()
         except Exception as exc:
             raise OcrUnavailable(f"Gemini vision call failed: {exc}") from exc
 
@@ -293,9 +313,10 @@ def build_default_engine(
     provider: str = "paddle",
     lang: str = "hi",
     gemini_api_key: str | None = None,
+    gemini_model: str = "gemini-3.6-flash",
 ) -> OcrEngine:
     paddle = PaddleOcrProvider(lang=lang)
-    gemini = GeminiVisionOcrProvider(api_key=gemini_api_key)
+    gemini = GeminiVisionOcrProvider(api_key=gemini_api_key, model=gemini_model)
     if provider == "gemini":
         return OcrEngine(primary=gemini, fallbacks=[paddle])
     return OcrEngine(primary=paddle, fallbacks=[gemini])

@@ -41,6 +41,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Component tests
+        run: npm test
+
       - name: Build
         # A production build catches what dev mode forgives: bad server/client
         # boundaries, and prerender failures.

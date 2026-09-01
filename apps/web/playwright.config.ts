@@ -15,7 +15,6 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   testDir: "../../tests/e2e",
   // Uploads reference paths relative to the repo root.
-  
   timeout: 180_000,
   expect: { timeout: 20_000 },
   fullyParallel: false,        // the lifecycle test is inherently sequential
@@ -24,6 +23,12 @@ export default defineConfig({
   reporter: process.env.CI ? "github" : "list",
   use: {
     baseURL: process.env.E2E_BASE_URL ?? "http://localhost:3000",
+    // Keep the browser on the same IPv4 localhost origin used by the API and
+    // the development command. macOS may otherwise prefer ::1 while Next is
+    // listening on 127.0.0.1, producing misleading hangs instead of a refusal.
+    launchOptions: {
+      args: ["--host-resolver-rules=MAP localhost 127.0.0.1"],
+    },
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
