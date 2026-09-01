@@ -27,7 +27,7 @@ MIX_TOLERANCE = 0.15  # absolute, generous at slice-1 sample sizes
 def load_splits(profile: str) -> dict[str, list[dict]]:
     splits = {}
     for name in ("train", "val", "test"):
-        path = DATASETS / "splits" / f"{name}.jsonl"
+        path = DATASETS / "splits" / f"{name}.{profile}.jsonl"
         if not path.exists():
             return {}
         splits[name] = [json.loads(line) for line in path.read_text().splitlines() if line]

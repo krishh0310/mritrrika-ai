@@ -130,13 +130,25 @@ definition of done. Four disconnected screenshots would prove nothing.
 
 ## Regenerating the dataset
 
+Two size profiles (§42: 50 → 500 → ~2000):
+
+| profile | villages | parcels | pages |
+|---|---|---|---|
+| `slice1` | 2 | 40 | 50 |
+| `v1` | 4 | 80 | 500 |
+
 ```bash
-.venv/bin/python scripts/generate_dataset.py --profile slice1
-.venv/bin/python scripts/generate_documents.py --profile slice1
-.venv/bin/python scripts/generate_gis.py --profile slice1
-.venv/bin/python scripts/split_dataset.py
-.venv/bin/python scripts/verify_dataset.py --profile slice1
+P=v1
+.venv/bin/python scripts/generate_dataset.py   --profile $P
+.venv/bin/python scripts/generate_documents.py --profile $P --count 500
+.venv/bin/python scripts/generate_gis.py       --profile $P
+.venv/bin/python scripts/split_dataset.py      --profile $P
+.venv/bin/python scripts/verify_dataset.py     --profile $P
 ```
+
+Every artifact is namespaced by profile, splits included. Tests read whichever
+profile is active — the largest generated one, or `MRITTIKA_DATASET_PROFILE`
+when it is set.
 
 Ground truth exists **before** rendering — it is never derived by OCRing the
 generated image. Splits happen before augmentation and are grouped by base

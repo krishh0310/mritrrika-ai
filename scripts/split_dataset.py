@@ -126,7 +126,7 @@ def main() -> int:
 
     for name, entries in per_split.items():
         entries.sort(key=lambda d: d["document_id"])
-        with (out_dir / f"{name}.jsonl").open("w") as fh:
+        with (out_dir / f"{name}.{args.profile}.jsonl").open("w") as fh:
             for entry in entries:
                 fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
 

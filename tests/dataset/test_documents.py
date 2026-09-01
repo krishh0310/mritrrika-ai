@@ -22,6 +22,12 @@ sys.path.insert(0, str(REPO_ROOT / "services" / "dataset-generator"))
 
 from degradation.engine import perspective, rescale, rotate  # noqa: E402
 from degradation.profiles import DIFFICULTY_MIX, TIERS, degrade  # noqa: E402
+from mrittika_domain.dataset_paths import (  # noqa: E402
+    SPLIT_NAMES,
+    active_profile,
+    index_path,
+    split_path,
+)
 from rendering.canvas import RecordingCanvas  # noqa: E402
 from templates.base import DocumentContext  # noqa: E402
 from templates.layouts import TEMPLATES  # noqa: E402
@@ -179,22 +185,34 @@ class TestDegradationProfiles:
 
 
 # ── generated-artefact checks (skip if the set has not been built) ──────────
-
-INDEX_PATH = DATASETS / "metadata" / "documents.slice1.json"
-
-
-@pytest.fixture(scope="module")
-def index():
-    if not INDEX_PATH.exists():
-        pytest.skip("run scripts/generate_documents.py --profile slice1")
-    return json.loads(INDEX_PATH.read_text())
+#
+# Read whichever profile is active rather than a hardcoded name. Pinning these
+# to `slice1` meant generating a larger profile left the index and the splits
+# describing different corpora, and the tests failed on the mismatch rather
+# than on anything being wrong.
 
 
 @pytest.fixture(scope="module")
-def splits():
-    paths = {n: DATASETS / "splits" / f"{n}.jsonl" for n in ("train", "val", "test")}
+def profile():
+    active = active_profile()
+    if active is None:
+        pytest.skip("run scripts/generate_documents.py")
+    return active
+
+
+@pytest.fixture(scope="module")
+def index(profile):
+    path = index_path(profile)
+    if not path.exists():
+        pytest.skip(f"run scripts/generate_documents.py --profile {profile}")
+    return json.loads(path.read_text())
+
+
+@pytest.fixture(scope="module")
+def splits(profile):
+    paths = {n: split_path(n, profile) for n in SPLIT_NAMES}
     if not all(p.exists() for p in paths.values()):
-        pytest.skip("run scripts/split_dataset.py")
+        pytest.skip(f"run scripts/split_dataset.py --profile {profile}")
     return {
         n: [json.loads(line) for line in p.read_text().splitlines() if line]
         for n, p in paths.items()

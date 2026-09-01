@@ -16,8 +16,10 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DATASETS = REPO_ROOT / "datasets"
+sys.path.insert(0, str(REPO_ROOT / "packages" / "domain"))
 sys.path.insert(0, str(REPO_ROOT / "services" / "ai-worker"))
 
+from mrittika_domain.dataset_paths import active_profile, index_path  # noqa: E402
 from quality.assessment import (  # noqa: E402
     assess,
     assess_bytes,
@@ -113,10 +115,14 @@ class TestRecommendation:
 
 @pytest.fixture(scope="module")
 def by_tier():
-    index_path = DATASETS / "metadata" / "documents.slice1.json"
-    if not index_path.exists():
+    # Whichever profile is active; see the note in tests/dataset/test_documents.py.
+    profile = active_profile()
+    if profile is None:
         pytest.skip("run scripts/generate_documents.py")
-    index = json.loads(index_path.read_text())
+    path = index_path(profile)
+    if not path.exists():
+        pytest.skip(f"run scripts/generate_documents.py --profile {profile}")
+    index = json.loads(path.read_text())
     scored: dict[str, list] = {}
     for tier in TIERS:
         scored[tier] = [
