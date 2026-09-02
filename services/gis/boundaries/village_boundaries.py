@@ -16,7 +16,7 @@ from __future__ import annotations
 import math
 import random
 import zlib
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from shapely.geometry import Polygon
 
@@ -61,7 +61,25 @@ def radius_for(parcel_count: int, mean_bigha: float = MEAN_PARCEL_BIGHA) -> floa
 VILLAGE_SITES: dict[str, VillageSite] = {
     "LOC-VIL-01": VillageSite("LOC-VIL-01", "रामपुर", 80.9000, 26.8000, radius_for(20)),
     "LOC-VIL-02": VillageSite("LOC-VIL-02", "मुड़ियाकला", 80.9055, 26.8040, radius_for(20)),
+    "LOC-VIL-03": VillageSite("LOC-VIL-03", "बरगदही", 80.9110, 26.7960, radius_for(20)),
+    "LOC-VIL-04": VillageSite("LOC-VIL-04", "सोनवर्षा", 80.8945, 26.8055, radius_for(20)),
 }
+
+
+def site_for(village_id: str, parcel_count: int) -> VillageSite | None:
+    """The registered site, resized to actually hold `parcel_count` plots.
+
+    The radius baked into VILLAGE_SITES is only a default for the slice-1 size.
+    Sizing must follow the parcel count the world actually generated: a village
+    sized for 20 plots but tessellated into 40 gives cells half the recorded
+    area, and pinning a parcel back to its recorded figure then grows it over
+    its neighbours. Deriving the radius here keeps map and record coherent at
+    every profile size.
+    """
+    site = VILLAGE_SITES.get(village_id)
+    if site is None:
+        return None
+    return replace(site, radius_m=radius_for(parcel_count))
 
 
 def metres_to_wgs84(x_m: float, y_m: float, site: VillageSite) -> tuple[float, float]:

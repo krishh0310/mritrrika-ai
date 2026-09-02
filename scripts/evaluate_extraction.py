@@ -57,8 +57,10 @@ def edit_distance(a: str, b: str) -> int:
     return previous[-1]
 
 
-def load_split(name: str) -> list[dict]:
-    path = DATASETS / "splits" / f"{name}.jsonl"
+def load_split(name: str, profile: str) -> list[dict]:
+    # Splits are namespaced by profile; an un-namespaced path silently pointed
+    # at a file that has not existed since the dataset gained a second profile.
+    path = DATASETS / "splits" / f"{name}.{profile}.jsonl"
     if not path.exists():
         raise SystemExit(f"missing {path}; run scripts/split_dataset.py")
     return [json.loads(line) for line in path.read_text().splitlines() if line]
@@ -84,12 +86,13 @@ def truth_for(doc: dict) -> tuple[dict[str, str], dict[str, list[str]]]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--split", default="test", choices=["train", "val", "test"])
+    parser.add_argument("--profile", default="v1")
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--no-preprocess", action="store_true",
                         help="skip OpenCV enhancement, to measure its effect")
     args = parser.parse_args()
 
-    docs = load_split(args.split)
+    docs = load_split(args.split, args.profile)
     if args.limit:
         docs = docs[: args.limit]
 
@@ -197,7 +200,7 @@ def main() -> int:
     print(f"\nfield-level CER      {cer:.3f}")
     print(f"mean OCR confidence  {mean_conf:.3f}")
 
-    report = DATASETS / "reports" / f"extraction_eval.{args.split}.json"
+    report = DATASETS / "reports" / f"extraction_eval.{args.split}.{args.profile}.json"
     report.write_text(json.dumps({
         "split": args.split,
         "documents": len(docs),

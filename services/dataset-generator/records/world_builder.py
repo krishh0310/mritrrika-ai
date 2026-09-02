@@ -92,6 +92,14 @@ class WorldBuilder:
             level="TEHSIL",
             parent_id=district.location_id,
         )
+        if self.spec.villages > len(pools.VILLAGES):
+            # Silently truncating makes a profile lie about its own size: v1
+            # asked for 4 villages, got 2, and every downstream count was half
+            # what the profile advertised.
+            raise ValueError(
+                f"profile asks for {self.spec.villages} villages but only "
+                f"{len(pools.VILLAGES)} names are defined in pools.VILLAGES"
+            )
         villages = [
             Location(
                 location_id=f"LOC-VIL-{i:02d}",

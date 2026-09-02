@@ -177,6 +177,12 @@ def _plausible_value(text: str) -> bool:
     cleaned = _norm(text)
     if len(cleaned) < 2:
         return False
+    # A run carrying its own label separator is a labelled line, not a bare
+    # value. Without this the footer notice ("टिप्पणी: अभिलेख ...") was picked
+    # up as an OWNER and auto-accepted at 0.90 -- a high-confidence false
+    # positive is worse than a missing field, because nobody reviews it.
+    if ":" in cleaned or "\uff1a" in cleaned:
+        return False
     # Must contain a digit or a Devanagari/Latin letter, not only marks.
     return bool(re.search(r"[0-9\u0966-\u096F\u0904-\u0939A-Za-z]", cleaned))
 
@@ -192,7 +198,21 @@ def _is_chrome(block: TextBlock) -> bool:
     text = _norm(block.text)
     if SYNTHETIC_NOTICE in block.text.upper():
         return True
-    return any(_similar(text, _norm(c)) >= 0.85 for c in CHROME)
+    if any(_similar(text, _norm(c)) >= 0.85 for c in CHROME):
+        return True
+    # Whole-block similarity misses a chrome term that OPENS a long line: the
+    # footer "टिप्पणी: अभिलेख डिजिटलीकरण ..." scores far below 0.85 against
+    # "टिप्पणी" simply because the rest of the sentence dilutes it. The
+    # trailing separator is required: without it this also swallowed real
+    # values that merely begin with a chrome word ("डेमो जिला" starts with
+    # "डेमो"), which zeroed DISTRICT and TEHSIL outright.
+    for term in CHROME:
+        head = _norm(term)
+        if len(head) >= 4 and text.startswith(head):
+            rest = text[len(head):].lstrip()
+            if rest[:1] in {":", "\uff1a"}:
+                return True
+    return False
 
 
 def _value_to_the_right(

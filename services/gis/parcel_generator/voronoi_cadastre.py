@@ -142,13 +142,29 @@ def _regularise(polygon: Polygon, boundary: Polygon, tolerance_m: float = 1.5) -
     return _largest_polygon(reclipped)
 
 
+def _largest_part(geom):
+    """The largest polygon of a possibly-multipart geometry.
+
+    Cutting a pinned parcel out of a neighbour can split that neighbour in two.
+    A parcel is one polygon, so the sliver is dropped rather than carried as a
+    multipart geometry the map and the area figures would disagree about.
+    """
+    if geom.geom_type == "Polygon":
+        return geom
+    parts = [g for g in geom.geoms if g.geom_type == "Polygon"]
+    if not parts:
+        raise ValueError("cutting left no polygonal remainder")
+    return max(parts, key=lambda g: g.area)
+
+
 def scale_to_area(polygon: Polygon, target_sqm: float) -> Polygon:
     """Scale a polygon about its centroid so its area equals `target_sqm`.
 
-    Used only to pin the demo parcel to the exact figure the §45 sample and the
-    rendered document both state. Shrinking one cell leaves a sliver gap
-    against its neighbours, which is geometrically fine (gaps are legal in a
-    cadastre; overlaps are not).
+    Used to pin a parcel to the exact figure the §45 sample and the rendered
+    document both state. Scaling alone is only safe downwards -- shrinking
+    leaves a sliver gap, and gaps are legal in a cadastre while overlaps are
+    not. Callers that may grow a cell must re-cut the neighbours afterwards;
+    `build_village_cadastre` does.
     """
     if polygon.area <= 0:
         raise ValueError("cannot scale a zero-area polygon")
@@ -173,11 +189,30 @@ def build_village_cadastre(
     raw_cells = _cells_for_points(points, boundary)
 
     pinned = pinned_areas_sqm or {}
+    polygons = {
+        parcel_id: _regularise(cell, boundary)
+        for parcel_id, cell in zip(parcel_ids, raw_cells, strict=True)
+    }
+
+    # Pin the parcels whose area is fixed by the record, then re-cut their
+    # neighbours. Scaling alone only stays legal when it shrinks; a pinned area
+    # larger than its cell would otherwise grow straight over the neighbours,
+    # and overlapping parcels are not a cadastre. Taking the land back out of
+    # the neighbours keeps the tessellation a partition AND gives the pinned
+    # parcel exactly the area its document states.
+    for parcel_id, target_sqm in pinned.items():
+        if parcel_id not in polygons:
+            continue
+        grown = scale_to_area(polygons[parcel_id], target_sqm)
+        polygons[parcel_id] = grown
+        for other_id, other in polygons.items():
+            if other_id == parcel_id or not other.intersects(grown):
+                continue
+            polygons[other_id] = _largest_part(other.difference(grown))
+
     cells: list[CadastreCell] = []
-    for parcel_id, cell in zip(parcel_ids, raw_cells, strict=True):
-        polygon = _regularise(cell, boundary)
-        if parcel_id in pinned:
-            polygon = scale_to_area(polygon, pinned[parcel_id])
+    for parcel_id in parcel_ids:
+        polygon = polygons[parcel_id]
         wgs = Polygon(
             [metres_to_wgs84(x, y, site) for x, y in polygon.exterior.coords]
         )

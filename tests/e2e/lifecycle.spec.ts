@@ -1,4 +1,12 @@
+import path from "node:path";
+
 import { expect, test, type Page } from "@playwright/test";
+
+// Playwright resolves relative paths against the cwd it was launched from
+// (apps/web), not the repo root, so a bare "datasets/..." path only worked
+// when the suite happened to be run from the root. Anchor to this file.
+const REPO_ROOT = path.resolve(__dirname, "../..");
+const fixture = (rel: string) => path.join(REPO_ROOT, rel);
 
 /**
  * §73 — the whole land-record lifecycle, in one browser test.
@@ -27,8 +35,16 @@ const USERS = {
   citizenB: "seema32@mrittika.demo",
 };
 
-/** The parcel the uploaded document is linked to, held by citizen A. */
-const PARCEL = "PARCEL-UP-DEMO-0144";
+/**
+ * The parcel the uploaded document is linked to, held by citizen A.
+ *
+ * This must be one of the generator's EXPLICIT demo grants, not just a parcel
+ * that happened to fall to citizen A: holdings are assigned from a seeded
+ * shuffle, so widening the world re-deals them and a merely-observed parcel
+ * silently stops belonging to this citizen. `_grant` pins 0181 to owner A and
+ * raises if the parcel ever stops existing.
+ */
+const PARCEL = "PARCEL-UP-DEMO-0181";
 
 async function signIn(page: Page, email: string) {
   await page.goto("/login");
@@ -55,7 +71,7 @@ test.describe("the land-record lifecycle", () => {
 
     await page.setInputFiles(
       'input[type="file"]',
-      "datasets/generated/degraded/DOC-00022.jpg",
+      fixture("datasets/generated/degraded/DOC-00022.jpg"),
     );
     await page.selectOption('select:near(:text("Document type"))', "KHASRA");
     await page.getByPlaceholder("1998-99").fill("1998-99");

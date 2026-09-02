@@ -41,6 +41,8 @@ AREA_UNITS_RAW = {
 VILLAGES = [
     ("रामपुर", "Rampur"),
     ("मुड़ियाकला", "Mudiyakala"),
+    ("बरगदही", "Bargadahi"),
+    ("सोनवर्षा", "Sonwarsha"),
 ]
 
 DISTRICT = ("डेमो जिला", "Demo District")

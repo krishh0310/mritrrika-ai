@@ -24,7 +24,7 @@ sys.path.insert(0, str(REPO_ROOT / "services" / "gis"))
 
 from boundaries.village_boundaries import (  # noqa: E402
     SQM_PER_BIGHA,
-    VILLAGE_SITES,
+    site_for,
     metres_to_wgs84,
     stable_seed,
 )
@@ -64,14 +64,16 @@ def main() -> int:
 
     villages = [loc for loc in world.locations if loc.level == "VILLAGE"]
     for village in villages:
-        site = VILLAGE_SITES.get(village.location_id)
-        if site is None:
-            print(f"no site defined for {village.location_id}", file=sys.stderr)
-            return 1
-
         parcel_ids = sorted(
             p.parcel_id for p in world.parcels if p.village_id == village.location_id
         )
+
+        # Size the boundary to the parcels this world actually put here, not to
+        # a default baked in at slice-1 scale.
+        site = site_for(village.location_id, len(parcel_ids))
+        if site is None:
+            print(f"no site defined for {village.location_id}", file=sys.stderr)
+            return 1
         pinned = {
             pid: bigha * SQM_PER_BIGHA
             for pid, bigha in PINNED_BIGHA.items()

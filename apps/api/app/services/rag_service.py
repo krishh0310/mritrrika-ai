@@ -240,8 +240,16 @@ def explain(answer: Answer, question: str) -> Answer:
         "Answer ONLY from the facts below. Do not add, infer or estimate "
         "anything. If the facts do not answer the question, say so plainly.\n\n"
         f"QUESTION: {question}\n\n"
-        f"FACTS: {answer.records}\n\n"
-        "Reply in two or three plain sentences."
+        # The retrieved FINDING has to travel with the rows. The rows alone
+        # carry no year, no khasra and no sense of what was asked, so the model
+        # was answering "the facts do not mention 1998" over a correctly
+        # retrieved 1998 ownership row -- contradicting our own retrieval.
+        # This is still grounding, not leakage: the finding is built from the
+        # same authorized rows and adds nothing the caller cannot already see.
+        f"FINDING (already retrieved under this citizen's authorization, and "
+        f"authoritative): {answer.answer}\n\n"
+        f"SUPPORTING ROWS: {answer.records}\n\n"
+        "Restate the finding in two or three plain sentences."
     )
     providers = {
         "gemini": lambda: _generate_gemini(settings, prompt),
