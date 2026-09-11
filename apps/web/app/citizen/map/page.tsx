@@ -11,7 +11,7 @@ import { QueryBoundary } from "@/components/shared/query-boundary";
 import { PageHeader } from "@/components/shell/app-shell";
 import { useMyParcels, useOwnershipHistory, useVillageParcels } from "@/lib/queries";
 import {
-  Button, Card, CardHeader, EmptyState, LoadingState, Select, SyntheticNotice,
+  Button, Card, CardHeader, EmptyState, LoadingState, Select, SyntheticNotice, RecordText,
 } from "@mrittika/ui";
 
 // MapLibre touches `window` at import time, so it cannot be server-rendered.
@@ -151,7 +151,13 @@ function CitizenMapScreen() {
                     ].map(([label, value, face]) => (
                       <div key={label}>
                         <dt className="eyebrow">{label}</dt>
-                        <dd className={`mt-0.5 text-navy-900 ${face}`}>{value}</dd>
+                        <dd className="mt-0.5 text-navy-900">
+                          {face === "record-text" ? (
+                            <RecordText value={value} stacked />
+                          ) : (
+                            <span className={face}>{value}</span>
+                          )}
+                        </dd>
                       </div>
                     ))}
                   </dl>

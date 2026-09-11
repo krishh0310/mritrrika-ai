@@ -52,6 +52,20 @@ class Settings(BaseSettings):
     # ── queue ─────────────────────────────────────────────────────────────
     celery_broker_url: str = "redis://localhost:6379/0"
     celery_result_backend: str = "redis://localhost:6379/1"
+    #: OCR processes the worker runs at once. Celery defaults to one per CPU --
+    #: 14 on the development Mac -- and each process loads its own OCR model,
+    #: which with the default detector peaks at 11-19 GB. With only two running,
+    #: swap filled to 18.8 of 20.5 GB. PaddlePaddle already uses several threads
+    #: per inference, so more processes do not finish work sooner.
+    worker_concurrency: int = 1
+    #: Replace a worker process after any task that leaves it above this RSS.
+    #: The server text detector grows a process to 11-19 GB and never gives it
+    #: back; recycling returns it to the OS between documents. A mobile-detector
+    #: process stays under this and is kept, so its model is not reloaded.
+    worker_max_memory_mb: int = 4096
+    #: None = PaddleOCR's default detector (PP-OCRv5_server_det). See
+    #: DETECTION_MODEL in services/ai-worker/ocr/provider.py for the trade-off.
+    ocr_detection_model: str | None = None
 
     # ── providers (§81) ───────────────────────────────────────────────────
     llm_provider: str = "gemini"

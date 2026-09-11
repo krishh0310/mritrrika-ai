@@ -5,9 +5,10 @@ import { AlertTriangle, Check, Pencil, RotateCcw } from "lucide-react";
 
 import type { FieldStatus } from "@mrittika/shared-types";
 
+import { fieldLabel } from "@/lib/field-labels";
 import type { ExtractionField, ValidationFinding } from "@/lib/queries";
 import {
-  Button, ConfidenceBadge, Field, Input, ProvenanceCaption, cn,
+  Button, ConfidenceBadge, Field, Input, ProvenanceCaption, RecordText, cn,
 } from "@mrittika/ui";
 
 /**
@@ -18,25 +19,6 @@ import {
  * value stay on screen underneath the input, so a verifier can always see what
  * they are changing it from — and so can the tehsildar reviewing them later.
  */
-
-/** The field names the API emits, in the words an officer uses. */
-const FIELD_LABELS: Record<string, string> = {
-  OWNER: "Owner name",
-  GUARDIAN: "Guardian name",
-  KHASRA: "Khasra number",
-  KHATA: "Khata number",
-  VILLAGE: "Village",
-  TEHSIL: "Tehsil",
-  DISTRICT: "District",
-  STATE: "State",
-  AREA: "Area",
-  AREA_UNIT: "Area unit",
-  LAND_CLASS: "Land classification",
-  MUTATION: "Mutation number",
-  DATE: "Date",
-  SHARE: "Share",
-  REMARK: "Remark",
-};
 
 export function FieldEditor({
   field,
@@ -96,7 +78,7 @@ export function FieldEditor({
     >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <p className="text-sm font-medium text-navy-900">
-          {FIELD_LABELS[field.field] ?? field.field}
+          {fieldLabel(field.field)}
           {field.row_index !== null ? (
             <span className="id ml-1.5 text-xs text-sand-500">
               row {field.row_index + 1}
@@ -165,12 +147,13 @@ export function FieldEditor({
         </div>
       ) : (
         <div className="mt-1.5 flex flex-wrap items-center gap-2">
-          <p className="record-text text-base text-navy-900">
-            {field.effective_value || (
-              <span className="text-sm text-sand-500 italic">
-                nothing was read here
-              </span>
-            )}
+          <p className="text-base text-navy-900">
+            <RecordText
+              value={field.effective_value}
+              fallback={
+                <span className="text-sm text-sand-500 italic">nothing was read here</span>
+              }
+            />
           </p>
           {!readOnly ? (
             <div className="ml-auto flex gap-1">
@@ -207,9 +190,7 @@ export function FieldEditor({
         <p className="mt-1.5 flex items-center gap-1.5 text-xs text-sand-500">
           <RotateCcw className="size-3" aria-hidden />
           The model predicted{" "}
-          <span className="record-text text-sand-700">
-            {field.normalized_value || "—"}
-          </span>
+          <RecordText value={field.normalized_value} className="text-sand-700" />
           . That prediction is kept.
         </p>
       ) : null}

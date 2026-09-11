@@ -201,3 +201,18 @@ class TestOperationalEndpoints:
         assert body["checks"]["postgis"] == "ok"
         assert body["checks"]["pgvector"] == "ok"
         assert body["ready"] is True
+
+    def test_ready_is_200_when_ready(self, client):
+        assert client.get("/ready").status_code == 200
+
+    def test_not_ready_is_a_503_not_a_200(self, client, monkeypatch):
+        """Health checks read the status code; a 200 hid a dead database."""
+        import app.main as main
+
+        def unreachable():
+            raise ConnectionError("database down")
+
+        monkeypatch.setattr(main.engine, "connect", unreachable)
+        response = client.get("/ready")
+        assert response.status_code == 503
+        assert response.json()["ready"] is False

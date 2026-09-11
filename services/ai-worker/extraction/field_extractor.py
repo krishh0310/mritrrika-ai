@@ -46,6 +46,7 @@ LABELS: dict[str, list[str]] = {
 #: Column headings that introduce a table of owners.
 OWNER_COLUMN_LABELS = ["खातेदार का नाम", "नाम", "नवीन खातेदार"]
 SHARE_COLUMN_LABELS = ["अंश"]
+GUARDIAN_COLUMN_LABELS = ["पिता / पति"]
 
 #: Blocks that are chrome, never values.
 CHROME = {
@@ -158,18 +159,37 @@ def _split_inline_value(block: TextBlock, variants: list[str]) -> str | None:
         candidate = _norm(variant)
         if not candidate:
             continue
-        # Walk forward until the normalised prefix matches the label, then
-        # treat whatever follows as the value.
+        # Take the BEST-matching prefix, not the first one over the threshold.
+        # The first was 'पिता / प' against 'पिता / पति', which turned
+        # 'पिता / पति : कैलाश वर्मा' into the value 'ति : कैलाश वर्मा'. Ties go to
+        # the longer prefix, so a complete label wins over a truncated one.
+        best_score, best_cut = 0.0, None
         for cut in range(len(candidate), min(len(text), len(candidate) + 6) + 1):
-            head, tail = text[:cut], text[cut:]
-            if _similar(_norm(head), candidate) >= LABEL_SIMILARITY:
-                tail = re.sub(r"^[\s:।|.,\-–—]+", "", tail).strip()
-                # The tail must look like content, not leftover punctuation.
-                # Without this the split emitted 'से:' as a khasra number --
-                # fabricating a value is worse than reporting none (§82).
-                if _plausible_value(tail):
-                    return tail
+            score = _similar(_norm(text[:cut]), candidate)
+            if score >= best_score:
+                best_score, best_cut = score, cut
+        if best_cut is None or best_score < LABEL_SIMILARITY:
+            continue
+        tail = re.sub(r"^[\s:।|.,\-–—]+", "", text[best_cut:]).strip()
+        # The tail must look like content, not leftover punctuation.
+        # Without this the split emitted 'से:' as a khasra number --
+        # fabricating a value is worse than reporting none (§82).
+        if not _plausible_value(tail):
+            continue
+        # Nor may it be the rest of the label itself: 'ति', the end of 'पति',
+        # was recorded as the guardian's name.
+        if _is_label_fragment(tail, variants):
+            continue
+        return tail
     return None
+
+
+def _is_label_fragment(text: str, variants: list[str]) -> bool:
+    """Whether `text` is just a piece of one of the label's own spellings."""
+    fragment = _norm(text).replace(" ", "")
+    if not fragment:
+        return True
+    return any(fragment in _norm(v).replace(" ", "") for v in variants)
 
 
 def _plausible_value(text: str) -> bool:
@@ -375,6 +395,17 @@ def extract_table_rows(blocks: list[TextBlock]) -> list[ExtractedValue]:
         (b for b in blocks if any(_norm(b.text) == _norm(v) for v in SHARE_COLUMN_LABELS)),
         None,
     )
+    # Matched by similarity: OCR renders the slash and spacing inconsistently
+    # ('पिता/पति', 'पिता / पति'), and exact matching would lose the column.
+    guardian_header = next(
+        (
+            b for b in blocks
+            if any(_similar(_norm(b.text).replace(" ", ""), _norm(v).replace(" ", "")) >= 0.8
+                   for v in GUARDIAN_COLUMN_LABELS)
+            and _vertical_overlap(b, owner_header) > 0.5
+        ),
+        None,
+    )
 
     def column_pick(line: list[TextBlock], header: TextBlock) -> TextBlock | None:
         centre = (header.bbox[0] + header.bbox[2]) / 2
@@ -426,6 +457,28 @@ def extract_table_rows(blocks: list[TextBlock]) -> list[ExtractedValue]:
             )
         )
 
+        if guardian_header is not None:
+            guardian_block = column_pick(line, guardian_header)
+            if (
+                guardian_block is not None
+                and guardian_block is not owner_block
+                and _plausible_value(guardian_block.text)
+                # "—" marks a row with no recorded guardian.
+                and _norm(guardian_block.text) not in {"—", "-", "–"}
+            ):
+                values.append(
+                    ExtractedValue(
+                        field="GUARDIAN",
+                        raw_value=guardian_block.text,
+                        bbox=guardian_block.bbox,
+                        ocr_confidence=guardian_block.confidence,
+                        extraction_confidence=0.86,
+                        source_block_index=-1,
+                        row_index=row_index,
+                        strategy="table-column",
+                    )
+                )
+
         if share_header is not None:
             share_block = column_pick(line, share_header)
             if share_block is not None and share_block is not owner_block:
@@ -459,7 +512,12 @@ def extract(
     it. Omitted, the rows are detected here exactly as before.
     """
     values = extract_scalar_fields(blocks, page_width)
-    values.extend(extract_table_rows(blocks) if table_rows is None else table_rows)
+    rows = extract_table_rows(blocks) if table_rows is None else table_rows
+    if any(v.field == "GUARDIAN" for v in rows):
+        # Where guardians are a table column, the column is the source. A
+        # scalar GUARDIAN here can only have come from the column heading.
+        values = [v for v in values if v.field != "GUARDIAN"]
+    values.extend(rows)
 
     # AREA_UNIT often sits in the same block as AREA ('२.७५ बीघा'); when it
     # does not, it is the block immediately after AREA.

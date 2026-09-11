@@ -277,6 +277,54 @@ def latest_job(session: Session, document: Document) -> ProcessingJob | None:
     ).scalar_one_or_none()
 
 
+class ReprocessRefused(Exception):
+    """Reprocessing would discard work a human has already done."""
+
+
+def _queue_job(session: Session, document: Document) -> ProcessingJob:
+    job = ProcessingJob(
+        document_id=document.id,
+        stage="upload",
+        progress=0,
+        status="QUEUED",
+        started_at=datetime.now(UTC),
+    )
+    session.add(job)
+    session.commit()
+    return job
+
+
+def reprocess(
+    session: Session, document: Document, *, principal: Principal, reason: str | None = None
+) -> ProcessingJob:
+    """Re-run extraction on a document no human has worked yet (§29).
+
+    Re-running replaces every extraction, and corrections cascade with the
+    extraction they correct -- so once a verifier has corrected or accepted any
+    field, reprocessing is refused rather than silently erasing that work.
+    """
+    from app.models import Extraction, FieldCorrection
+
+    human_work = session.execute(
+        select(Extraction.id).where(
+            Extraction.document_id == document.id,
+            Extraction.status.in_(("VERIFIER_APPROVED", "VERIFIER_CORRECTED")),
+        ).limit(1)
+    ).first() or session.execute(
+        select(FieldCorrection.id).where(FieldCorrection.document_id == document.id).limit(1)
+    ).first()
+    if human_work:
+        raise ReprocessRefused(
+            "A verifier has already corrected or accepted fields on this document. "
+            "Re-running extraction would discard that work."
+        )
+
+    transition(session, document, DocumentState.PROCESSING, principal=principal,
+               action=audit_service.REPROCESSING_REQUESTED,
+               reason=reason or "extraction re-run before verification")
+    return _queue_job(session, document)
+
+
 def start_processing(
     session: Session, document: Document, *, principal: Principal
 ) -> ProcessingJob:
@@ -292,22 +340,13 @@ def start_processing(
 
     transition(session, document, DocumentState.PROCESSING, principal=principal,
                action=audit_service.PROCESSING_STARTED)
-
-    job = ProcessingJob(
-        document_id=document.id,
-        stage="upload",
-        progress=0,
-        status="QUEUED",
-        started_at=datetime.now(UTC),
-    )
-    session.add(job)
-    session.commit()
-    return job
+    return _queue_job(session, document)
 
 
 __all__ = [
     "DocumentAccessDenied", "DocumentNotFound", "UnsupportedFileType", "get_by_external_id",
-    "latest_job", "run_quality_gate", "start_processing", "transition", "upload",
+    "ReprocessRefused", "latest_job", "reprocess", "run_quality_gate", "start_processing",
+    "transition", "upload",
 ]
 
 

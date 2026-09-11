@@ -7,6 +7,7 @@ import json
 
 from fastapi import (
     APIRouter,
+    Body,
     Depends,
     File,
     Form,
@@ -138,6 +139,36 @@ def start_processing(
     except IllegalTransitionError as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from None
 
+    return _run_or_enqueue(session, document, job, principal, synchronous)
+
+
+@router.post("/{document_id}/reprocess")
+def reprocess_document(
+    document_id: str,
+    synchronous: bool = False,
+    reason: str | None = Body(None, embed=True, max_length=500),
+    principal: Principal = Depends(require("document:verify")),
+    session: Session = Depends(get_session),
+) -> dict:
+    """Re-run extraction on a document awaiting verification (§29).
+
+    For a verifier who sees results from an older extractor. Refused with 409
+    once any field has been corrected or accepted -- re-running replaces every
+    extraction, and human work must not disappear with them.
+    """
+    document = _document_or_404(session, document_id, principal)
+
+    try:
+        job = document_service.reprocess(
+            session, document, principal=principal, reason=reason
+        )
+    except (IllegalTransitionError, document_service.ReprocessRefused) as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from None
+
+    return _run_or_enqueue(session, document, job, principal, synchronous)
+
+
+def _run_or_enqueue(session, document, job, principal, synchronous: bool) -> dict:
     if synchronous:
         outcome = pipeline_service.process_document(
             session, document, job, principal=principal

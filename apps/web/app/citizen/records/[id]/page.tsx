@@ -9,7 +9,7 @@ import { QueryBoundary } from "@/components/shared/query-boundary";
 import { PageHeader } from "@/components/shell/app-shell";
 import { useMyParcels, useOwnershipHistory } from "@/lib/queries";
 import {
-  Button, Card, CardHeader, EmptyState, ForbiddenState, SyntheticNotice,
+  Button, Card, CardHeader, EmptyState, ForbiddenState, SyntheticNotice, RecordText,
 } from "@mrittika/ui";
 
 /**
@@ -105,8 +105,12 @@ export default function CitizenRecordPage({
                     ].map(([label, value, face]) => (
                       <div key={label}>
                         <dt className="eyebrow">{label}</dt>
-                        <dd className={`mt-1 text-[0.9375rem] text-navy-900 ${face}`}>
-                          {value}
+                        <dd className="mt-1 text-[0.9375rem] text-navy-900">
+                          {face === "record-text" ? (
+                            <RecordText value={value} stacked />
+                          ) : (
+                            <span className={face}>{value}</span>
+                          )}
                         </dd>
                       </div>
                     ))}

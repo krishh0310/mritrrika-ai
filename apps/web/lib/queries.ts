@@ -290,9 +290,10 @@ export function useRecordSearch(filters: SearchFilters, enabled: boolean) {
   });
 }
 
-export function useLocations(level?: string) {
+export function useLocations(level?: string, options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: ["locations", level ?? "all"],
+    enabled: options.enabled ?? true,
     staleTime: 5 * 60_000, // The cadastre's shape does not change mid-session.
     queryFn: () =>
       api.get<{ locations: Location[] }>(`/api/v1/locations${query({ level })}`),

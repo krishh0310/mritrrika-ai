@@ -2,16 +2,16 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { use, useState } from "react";
-import { AlertTriangle, ArrowLeft, Send } from "lucide-react";
+import { use, useEffect, useState } from "react";
+import { AlertTriangle, ArrowLeft, RotateCw, Send } from "lucide-react";
 
 import { QueryBoundary } from "@/components/shared/query-boundary";
 import { DocumentViewer } from "@/components/verifier/document-viewer";
 import { FieldEditor } from "@/components/verifier/field-editor";
 import { ApiError, api } from "@/lib/api-client";
-import { useVerificationWorkspace } from "@/lib/queries";
+import { useProcessingStatus, useVerificationWorkspace } from "@/lib/queries";
 import {
-  Button, Card, ConfidenceBadge, DocumentStatus, SyntheticNotice, bandFor,
+  Button, Card, ConfidenceBadge, DocumentStatus, SyntheticNotice, bandFor, useDisplayLanguage,
 } from "@mrittika/ui";
 
 /**
@@ -34,6 +34,7 @@ export default function VerificationWorkspacePage({
   const queryClient = useQueryClient();
 
   const workspace = useVerificationWorkspace(id);
+  const { language } = useDisplayLanguage();
   const [selected, setSelected] = useState<string | null>(null);
   const [pageNumber, setPageNumber] = useState(1);
   const [error, setError] = useState<string | null>(null);
@@ -75,6 +76,41 @@ export default function VerificationWorkspacePage({
       setError(cause instanceof ApiError ? cause.message : "Could not accept that field."),
   });
 
+  // §29 controlled reprocessing -- only offered while no human has worked the
+  // document, and the API refuses it after that regardless of what this shows.
+  const [confirmRerun, setConfirmRerun] = useState(false);
+  const [rerunning, setRerunning] = useState(false);
+  const rerunProgress = useProcessingStatus(id, rerunning);
+  const rerunStatus = rerunProgress.data?.status;
+  const rerunFinished = rerunning && (rerunStatus === "SUCCEEDED" || rerunStatus === "FAILED");
+  const rerunActive = rerunning && !rerunFinished;
+
+  const rerun = useMutation({
+    mutationFn: () =>
+      api.post(`/api/v1/documents/${id}/reprocess`, {
+        reason: "Re-run from the verification workspace",
+      }),
+    onMutate: () => {
+      setError(null);
+      // Drop the previous job's status, or its SUCCEEDED would end this one
+      // before it starts.
+      queryClient.removeQueries({ queryKey: ["document", id, "status"] });
+    },
+    onSuccess: () => {
+      setConfirmRerun(false);
+      setRerunning(true);
+    },
+    onError: (cause) =>
+      setError(cause instanceof ApiError ? cause.message : "Extraction could not be re-run."),
+  });
+
+  // When the job finishes, reload the workspace so the new fields appear.
+  useEffect(() => {
+    if (rerunFinished) refresh();
+    // refresh only invalidates queries.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rerunFinished]);
+
   const submit = useMutation({
     mutationFn: () => api.post(`/api/v1/verifications/${id}/submit`, {}),
     onSuccess: refresh,
@@ -106,6 +142,14 @@ export default function VerificationWorkspacePage({
           (f) => bandFor(f.final_confidence) !== "HIGH" && !f.corrected_value,
         ).length;
         const submitted = data.state === "VERIFIED" || data.state === "PENDING_APPROVAL";
+        const untouched =
+          data.state === "NEEDS_VERIFICATION" &&
+          !data.fields.some(
+            (f) =>
+              f.corrected_value ||
+              f.status === "VERIFIER_APPROVED" ||
+              f.status === "VERIFIER_CORRECTED",
+          );
 
         const pages = data.pages?.length
           ? data.pages
@@ -138,9 +182,20 @@ export default function VerificationWorkspacePage({
                   <span className="id font-semibold text-navy-900">{needsReview}</span>{" "}
                   {needsReview === 1 ? "field needs" : "fields need"} a look
                 </span>
+                {untouched || rerunActive ? (
+                  <Button
+                    variant="outline"
+                    busy={rerunActive}
+                    disabled={rerunActive}
+                    onClick={() => setConfirmRerun(true)}
+                  >
+                    <RotateCw aria-hidden />
+                    {rerunActive ? "Re-running…" : "Re-run extraction"}
+                  </Button>
+                ) : null}
                 <Button
                   busy={submit.isPending}
-                  disabled={submitted}
+                  disabled={submitted || rerunActive}
                   onClick={() => submit.mutate()}
                 >
                   <Send aria-hidden />
@@ -148,6 +203,59 @@ export default function VerificationWorkspacePage({
                 </Button>
               </div>
             </div>
+
+            {confirmRerun && !rerunActive ? (
+              <div
+                role="alertdialog"
+                aria-label="Confirm re-running extraction"
+                className="mb-4 flex flex-wrap items-center gap-3 rounded-card border border-navy-100 bg-white px-4 py-3"
+              >
+                <p className="text-sm text-navy-900">
+                  Re-run extraction? Every extracted field on this document is
+                  replaced with a fresh result. Nothing has been corrected or
+                  accepted yet, so no work is lost.
+                </p>
+                <div className="ml-auto flex gap-2">
+                  <Button size="sm" busy={rerun.isPending} onClick={() => rerun.mutate()}>
+                    Re-run
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setConfirmRerun(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+
+            {rerunActive ? (
+              <p
+                role="status"
+                className="mb-4 rounded-card border border-sand-200 bg-sand-50 px-3 py-2 text-sm text-sand-700"
+              >
+                Re-running extraction
+                {rerunProgress.data?.message ? ` — ${rerunProgress.data.message}` : "…"}
+                {typeof rerunProgress.data?.progress === "number"
+                  ? ` (${rerunProgress.data.progress}%)`
+                  : null}
+              </p>
+            ) : null}
+
+            {rerunFinished ? (
+              rerunStatus === "SUCCEEDED" ? (
+                <p
+                  role="status"
+                  className="mb-4 rounded-card border border-high/30 bg-high-bg px-3 py-2 text-sm text-high"
+                >
+                  Extraction re-run. The fields below are the new results.
+                </p>
+              ) : (
+                <p
+                  role="alert"
+                  className="mb-4 rounded-card border border-low/30 bg-low-bg px-3 py-2 text-sm text-low"
+                >
+                  Re-running extraction failed: {rerunProgress.data?.error ?? "unknown error"}
+                </p>
+              )
+            ) : null}
 
             {error ? (
               <p
@@ -229,6 +337,15 @@ export default function VerificationWorkspacePage({
                       Least certain first. Corrections are stored beside the
                       prediction, never over it.
                     </p>
+                    {language === "english" ? (
+                      <p className="mt-1 text-xs text-sand-500">
+                        English readings are for convenience: record terms and
+                        place names are translated, people&apos;s names are
+                        transliterated and may be spelled differently. The Hindi
+                        beside each value is what the page says, and corrections
+                        are saved as typed.
+                      </p>
+                    ) : null}
                   </div>
                   <ConfidenceLegend />
                 </div>

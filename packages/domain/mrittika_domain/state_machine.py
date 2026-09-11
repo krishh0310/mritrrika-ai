@@ -13,7 +13,12 @@ ALLOWED_TRANSITIONS: dict[S, frozenset[S]] = {
     S.QUALITY_CHECK: frozenset({S.PROCESSING, S.RESCAN_REQUIRED, S.REJECTED}),
     S.PROCESSING: frozenset({S.AI_EXTRACTED, S.REJECTED, S.RESCAN_REQUIRED}),
     S.AI_EXTRACTED: frozenset({S.NEEDS_VERIFICATION}),
-    S.NEEDS_VERIFICATION: frozenset({S.UNDER_VERIFICATION}),
+    # §29 controlled reprocessing: before any human has worked a document, its
+    # extraction may be re-run (e.g. after an extractor fix). It re-enters at
+    # PROCESSING and can only come back out through NEEDS_VERIFICATION, so this
+    # can never be used to skip verification. The service layer refuses it
+    # once a verifier has corrected or accepted anything.
+    S.NEEDS_VERIFICATION: frozenset({S.UNDER_VERIFICATION, S.PROCESSING}),
     # A verifier may send a document back for a new scan rather than guess.
     S.UNDER_VERIFICATION: frozenset(
         {S.VERIFIED, S.NEEDS_VERIFICATION, S.RESCAN_REQUIRED}

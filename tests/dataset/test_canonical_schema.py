@@ -215,3 +215,31 @@ def test_typescript_mirror_is_current():
         text=True,
     )
     assert result.returncode == 0, result.stderr
+
+
+class TestReprocessingCannotSkipVerification:
+    """§29 added NEEDS_VERIFICATION -> PROCESSING. It must not open a path to
+    APPROVED that avoids a human verifier."""
+
+    def test_every_route_to_approved_passes_under_verification(self):
+        from collections import deque
+
+        start = DocumentState.UPLOADED
+        seen = {start}
+        queue = deque([start])
+        while queue:
+            state = queue.popleft()
+            for target in ALLOWED_TRANSITIONS.get(state, ()):
+                if target is DocumentState.UNDER_VERIFICATION or target in seen:
+                    continue
+                seen.add(target)
+                queue.append(target)
+        assert DocumentState.APPROVED not in seen, (
+            "APPROVED is reachable without passing UNDER_VERIFICATION"
+        )
+
+    def test_reprocessing_is_only_open_before_verification_starts(self):
+        assert can_transition(DocumentState.NEEDS_VERIFICATION, DocumentState.PROCESSING)
+        for later in (DocumentState.UNDER_VERIFICATION, DocumentState.VERIFIED,
+                      DocumentState.PENDING_APPROVAL, DocumentState.APPROVED):
+            assert not can_transition(later, DocumentState.PROCESSING), later

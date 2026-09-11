@@ -8,7 +8,7 @@ import { QueryBoundary } from "@/components/shared/query-boundary";
 import { PageHeader } from "@/components/shell/app-shell";
 import { useMyParcels } from "@/lib/queries";
 import {
-  Button, Card, EmptyState, ParcelCard, Table, Td, Th, cn,
+  Button, Card, EmptyState, ParcelCard, Table, Td, Th, cn, RecordText,
 } from "@mrittika/ui";
 
 /**
@@ -122,20 +122,23 @@ export default function MyLandPage() {
                 <tbody>
                   {data.parcels.map((parcel) => (
                     <tr key={parcel.parcel_id} className="hover:bg-sand-50">
-                      <Td className="record-text font-medium text-navy-900">
-                        {parcel.khasra_number}
+                      <Td className="font-medium text-navy-900">
+                        <RecordText value={parcel.khasra_number} />
                       </Td>
                       <Td className="id text-sand-700">{parcel.parcel_id}</Td>
-                      <Td className="record-text">{parcel.village ?? "—"}</Td>
+                      <Td>
+                        <RecordText value={parcel.village} stacked />
+                      </Td>
                       <Td>
                         <span className="id">{parcel.area_value}</span>{" "}
-                        <span className="record-text text-sand-700">
-                          {parcel.area_unit_raw ?? parcel.area_unit}
-                        </span>
+                        <RecordText
+                          value={parcel.area_unit_raw ?? parcel.area_unit}
+                          className="text-sand-700"
+                        />
                       </Td>
                       <Td className="id">{parcel.share ?? "—"}</Td>
-                      <Td className="record-text text-sand-700">
-                        {parcel.land_class ?? "—"}
+                      <Td className="text-sand-700">
+                        <RecordText value={parcel.land_class} stacked />
                       </Td>
                       <Td className="id text-sand-700">{parcel.held_since ?? "—"}</Td>
                       <Td className="text-right">

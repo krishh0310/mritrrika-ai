@@ -2,6 +2,7 @@ import { Layers, MapPin, Ruler } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { cn } from "./cn";
+import { RecordText } from "./record-text";
 
 /**
  * One holding, as a card (§15).
@@ -53,8 +54,8 @@ export function ParcelCard({
     >
       <div className="border-b border-sand-100 px-4 py-3">
         <p className="eyebrow">Khasra</p>
-        <p className="record-text mt-0.5 text-xl leading-tight font-semibold text-navy-900">
-          {parcel.khasra_number}
+        <p className="mt-0.5 text-xl leading-tight font-semibold text-navy-900">
+          <RecordText value={parcel.khasra_number} />
         </p>
         <p className="id mt-1.5 text-xs text-sand-500">{parcel.parcel_id}</p>
       </div>
@@ -66,7 +67,9 @@ export function ParcelCard({
               <MapPin className="size-3" aria-hidden />
               Village
             </dt>
-            <dd className="record-text mt-0.5 text-navy-900">{parcel.village}</dd>
+            <dd className="mt-0.5 text-navy-900">
+              <RecordText value={parcel.village} />
+            </dd>
           </div>
         ) : null}
 
@@ -77,9 +80,10 @@ export function ParcelCard({
           </dt>
           <dd className="mt-0.5">
             <span className="id text-navy-900">{parcel.area_value}</span>{" "}
-            <span className="record-text text-sand-700">
-              {parcel.area_unit_raw ?? parcel.area_unit}
-            </span>
+            <RecordText
+              value={parcel.area_unit_raw ?? parcel.area_unit}
+              className="text-sand-700"
+            />
           </dd>
         </div>
 
@@ -96,7 +100,9 @@ export function ParcelCard({
               <Layers className="size-3" aria-hidden />
               Class
             </dt>
-            <dd className="record-text mt-0.5 text-sand-700">{parcel.land_class}</dd>
+            <dd className="mt-0.5 text-sand-700">
+              <RecordText value={parcel.land_class} />
+            </dd>
           </div>
         ) : null}
 

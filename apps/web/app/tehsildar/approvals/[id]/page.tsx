@@ -10,9 +10,10 @@ import {
 import { OwnershipTimeline } from "@/components/shared/ownership-timeline";
 import { QueryBoundary } from "@/components/shared/query-boundary";
 import { ApiError, api } from "@/lib/api-client";
+import { fieldLabel } from "@/lib/field-labels";
 import { useApprovalWorkspace } from "@/lib/queries";
 import {
-  Button, Card, CardHeader, ConfidenceBadge, DocumentStatus, ProvenanceStrip,
+  Button, Card, CardHeader, ConfidenceBadge, DocumentStatus, ProvenanceStrip, RecordText,
   RoleBadge, SyntheticNotice, Table, Td, Textarea, Th,
 } from "@mrittika/ui";
 
@@ -110,7 +111,7 @@ export default function ApprovalWorkspacePage({
                       {data.fields.map((field) => (
                         <tr key={field.extraction_id}>
                           <Td className="whitespace-nowrap text-sand-700">
-                            {field.field.replaceAll("_", " ").toLowerCase()}
+                            {fieldLabel(field.field)}
                           </Td>
                           <Td>
                             <ProvenanceStrip
@@ -185,12 +186,12 @@ export default function ApprovalWorkspacePage({
                       <tbody>
                         {data.corrections.map((correction, index) => (
                           <tr key={`${correction.field}-${index}`}>
-                            <Td className="text-sand-700">{correction.field}</Td>
-                            <Td className="record-text text-sand-500 line-through">
-                              {correction.model_prediction ?? "—"}
+                            <Td className="text-sand-700">{fieldLabel(correction.field)}</Td>
+                            <Td className="text-sand-500 line-through">
+                              <RecordText value={correction.model_prediction} stacked />
                             </Td>
-                            <Td className="record-text font-medium text-navy-900">
-                              {correction.corrected_value ?? "—"}
+                            <Td className="font-medium text-navy-900">
+                              <RecordText value={correction.corrected_value} stacked />
                             </Td>
                             <Td>
                               <ConfidenceBadge

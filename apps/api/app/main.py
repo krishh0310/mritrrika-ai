@@ -88,11 +88,15 @@ def health() -> dict:
 
 
 @app.get("/ready", tags=["ops"])
-def ready() -> dict:
+def ready(response: Response) -> dict:
     """Readiness -- can we actually serve traffic (§74).
 
     Checks the database AND that both required extensions are present, since a
     database missing postgis or pgvector will fail later in a confusing way.
+
+    Not ready is a 503, not a 200 with `"ready": false` in the body: load
+    balancers, orchestrators and uptime checks read the status code, and the
+    200 reported an API with no database as healthy.
     """
     checks: dict[str, str] = {}
     try:
@@ -110,6 +114,8 @@ def ready() -> dict:
         checks["database"] = f"error: {exc.__class__.__name__}"
 
     ready_now = all(v == "ok" for v in checks.values())
+    if not ready_now:
+        response.status_code = 503
     return {"ready": ready_now, "checks": checks}
 
 

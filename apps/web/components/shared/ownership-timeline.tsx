@@ -3,7 +3,7 @@
 import { ArrowRight } from "lucide-react";
 
 import type { OwnershipSpan } from "@/lib/queries";
-import { EmptyState, cn } from "@mrittika/ui";
+import { EmptyState, RecordText, cn } from "@mrittika/ui";
 
 /**
  * A parcel's ownership over time (§25, §40).
@@ -114,9 +114,10 @@ export function OwnershipTimeline({
                     key={`${holder.owner_id}-${holder.valid_from}`}
                     className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5"
                   >
-                    <span className="record-text text-[0.9375rem] font-medium text-navy-900">
-                      {holder.owner}
-                    </span>
+                    <RecordText
+                      value={holder.owner}
+                      className="text-[0.9375rem] font-medium text-navy-900"
+                    />
                     <span className="id text-xs text-sand-700">{holder.share}</span>
                     <span className="text-xs text-sand-500">
                       {holder.valid_to

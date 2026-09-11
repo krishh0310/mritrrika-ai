@@ -130,9 +130,16 @@ class PaddleOcrProvider(OcrProvider):
 
     name = "paddle"
 
-    def __init__(self, lang: str = "hi", model_version: str = "ocr-v1") -> None:
+    def __init__(
+        self,
+        lang: str = "hi",
+        model_version: str = "ocr-v1",
+        detection_model: str | None = None,
+    ) -> None:
         self.lang = lang
         self.model_version = model_version
+        #: None keeps PaddleOCR's default text detector. See DETECTION_MODEL.
+        self.detection_model = detection_model
         self._engine = None
 
     def _get_engine(self):
@@ -142,12 +149,27 @@ class PaddleOcrProvider(OcrProvider):
             except ImportError as exc:
                 raise OcrUnavailable(f"paddleocr is not installed: {exc}") from exc
             try:
-                self._engine = PaddleOCR(
+                options = dict(
                     lang=self.lang,
                     use_doc_orientation_classify=False,
                     use_doc_unwarping=False,
                     use_textline_orientation=False,
                 )
+                if self.detection_model:
+                    # Naming ANY model makes PaddleOCR ignore `lang` -- it says
+                    # so only in a warning -- and fall back to a recogniser that
+                    # cannot read Devanagari. Every field then scores zero. So a
+                    # named detector always travels with the language's
+                    # recogniser, named explicitly.
+                    recogniser = RECOGNITION_MODELS.get(self.lang)
+                    if recogniser is None:
+                        raise OcrUnavailable(
+                            f"no recognition model mapped for lang {self.lang!r}; "
+                            "add it to RECOGNITION_MODELS before naming a detector"
+                        )
+                    options["text_detection_model_name"] = self.detection_model
+                    options["text_recognition_model_name"] = recogniser
+                self._engine = PaddleOCR(**options)
             except Exception as exc:
                 raise OcrUnavailable(f"could not initialise PaddleOCR: {exc}") from exc
         return self._engine
@@ -309,13 +331,33 @@ class OcrEngine:
         raise OcrUnavailable("all OCR providers failed -> " + "; ".join(errors))
 
 
+#: The recogniser PaddleOCR selects for each `lang`, stated explicitly because
+#: naming a detector disables PaddleOCR's own lang-based selection.
+RECOGNITION_MODELS = {"hi": "devanagari_PP-OCRv5_mobile_rec"}
+
+#: Text detector. None keeps PaddleOCR's default, PP-OCRv5_server_det.
+#:
+#: Measured on this pipeline's pages (val split, 40 documents):
+#:
+#:   detector              peak memory / process       speed   extraction F1
+#:   PP-OCRv5_server_det   11 GB first page -> 19 GB   1x      0.68
+#:   PP-OCRv5_mobile_det   1.8 GB                      ~3x     0.57
+#:
+#: Disabling MKLDNN or capping the detector's input size did not reduce the
+#: server detector's memory. Accuracy wins the default; the worker contains
+#: the memory instead (one process, recycled after heavy tasks). Set
+#: OCR_DETECTION_MODEL=PP-OCRv5_mobile_det on a machine that cannot afford it.
+DETECTION_MODEL: str | None = None
+
+
 def build_default_engine(
     provider: str = "paddle",
     lang: str = "hi",
     gemini_api_key: str | None = None,
     gemini_model: str = "gemini-3.6-flash",
+    detection_model: str | None = DETECTION_MODEL,
 ) -> OcrEngine:
-    paddle = PaddleOcrProvider(lang=lang)
+    paddle = PaddleOcrProvider(lang=lang, detection_model=detection_model)
     gemini = GeminiVisionOcrProvider(api_key=gemini_api_key, model=gemini_model)
     if provider == "gemini":
         return OcrEngine(primary=gemini, fallbacks=[paddle])

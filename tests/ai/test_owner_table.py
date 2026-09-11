@@ -57,3 +57,38 @@ def test_owners_and_shares_stay_paired_by_row():
 
 def test_a_table_without_a_remark_is_unchanged():
     assert owners(TABLE) == ["गिरधारी देवी", "श्याम लाल वर्मा"]
+
+
+# ── guardian column ──────────────────────────────────────────────────────────
+# "पिता / पति" is a column heading. The scalar extractor matched 'पिता / प' as
+# the label and recorded the remainder, 'ति', as the guardian's name.
+
+GUARDIAN_TABLE = [
+    TextBlock("खातेदार का नाम", 0.97, (87, 468, 230, 508)),
+    TextBlock("पिता / पति", 0.95, (470, 468, 560, 508)),
+    TextBlock("अंश", 0.96, (760, 468, 800, 508)),
+    TextBlock("गिरधारी देवी", 0.95, (89, 523, 209, 559)),
+    TextBlock("कैलाश वर्मा", 0.94, (480, 523, 600, 559)),
+    TextBlock("१/१", 0.94, (765, 523, 800, 559)),
+]
+
+
+def test_guardian_is_read_from_its_column_not_the_heading():
+    from extraction.field_extractor import extract
+
+    guardians = [v for v in extract(GUARDIAN_TABLE).values if v.field == "GUARDIAN"]
+    assert [(g.raw_value, g.row_index) for g in guardians] == [("कैलाश वर्मा", 0)]
+
+
+def test_a_label_fragment_is_never_a_value():
+    from extraction.field_extractor import _split_inline_value
+
+    heading = TextBlock("पिता / पति", 0.95, (470, 468, 560, 508))
+    assert _split_inline_value(heading, ["पिता / पति", "पिता", "पति"]) is None
+
+
+def test_a_real_value_fused_to_its_label_is_still_recovered():
+    from extraction.field_extractor import _split_inline_value
+
+    fused = TextBlock("पिता / पति : कैलाश वर्मा", 0.9, (100, 100, 400, 140))
+    assert _split_inline_value(fused, ["पिता / पति", "पिता", "पति"]) == "कैलाश वर्मा"

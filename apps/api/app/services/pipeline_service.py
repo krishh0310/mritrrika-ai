@@ -12,7 +12,8 @@ though OCR ran on an upscaled, enhanced copy.
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
+from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
 
 from mrittika_domain import DocumentState
 from sqlalchemy import select
@@ -53,6 +54,7 @@ def get_engine():
             lang=settings.ocr_lang,
             gemini_api_key=settings.gemini_api_key,
             gemini_model=settings.gemini_llm_model,
+            detection_model=settings.ocr_detection_model,
         )
     return _engine
 
@@ -62,7 +64,12 @@ def _update_job(session: Session, job: ProcessingJob, stage: str, progress: int,
     job.stage = stage
     job.progress = progress
     job.message = message
-    job.status = "RUNNING" if stage != "complete" else "SUCCEEDED"
+    # Never SUCCEEDED here. The pipeline reports "complete" when OCR and
+    # extraction finish, BEFORE results are saved and the document moves on;
+    # marking success at that point left documents in PROCESSING whose jobs
+    # claimed to have succeeded when the save then failed. Only the end of
+    # process_document, after the commit, may say so.
+    job.status = "RUNNING"
     session.commit()
 
 
@@ -300,3 +307,79 @@ def process_document(
         "lowest_confidence": round(lowest, 3),
         "missing_fields": missing,
     }
+
+
+#: A live job reports progress several times a page. One silent for this long
+#: has no worker behind it. Matches the worker's hard task time limit, so a
+#: job still legitimately running can never be mistaken for an orphan.
+STALE_AFTER = timedelta(minutes=10)
+
+
+def recover_stale_jobs(
+    session: Session,
+    *,
+    enqueue: Callable[[str, str], str | None],
+    stale_after: timedelta = STALE_AFTER,
+    now: datetime | None = None,
+    document_ids: list[str] | None = None,
+) -> list[str]:
+    """Re-dispatch documents whose processing job died with its worker.
+
+    A worker killed mid-run (a crash, a reboot, a stopped process) leaves its
+    job RUNNING and its document in PROCESSING forever -- nothing else in the
+    §37 graph moves a document out of PROCESSING, so it never reaches a
+    verifier. The dead job is closed as FAILED with the reason, a new job is
+    queued, and the document stays in PROCESSING throughout: it was never
+    processed, so no state is skipped or repeated.
+
+    `enqueue(document_external_id, job_id)` sends the work and returns a task
+    id; it is injected so this is testable without a broker.
+
+    `document_ids` (external ids) limits the sweep. Without it every stuck
+    document in the database is re-dispatched -- which is what the worker wants
+    at startup, and exactly what a test must never do to a shared database.
+    """
+    cutoff = (now or datetime.now(UTC)) - stale_after
+    query = select(Document).where(Document.state == DocumentState.PROCESSING.value)
+    if document_ids is not None:
+        query = query.where(Document.external_id.in_(document_ids))
+    stuck = session.execute(query).scalars().all()
+
+    recovered: list[str] = []
+    for document in stuck:
+        latest = session.execute(
+            select(ProcessingJob).where(ProcessingJob.document_id == document.id)
+            .order_by(ProcessingJob.created_at.desc()).limit(1)
+        ).scalar_one_or_none()
+        if latest is not None and latest.status in ("QUEUED", "RUNNING") and (
+            latest.updated_at is not None and latest.updated_at > cutoff
+        ):
+            continue  # still alive
+
+        if latest is not None and latest.status in ("QUEUED", "RUNNING"):
+            latest.status = "FAILED"
+            latest.error = (
+                f"orphaned: no progress since {latest.updated_at:%Y-%m-%d %H:%M %Z} "
+                "-- the worker running it stopped"
+            )
+            latest.finished_at = datetime.now(UTC)
+
+        job = ProcessingJob(document_id=document.id, stage="upload", progress=0,
+                            status="QUEUED", started_at=datetime.now(UTC))
+        session.add(job)
+        session.flush()
+        audit_service.record(
+            session, action=audit_service.PROCESSING_REQUEUED,
+            entity_type="document", entity_id=document.external_id,
+            after_state={"previous_job": latest.id if latest else None, "job": job.id},
+        )
+        session.commit()
+
+        try:
+            job.celery_task_id = enqueue(document.external_id, job.id)
+        except Exception as exc:  # broker gone again; leave it for next time
+            job.status = "FAILED"
+            job.error = f"could not enqueue: {exc}"
+        session.commit()
+        recovered.append(document.external_id)
+    return recovered

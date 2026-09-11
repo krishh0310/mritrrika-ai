@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useMemo, type ReactNode } from "react";
 import { LogOut } from "lucide-react";
 
 import { useAuth } from "@/lib/auth-context";
+import { useLocations } from "@/lib/queries";
 import { ROLE_LABELS, type Role } from "@/lib/session";
 import {
-  Button, ForbiddenState, LoadingState, RoleBadge, SyntheticNotice, cn,
+  Button, DisplayLanguageProvider, DisplayLanguageToggle, ForbiddenState, LoadingState,
+  RoleBadge, SyntheticNotice, cn,
 } from "@mrittika/ui";
 
 /**
@@ -39,6 +41,18 @@ export function AppShell({
   const router = useRouter();
   const pathname = usePathname();
 
+  // Official English place names, so the English view says "Mudiyakala"
+  // rather than a machine transliteration of मुड़ियाकला. Every role holds
+  // gis:view; if the list cannot load, names fall back to transliteration.
+  const locations = useLocations(undefined, { enabled: Boolean(user) });
+  const places = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const location of locations.data?.locations ?? []) {
+      if (location.name_devanagari) map[location.name_devanagari] = location.name;
+    }
+    return map;
+  }, [locations.data]);
+
   useEffect(() => {
     if (!loading && !user) {
       router.replace(`/login?role=${role}&next=${encodeURIComponent(pathname)}`);
@@ -64,6 +78,7 @@ export function AppShell({
   }
 
   return (
+    <DisplayLanguageProvider places={places}>
     <div className="min-h-dvh bg-offwhite">
       <header className="border-b border-navy-700 bg-navy-900 text-white">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-5 gap-y-3 px-5 py-3">
@@ -74,6 +89,7 @@ export function AppShell({
           <SyntheticNotice className="border-warm text-warm" />
 
           <div className="ml-auto flex items-center gap-3">
+            <DisplayLanguageToggle />
             <span className="hidden text-sm text-navy-100 sm:inline">
               {user.full_name}
             </span>
@@ -123,6 +139,7 @@ export function AppShell({
         {children}
       </main>
     </div>
+    </DisplayLanguageProvider>
   );
 }
 

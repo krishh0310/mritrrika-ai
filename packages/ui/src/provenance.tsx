@@ -1,5 +1,6 @@
 import { cn } from "./cn";
 import { ConfidenceBadge } from "./confidence-badge";
+import { RecordText, isAscii } from "./record-text";
 
 /**
  * The provenance strip — this application's signature element.
@@ -55,9 +56,9 @@ export function ProvenanceStrip({
           "provenance-value",
           wasCorrected && "text-sand-500 line-through decoration-sand-300",
         )}
-        title={wasCorrected ? "Model prediction, superseded by a correction" : "Normalized value"}
+        title={wasCorrected ? "Model prediction, superseded by a correction" : "Standardised value"}
       >
-        {machineValue}
+        <RecordText value={normalized} fallback={machineValue} />
       </span>
 
       {wasCorrected ? (
@@ -69,7 +70,7 @@ export function ProvenanceStrip({
             className="provenance-value font-semibold text-navy-800"
             title="Corrected by a verifier"
           >
-            {corrected}
+            <RecordText value={corrected} />
           </span>
         </>
       ) : null}
@@ -98,26 +99,44 @@ export function ProvenanceCaption({
   page?: number | null;
   className?: string;
 }) {
+  // Identifiers and numbers get the identifier face. Devanagari must not: that
+  // face's letter-spacing pulls conjuncts and vowel signs apart, which is how
+  // 'डेमो जिला' rendered as 'डेमो   जिला'.
+  const valueClass = (value: string | null | undefined) =>
+    value && !isAscii(value) ? "record-text text-sand-700" : "id text-sand-700";
+
   return (
     <p className={cn("flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs", className)}>
-      <span className="text-sand-500">
-        <span className="eyebrow mr-1.5">Raw</span>
-        <span className="record-text text-sand-700">{raw || "—"}</span>
+      <span className="text-sand-500" title="Exactly what OCR read, kept unchanged">
+        <span className="eyebrow mr-1.5">Read from page</span>
+        <span className={valueClass(raw)} lang={raw && !isAscii(raw) ? "hi" : undefined}>
+          {raw || "—"}
+        </span>
       </span>
-      <span className="text-sand-500">
-        <span className="eyebrow mr-1.5">Normalized</span>
-        <span className="id text-sand-700">{normalized || "—"}</span>
-      </span>
-      {modelVersion ? (
-        <span className="text-sand-500">
-          <span className="eyebrow mr-1.5">Model</span>
-          <span className="id text-sand-700">{modelVersion}</span>
+      {normalized !== raw ? (
+        <span className="text-sand-500" title="The value after digits, units and dates were standardised">
+          <span className="eyebrow mr-1.5">Standardised</span>
+          <span className={valueClass(normalized)} lang={normalized && !isAscii(normalized) ? "hi" : undefined}>
+            {normalized || "—"}
+          </span>
         </span>
       ) : null}
       {page ? (
         <span className="text-sand-500">
           <span className="eyebrow mr-1.5">Page</span>
           <span className="id text-sand-700">{page}</span>
+        </span>
+      ) : null}
+      {/* The version is recorded for audit (§64): a correction must trace to
+          what produced the value. It is reference detail, not something to
+          weigh while verifying, so it trails quietly rather than taking a
+          labelled slot of equal weight. */}
+      {modelVersion ? (
+        <span
+          className="ml-auto text-[0.6875rem] text-sand-500"
+          title="The extractor version that produced this value, recorded so every correction can be traced to it"
+        >
+          via {modelVersion}
         </span>
       ) : null}
     </p>

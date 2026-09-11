@@ -8,7 +8,7 @@ import { PageHeader } from "@/components/shell/app-shell";
 import { useLocations, useRecordSearch, type SearchFilters } from "@/lib/queries";
 import {
   Button, Card, CardHeader, EmptyState, Field, Input, Select, SyntheticNotice,
-  Table, Td, Th,
+  Table, Td, Th, RecordText,
 } from "@mrittika/ui";
 
 /**
@@ -143,17 +143,19 @@ export default function CitizenSearchPage() {
                 <tbody>
                   {data.results.map((record) => (
                     <tr key={record.parcel_id} className="hover:bg-sand-50">
-                      <Td className="record-text font-medium text-navy-900">
-                        {record.khasra_number}
+                      <Td className="font-medium text-navy-900">
+                        <RecordText value={record.khasra_number} />
                       </Td>
                       <Td className="id text-sand-700">{record.khata_number ?? "—"}</Td>
-                      <Td className="record-text">{record.village ?? "—"}</Td>
+                      <Td>
+                        <RecordText value={record.village} stacked />
+                      </Td>
                       <Td>
                         <span className="id">{record.area_value}</span>{" "}
                         <span className="text-xs text-sand-500">{record.area_unit}</span>
                       </Td>
-                      <Td className="record-text text-sand-700">
-                        {record.land_class ?? "—"}
+                      <Td className="text-sand-700">
+                        <RecordText value={record.land_class} stacked />
                       </Td>
                       <Td className="id text-xs text-sand-500">{record.parcel_id}</Td>
                     </tr>

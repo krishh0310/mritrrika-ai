@@ -9,7 +9,7 @@ import { PageHeader } from "@/components/shell/app-shell";
 import { ApiError, api } from "@/lib/api-client";
 import { useGrievanceQueue } from "@/lib/queries";
 import {
-  Button, Card, EmptyState, GrievanceStatus, Select, Table, Td, Textarea, Th,
+  Button, Card, EmptyState, GrievanceStatus, Select, Table, Td, Textarea, Th, RecordText,
 } from "@mrittika/ui";
 
 /**
@@ -125,7 +125,9 @@ export default function TehsildarGrievancesPage() {
                   return (
                     <tr key={grievance.grievance_id} className="align-top">
                       <Td className="id text-sand-700">{grievance.grievance_id}</Td>
-                      <Td className="record-text">{grievance.raised_by ?? "—"}</Td>
+                      <Td>
+                        <RecordText value={grievance.raised_by} stacked />
+                      </Td>
                       <Td>
                         <p className="text-navy-900">
                           {grievance.issue_type.replaceAll("_", " ").toLowerCase()}

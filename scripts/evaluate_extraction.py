@@ -31,12 +31,16 @@ from ocr.provider import build_default_engine  # noqa: E402
 from preprocessing.enhance import enhance_for_quality  # noqa: E402
 from quality.assessment import assess  # noqa: E402
 
-#: Fields the extractor targets. OWNER/SHARE are multi-valued (one per row).
+#: Fields the extractor targets. OWNER/GUARDIAN/SHARE are multi-valued (one
+#: per owners-table row).
 SCALAR_FIELDS = [
     "DISTRICT", "TEHSIL", "VILLAGE", "KHASRA", "KHATA",
     "AREA", "AREA_UNIT", "LAND_CLASS", "RECORD_YEAR", "MUTATION", "DATE",
 ]
-MULTI_FIELDS = ["OWNER", "SHARE"]
+#: GUARDIAN was annotated on every page but never scored, so the extractor
+#: could return 'ति' -- the tail of the column heading 'पिता / पति' -- for
+#: every document without any number here moving.
+MULTI_FIELDS = ["OWNER", "GUARDIAN", "SHARE"]
 
 
 def nfc(text: str | None) -> str:
@@ -88,6 +92,8 @@ def main() -> int:
     parser.add_argument("--split", default="test", choices=["train", "val", "test"])
     parser.add_argument("--profile", default="v1")
     parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument("--det-model", default=None,
+                        help="text detection model (default: the pipeline's DETECTION_MODEL)")
     parser.add_argument("--no-preprocess", action="store_true",
                         help="skip OpenCV enhancement, to measure its effect")
     args = parser.parse_args()
@@ -96,7 +102,10 @@ def main() -> int:
     if args.limit:
         docs = docs[: args.limit]
 
-    engine = build_default_engine()
+    engine = (
+        build_default_engine(detection_model=args.det_model)
+        if args.det_model else build_default_engine()
+    )
 
     per_field = defaultdict(lambda: {"tp": 0, "fp": 0, "fn": 0})
     per_tier = defaultdict(lambda: {"tp": 0, "fp": 0, "fn": 0})
