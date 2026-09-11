@@ -8,11 +8,11 @@ bytes
   ↓  quality        blur, contrast, resolution, skew, brightness  → verdict
   ↓  preprocessing  grayscale, denoise, CLAHE, deskew, upscale
   ↓  ocr            PaddleOCR (Devanagari + Latin) → blocks with bbox + score
-  ↓  layout         PP-Structure regions and reading order
+  ↓  layout         table rows detected from OCR box positions (geometry, not a model)
   ↓  extraction     deterministic rules over the OCR blocks → fields
   ↓  normalization  Devanagari digits, fractions, units, dates
   ↓  validation     §33 rules → findings
-  ↓  confidence     four-signal fusion → per-field score and band
+  ↓  confidence     five-signal weighted fusion → per-field score and band
   ↓  anomaly        §34 rules + Isolation Forest over the parcel's history
 NEEDS_VERIFICATION
 ```
@@ -72,13 +72,16 @@ off its words and the §28 click-to-zoom interaction would be useless.
 expected position, script and format. Not a model.
 
 That ordering is §7 and §66: start with what is explainable and cheap, measure
-where it fails, and only then reach for a fine-tuned model. A deterministic
-extractor that gets Khasra right 90% of the time and can say *why* it chose a
-value is more useful to an officer than an opaque one at 93%.
+where it fails, and only then reach for a fine-tuned model. An extractor that
+can say *why* it chose a value is more useful to an officer than a slightly more
+accurate one that cannot. (Measured numbers are in the evaluation section; that
+comparison is an argument, not a result.)
 
-`IndicBERT` and `LayoutLMv3` are wired as optional assists behind the same
-interface. When they are absent the deterministic path carries the whole load
-(§82) and the pipeline records which model version produced each field.
+No ML model assists extraction. `IndicBERT` and `LayoutLMv3` are **not
+integrated** — an earlier version of this document and of the model registry
+said they were "wired as optional assists", and no code ever referenced them.
+The deterministic path carries the whole load, and every field records the
+model version that produced it (§64).
 
 ## Normalization never destroys the raw value
 
@@ -187,8 +190,10 @@ Named here so nothing above reads as a claim (§69):
 
 | | status |
 |---|---|
-| TrOCR handwriting | interface defined, no implementation — handwriting regions are marked `NEEDS_REVIEW` |
-| LayoutLMv3 fine-tuning | not trained; PP-Structure carries layout |
+| Handwriting recognition (TrOCR or any other) | not implemented, and no handwriting detection either — nothing sets `ocr_blocks.is_handwritten` |
+| Layout models (PP-Structure, LayoutLMv3) | not integrated — layout is deterministic geometry inside the extractor |
+| IndicBERT extraction assist | not integrated |
+| Embeddings / pgvector retrieval | not implemented — the `embeddings` table exists, nothing writes or queries it |
 | Confidence calibration (ECE, reliability diagrams) | planned, not measured |
 | Federated learning, GNN ownership analysis, MAML | research direction only |
 | Bhashini, DILRMP, BhuNaksha integration | not connected to anything |

@@ -35,15 +35,24 @@ export default function VerificationWorkspacePage({
 
   const workspace = useVerificationWorkspace(id);
   const [selected, setSelected] = useState<string | null>(null);
+  const [pageNumber, setPageNumber] = useState(1);
   const [error, setError] = useState<string | null>(null);
 
-  // A presigned URL, fetched separately so a missing scan does not take the
-  // whole workspace down with it (§85).
+  // A presigned URL for the page on screen, fetched separately so a missing
+  // scan does not take the whole workspace down with it (§85). For a PDF this
+  // is the rendered page image -- a browser cannot draw the overlay on a PDF.
   const scan = useQuery({
-    queryKey: ["document", id, "file"],
+    queryKey: ["document", id, "file", pageNumber],
     retry: false,
-    queryFn: () => api.get<{ url: string }>(`/api/v1/documents/${id}/file`),
+    queryFn: () =>
+      api.get<{ url: string }>(`/api/v1/documents/${id}/file?page=${pageNumber}`),
   });
+
+  /** Selecting a field opens the page its bbox is on, then zooms to it. */
+  function selectField(field: { extraction_id: string; page_number: number }) {
+    setSelected(field.extraction_id);
+    setPageNumber(field.page_number ?? 1);
+  }
 
   function refresh() {
     void queryClient.invalidateQueries({ queryKey: ["verifications", id] });
@@ -98,6 +107,14 @@ export default function VerificationWorkspacePage({
         ).length;
         const submitted = data.state === "VERIFIED" || data.state === "PENDING_APPROVAL";
 
+        const pages = data.pages?.length
+          ? data.pages
+          : [{ page_number: 1, width: data.page.width, height: data.page.height }];
+        const currentPage =
+          pages.find((p) => p.page_number === pageNumber) ?? pages[0];
+        const onPage = <T extends { page_number?: number }>(items: T[]) =>
+          items.filter((item) => (item.page_number ?? 1) === currentPage.page_number);
+
         return (
           <>
             <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -151,16 +168,56 @@ export default function VerificationWorkspacePage({
             ) : null}
 
             <div className="grid gap-4 lg:grid-cols-2">
-              <DocumentViewer
-                className="h-[36rem] lg:h-[calc(100dvh-14rem)]"
-                imageUrl={scan.data?.url ?? null}
-                pageWidth={data.page.width}
-                pageHeight={data.page.height}
-                fields={data.fields}
-                ocrBlocks={data.ocr_blocks}
-                selectedField={selected}
-                onSelectField={setSelected}
-              />
+              <div className="flex flex-col gap-2">
+                {pages.length > 1 ? (
+                  <nav
+                    aria-label="Document pages"
+                    className="flex items-center justify-between gap-2 rounded-card border border-sand-200 bg-white px-3 py-1.5"
+                  >
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={currentPage.page_number <= 1}
+                      onClick={() => setPageNumber(currentPage.page_number - 1)}
+                    >
+                      Previous page
+                    </Button>
+                    <span className="text-sm text-sand-700">
+                      Page{" "}
+                      <span className="id font-semibold text-navy-900">
+                        {currentPage.page_number}
+                      </span>{" "}
+                      of {pages.length}
+                      <span className="text-sand-500">
+                        {" "}
+                        · {onPage(data.fields).length} fields here
+                      </span>
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={currentPage.page_number >= pages.length}
+                      onClick={() => setPageNumber(currentPage.page_number + 1)}
+                    >
+                      Next page
+                    </Button>
+                  </nav>
+                ) : null}
+                <DocumentViewer
+                  className={
+                    pages.length > 1
+                      ? "h-[33rem] lg:h-[calc(100dvh-17rem)]"
+                      : "h-[36rem] lg:h-[calc(100dvh-14rem)]"
+                  }
+                  imageUrl={scan.data?.url ?? null}
+                  pageWidth={currentPage.width}
+                  pageHeight={currentPage.height}
+                  fields={onPage(data.fields)}
+                  ocrBlocks={onPage(data.ocr_blocks)}
+                  selectedField={selected}
+                  onSelectField={setSelected}
+                />
+              </div>
 
               <Card className="flex h-[36rem] flex-col overflow-hidden lg:h-[calc(100dvh-14rem)]">
                 <div className="flex items-center justify-between gap-3 border-b border-sand-200 px-4 py-3">
@@ -199,7 +256,7 @@ export default function VerificationWorkspacePage({
                       field={field}
                       findings={data.findings}
                       selected={selected === field.extraction_id}
-                      onSelect={() => setSelected(field.extraction_id)}
+                      onSelect={() => selectField(field)}
                       readOnly={submitted}
                       busy={
                         (correct.isPending &&

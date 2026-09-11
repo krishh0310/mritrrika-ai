@@ -343,6 +343,18 @@ def extract_scalar_fields(
     return values
 
 
+#: Lines that end the owners table.
+TABLE_TERMINATORS = ("टिप्पणी", "प्रमाणित")
+
+
+def _opens_with(block: TextBlock, terms: tuple[str, ...]) -> bool:
+    """Whether a block's first word is (a close OCR rendering of) one of `terms`."""
+    words = _norm(block.text).replace(":", " ").split()
+    if not words:
+        return False
+    return any(_similar(words[0], _norm(term)) >= 0.8 for term in terms)
+
+
 def extract_table_rows(blocks: list[TextBlock]) -> list[ExtractedValue]:
     """Read the owners table: one OWNER (and SHARE) per row.
 
@@ -382,12 +394,20 @@ def extract_table_rows(blocks: list[TextBlock]) -> list[ExtractedValue]:
         line_top = min(b.bbox[1] for b in line)
         if line_top <= header_bottom:
             continue
-        # Stop at the footer rule.
-        if any(_is_chrome(b) and "प्रमाणित" in b.text for b in line):
+        # Stop where the table ends: the remark line or the certification
+        # footer. The remark ("टिप्पणी: अभिलेख डिजिटलीकरण हेतु") sits directly
+        # under the owners table inside the name column, and was being read
+        # as one more owner -- auto-accepted at 0.90 on every processed page.
+        # Matched per block, so it holds whether OCR returns the remark as one
+        # block or splits the label from its value.
+        if any(_opens_with(b, TABLE_TERMINATORS) for b in line):
             break
 
         owner_block = column_pick(line, owner_header)
         if owner_block is None or _is_label(owner_block, sum(LABELS.values(), [])):
+            continue
+        # A cell carrying a label separator is a labelled line, not a name.
+        if ":" in owner_block.text or "\uff1a" in owner_block.text:
             continue
         # A serial-number cell is not a name.
         if re.fullmatch(r"[०-९0-9.]+", _norm(owner_block.text)):
@@ -427,10 +447,19 @@ def extract_table_rows(blocks: list[TextBlock]) -> list[ExtractedValue]:
     return values
 
 
-def extract(blocks: list[TextBlock], page_width: int = 1240) -> ExtractionResult:
-    """Extract every supported field from one page's OCR blocks."""
+def extract(
+    blocks: list[TextBlock],
+    page_width: int = 1240,
+    table_rows: list[ExtractedValue] | None = None,
+) -> ExtractionResult:
+    """Extract every supported field from one page's OCR blocks.
+
+    `table_rows` lets the pipeline's layout stage detect table structure once
+    and hand it over, rather than that stage being a label with no work behind
+    it. Omitted, the rows are detected here exactly as before.
+    """
     values = extract_scalar_fields(blocks, page_width)
-    values.extend(extract_table_rows(blocks))
+    values.extend(extract_table_rows(blocks) if table_rows is None else table_rows)
 
     # AREA_UNIT often sits in the same block as AREA ('२.७५ बीघा'); when it
     # does not, it is the block immediately after AREA.

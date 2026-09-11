@@ -11,15 +11,18 @@ from fastapi import (
     File,
     Form,
     HTTPException,
+    Query,
     UploadFile,
     status,
 )
 from mrittika_domain.state_machine import IllegalTransitionError
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from sse_starlette.sse import EventSourceResponse
 
 from app.auth.dependencies import require
 from app.db import SessionLocal, get_session
+from app.models import DocumentPage
 from app.services import document_service, pipeline_service, storage_service
 from app.services.auth_service import Principal, document_in_jurisdiction
 from app.services.document_service import DocumentAccessDenied, DocumentNotFound
@@ -67,6 +70,15 @@ async def upload_document(
     session: Session = Depends(get_session),
 ) -> dict:
     """Store a scanned record and run the §22 quality gate immediately."""
+    if not village_id and not parcel_id:
+        # Without a location there is no jurisdiction to check against, and
+        # the upload used to fail with "the selected location is outside your
+        # jurisdiction" -- telling an operator who selected nothing that they
+        # had selected the wrong thing.
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Choose the village this document belongs to, or link it to a parcel.",
+        )
     data = await file.read()
     try:
         document = document_service.upload(
@@ -217,13 +229,31 @@ async def processing_stream(
 @router.get("/{document_id}/file")
 def document_file(
     document_id: str,
+    page: int = Query(1, ge=1, le=100),
     principal: Principal = Depends(require("ocr:view")),
     session: Session = Depends(get_session),
 ) -> dict:
-    """Short-lived presigned URL for the original scan (§61)."""
+    """Short-lived presigned URL for one page image (§61).
+
+    Always an image the browser can draw the bbox overlay on: for an image
+    upload that is the original, for a PDF it is the rendered page.
+    """
     document = _document_or_404(session, document_id, principal)
+    pages = list(session.execute(
+        select(DocumentPage).where(DocumentPage.document_id == document.id)
+        .order_by(DocumentPage.page_number)
+    ).scalars())
+    target = next((p for p in pages if p.page_number == page), None)
+    if target is None:
+        if pages or page != 1:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, f"page {page} not found")
+        url = storage_service.presigned_url(document.storage_key)
+    else:
+        url = document_service.page_url(document, target)
     return {
         "document_id": document.external_id,
-        "url": storage_service.presigned_url(document.storage_key),
+        "page_number": page,
+        "page_count": max(len(pages), 1),
+        "url": url,
         "expires_in": 900,
     }

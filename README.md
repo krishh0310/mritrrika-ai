@@ -166,7 +166,9 @@ Stated plainly, because a prototype that overclaims is worse than one that says
 where it stops:
 
 - Not connected to DILRMP, BhuNaksha, or any government system.
-- No handwriting recognition — TrOCR is an interface, not an implementation.
+- No handwriting recognition, and no handwriting detection. TrOCR is not integrated.
+- No layout or language model in extraction. PP-Structure, LayoutLMv3 and
+  IndicBERT are not integrated; extraction is deterministic rules.
 - No blockchain. The audit trail is a SHA-256 hash chain, and the code says so.
 - No accuracy claim that has not been measured.
   `scripts/evaluate_extraction.py` reports per difficulty tier; that is the only

@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-import numpy as np
 from mrittika_domain import DocumentState, assert_transition
 from mrittika_domain.state_machine import IllegalTransitionError
 from sqlalchemy import select
@@ -184,15 +183,30 @@ def run_quality_gate(
     *,
     principal: Principal | None = None,
 ) -> dict:
-    """Assess the page and record the verdict (§22)."""
-    from quality.assessment import assess_bytes
+    """Assess every page and record the verdict (§22).
+
+    A multi-page document is judged by its WEAKEST page: one unreadable page
+    in an otherwise clean PDF still needs a rescan, and averaging would hide it.
+    """
+    from ingest.rasterize import decode_pages, is_pdf
+    from quality.assessment import assess
 
     transition(session, document, DocumentState.QUALITY_CHECK, principal=principal,
                action=audit_service.QUALITY_CHECK)
 
+    images: list = []
     try:
-        report = assess_bytes(data)
+        images = decode_pages(data)
+        reports = [assess(image) for image in images]
+        weakest = min(range(len(reports)), key=lambda i: reports[i].overall_score)
+        report = reports[weakest]
         payload = report.to_dict()
+        if len(reports) > 1:
+            payload |= {
+                "page_count": len(reports),
+                "weakest_page": weakest + 1,
+                "page_scores": [round(r.overall_score, 3) for r in reports],
+            }
         document.quality_score = report.overall_score
         document.quality_report = payload
         document.quality_recommendation = report.recommended_action
@@ -205,22 +219,29 @@ def run_quality_gate(
 
     session.flush()
 
-    # Also create the first page row so downstream stages have somewhere to
-    # attach OCR results.
+    # Page rows give downstream stages somewhere to attach OCR results. An
+    # image is its own page. A PDF's pages are rendered once here and stored,
+    # because the pipeline, the Verifier overlay and the browser all need an
+    # image -- none of them can draw a bbox over a PDF.
     if not document.pages:
-        page = DocumentPage(
-            document_id=document.id,
-            page_number=1,
-            storage_key=document.storage_key,
-        )
-        try:
-            import cv2
-            image = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
-            if image is not None:
-                page.height, page.width = image.shape[:2]
-        except Exception:  # pragma: no cover - width/height are advisory
-            pass
-        session.add(page)
+        if images and is_pdf(data):
+            for number, image in enumerate(images, start=1):
+                session.add(DocumentPage(
+                    document_id=document.id,
+                    page_number=number,
+                    storage_key=storage_service.put_page_image(image),
+                    height=image.shape[0],
+                    width=image.shape[1],
+                ))
+        else:
+            page = DocumentPage(
+                document_id=document.id,
+                page_number=1,
+                storage_key=document.storage_key,
+            )
+            if images:
+                page.height, page.width = images[0].shape[:2]
+            session.add(page)
         session.flush()
 
     if document.quality_recommendation == "REJECT_QUALITY":
@@ -288,3 +309,22 @@ __all__ = [
     "DocumentAccessDenied", "DocumentNotFound", "UnsupportedFileType", "get_by_external_id",
     "latest_job", "run_quality_gate", "start_processing", "transition", "upload",
 ]
+
+
+def page_bucket(document: Document, page: DocumentPage) -> str | None:
+    """Which bucket holds a page's image.
+
+    An image upload's single page IS the original, in the documents bucket.
+    A rendered PDF page is derived data, in the derived bucket.
+    """
+    if page.storage_key == document.storage_key:
+        return None  # storage_service default: the documents bucket
+    return storage_service.derived_bucket()
+
+
+def page_bytes(document: Document, page: DocumentPage) -> bytes:
+    return storage_service.get_bytes(page.storage_key, bucket=page_bucket(document, page))
+
+
+def page_url(document: Document, page: DocumentPage) -> str:
+    return storage_service.presigned_url(page.storage_key, bucket=page_bucket(document, page))

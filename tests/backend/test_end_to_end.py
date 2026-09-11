@@ -88,6 +88,18 @@ class TestStep1Upload:
             )
         assert r.status_code == 403
 
+    def test_upload_without_a_location_says_what_is_missing(self, client, auth):
+        """It used to claim the (unselected) location was outside jurisdiction."""
+        with _pick_document().open("rb") as fh:
+            r = client.post(
+                "/api/v1/documents",
+                files={"file": ("x.jpg", fh, "image/jpeg")},
+                data={"document_type": "KHASRA"},
+                headers=auth(DEO),
+            )
+        assert r.status_code == 422
+        assert "choose the village" in r.json()["detail"].lower()
+
     def test_disguised_executable_is_rejected(self, client, auth):
         """§61 -- type comes from sniffing bytes, not the declared header."""
         r = client.post(

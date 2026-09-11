@@ -159,7 +159,10 @@ function AnswerBlock({ answer }: { answer: AiAnswer }) {
         </p>
       </div>
 
-      {answer.degraded || !answer.llm_used ? (
+      {/* Only when a model was tried and unreachable. Answers that never
+          needed one (a refusal, "which parcel?") are not degraded, and
+          saying otherwise misreports why the text reads as it does. */}
+      {answer.degraded ? (
         <p className="flex items-start gap-2 rounded-card border border-medium/30 bg-medium-bg px-3 py-2 text-xs text-medium">
           <AlertTriangle className="mt-px size-3.5 shrink-0" aria-hidden />
           No language model was available, so this is the database result on its

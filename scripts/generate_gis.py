@@ -24,8 +24,8 @@ sys.path.insert(0, str(REPO_ROOT / "services" / "gis"))
 
 from boundaries.village_boundaries import (  # noqa: E402
     SQM_PER_BIGHA,
-    site_for,
     metres_to_wgs84,
+    site_for,
     stable_seed,
 )
 from mrittika_domain import SyntheticWorld  # noqa: E402

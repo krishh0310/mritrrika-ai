@@ -183,7 +183,9 @@ It drives the real stack, so it needs the servers up.
 §69, worth having in front of you:
 
 - Not connected to DILRMP, BhuNaksha, or any government system.
-- No handwriting recognition — TrOCR is an interface, not an implementation.
+- No handwriting recognition, and no handwriting detection. TrOCR is not integrated.
+- No layout or language model in extraction. PP-Structure, LayoutLMv3 and
+  IndicBERT are not integrated; extraction is deterministic rules.
 - No blockchain. A SHA-256 hash chain.
 - No accuracy figure that has not been measured; `scripts/evaluate_extraction.py`
   reports per difficulty tier and that is the only number to quote.

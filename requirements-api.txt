@@ -35,6 +35,7 @@ groq>=0.11
 opencv-python-headless>=4.10
 numpy>=2.0
 Pillow>=11.0
+pypdfium2>=4.30          # renders uploaded PDFs to page images (upload gate + pipeline)
 
 # Testing
 pytest>=8.3

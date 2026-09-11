@@ -60,6 +60,9 @@ class Answer:
     llm_used: bool = False
     #: True when the answer is retrieval-only because no LLM was reachable.
     degraded: bool = False
+    #: Who the answer is phrased for. Officers and citizens see different
+    #: scopes, so the explanation step must not call an officer "a citizen".
+    audience: str = "citizen"
 
     def to_dict(self) -> dict:
         return {
@@ -69,6 +72,7 @@ class Answer:
             "intent": self.intent,
             "llm_used": self.llm_used,
             "degraded": self.degraded,
+            "audience": self.audience,
             "is_synthetic": True,
         }
 
@@ -102,21 +106,119 @@ def _authorized_parcels(session: Session, principal: Principal) -> list[Parcel]:
     )
 
 
+PARCEL_ID_PATTERN = re.compile(r"\bPARCEL-[A-Z0-9-]+\b", re.IGNORECASE)
+
+
 def _resolve_parcel(parcels: list[Parcel], question: str) -> Parcel | None:
-    """Pick which of the caller's OWN parcels a question refers to."""
-    match = KHASRA_PATTERN.search(question)
-    if match:
-        wanted = match.group(1)
+    """Pick which of the in-scope parcels a question refers to.
+
+    Only ever searches `parcels`, which the caller has already authorised, so
+    naming a parcel outside that list resolves to nothing rather than to it.
+
+    Two failure modes this avoids:
+
+    - Taking only the FIRST number in the question. "In 1998, who owned khasra
+      142/2?" hit 1998 first and never looked at 142/2.
+    - Suffix-matching parcel ids on any digits, so "42" or even "2" matched
+      PARCEL-UP-DEMO-0142. An id suffix now has to match the whole zero-padded
+      number.
+
+    Ambiguity returns None: guessing which of two matching parcels was meant
+    would answer confidently about the wrong land.
+    """
+    by_id = {p.external_id.upper(): p for p in parcels}
+    for token in PARCEL_ID_PATTERN.findall(question):
+        if token.upper() in by_id:
+            return by_id[token.upper()]
+
+    candidates: dict[str, Parcel] = {}
+    for token in KHASRA_PATTERN.findall(question):
         for parcel in parcels:
-            if parcel.khasra_number == wanted or parcel.external_id.endswith(wanted):
-                return parcel
-    return parcels[0] if len(parcels) == 1 else None
+            if parcel.khasra_number == token:
+                candidates[parcel.id] = parcel
+            elif "/" not in token and len(token) >= 3:
+                suffix = parcel.external_id.rsplit("-", 1)[-1]
+                if suffix == token.zfill(len(suffix)):
+                    candidates[parcel.id] = parcel
+    if len(candidates) == 1:
+        return next(iter(candidates.values()))
+    if not candidates and len(parcels) == 1:
+        return parcels[0]
+    return None
+
+
+def owners_on_answer(session: Session, parcel: Parcel, as_of: date, intent: str) -> Answer:
+    owners = ownership_repository.owners_on(session, parcel.id, as_of)
+    if not owners:
+        return Answer(
+            answer=f"No ownership was recorded for khasra "
+                   f"{parcel.khasra_number} as of {as_of.isoformat()}.",
+            intent=intent,
+            records=[],
+            citations=[Citation("parcel", parcel.external_id,
+                                f"khasra {parcel.khasra_number}")],
+        )
+    listed = ", ".join(f"{o['owner']} ({o['share']})" for o in owners)
+    return Answer(
+        answer=f"As of {as_of.isoformat()}, khasra {parcel.khasra_number} "
+               f"was recorded to {listed}.",
+        records=owners,
+        intent=intent,
+        citations=[
+            Citation("parcel", parcel.external_id, f"khasra {parcel.khasra_number}"),
+            *[Citation("owner", o["owner_id"], o["owner"]) for o in owners],
+        ],
+    )
+
+
+def history_answer(session: Session, parcel: Parcel, intent: str) -> Answer:
+    history = ownership_repository.ownership_history(session, parcel.id)
+    lines = [
+        f"{h['valid_from']} to {h['valid_to'] or 'present'}: "
+        f"{h['owner']} ({h['share']})"
+        + (f" via mutation {h['mutation_number']}" if h["mutation_number"] else "")
+        for h in history
+    ]
+    return Answer(
+        answer=f"Ownership of khasra {parcel.khasra_number}:\n"
+               + "\n".join(f"  - {line}" for line in lines),
+        records=history,
+        intent=intent,
+        citations=[Citation("parcel", parcel.external_id,
+                            f"khasra {parcel.khasra_number}")],
+    )
+
+
+def area_answer(parcel: Parcel, intent: str) -> Answer:
+    return Answer(
+        answer=f"Khasra {parcel.khasra_number} is recorded as "
+               f"{parcel.area_value} {parcel.area_unit_raw or parcel.area_unit}.",
+        records=[{"parcel_id": parcel.external_id,
+                  "area_value": parcel.area_value,
+                  "area_unit": parcel.area_unit}],
+        intent=intent,
+        citations=[Citation("parcel", parcel.external_id,
+                            f"khasra {parcel.khasra_number}")],
+    )
+
+
+def as_of_date(question: str) -> date:
+    year_match = YEAR_PATTERN.search(question)
+    return date(int(year_match.group(1)), 12, 31) if year_match else date.today()
 
 
 def answer_question(
     session: Session, principal: Principal, question: str
 ) -> Answer:
     """Answer within the caller's authorized scope, with citations."""
+    if not principal.is_citizen():
+        # Officers are scoped by jurisdiction, not ownership. Routed before
+        # any citizen retrieval, and a user holding the citizen role always
+        # takes the narrower citizen path.
+        from app.services import officer_assistant
+
+        return officer_assistant.answer_question(session, principal, question)
+
     parcels = _authorized_parcels(session, principal)
     intent = classify_intent(question)
 
@@ -130,69 +232,24 @@ def answer_question(
         )
 
     if intent == "historical_owner":
-        year_match = YEAR_PATTERN.search(question)
-        as_of = date(int(year_match.group(1)), 12, 31) if year_match else date.today()
         parcel = _resolve_parcel(parcels, question)
         if parcel is None:
             return _holdings_answer(session, parcels, intent,
                                     "Which parcel did you mean?")
-        owners = ownership_repository.owners_on(session, parcel.id, as_of)
-        if not owners:
-            return Answer(
-                answer=f"No ownership was recorded for khasra "
-                       f"{parcel.khasra_number} as of {as_of.isoformat()}.",
-                intent=intent,
-                records=[],
-                citations=[Citation("parcel", parcel.external_id,
-                                    f"khasra {parcel.khasra_number}")],
-            )
-        listed = ", ".join(f"{o['owner']} ({o['share']})" for o in owners)
-        return Answer(
-            answer=f"As of {as_of.isoformat()}, khasra {parcel.khasra_number} "
-                   f"was recorded to {listed}.",
-            records=owners,
-            intent=intent,
-            citations=[
-                Citation("parcel", parcel.external_id, f"khasra {parcel.khasra_number}"),
-                *[Citation("owner", o["owner_id"], o["owner"]) for o in owners],
-            ],
-        )
+        return owners_on_answer(session, parcel, as_of_date(question), intent)
 
     if intent == "ownership_history":
         parcel = _resolve_parcel(parcels, question)
         if parcel is None:
             return _holdings_answer(session, parcels, intent,
                                     "Which parcel's history did you mean?")
-        history = ownership_repository.ownership_history(session, parcel.id)
-        lines = [
-            f"{h['valid_from']} to {h['valid_to'] or 'present'}: "
-            f"{h['owner']} ({h['share']})"
-            + (f" via mutation {h['mutation_number']}" if h["mutation_number"] else "")
-            for h in history
-        ]
-        return Answer(
-            answer=f"Ownership of khasra {parcel.khasra_number}:\n"
-                   + "\n".join(f"  - {line}" for line in lines),
-            records=history,
-            intent=intent,
-            citations=[Citation("parcel", parcel.external_id,
-                                f"khasra {parcel.khasra_number}")],
-        )
+        return history_answer(session, parcel, intent)
 
     if intent == "parcel_area":
         parcel = _resolve_parcel(parcels, question)
         if parcel is None:
             return _holdings_answer(session, parcels, intent)
-        return Answer(
-            answer=f"Khasra {parcel.khasra_number} is recorded as "
-                   f"{parcel.area_value} {parcel.area_unit_raw or parcel.area_unit}.",
-            records=[{"parcel_id": parcel.external_id,
-                      "area_value": parcel.area_value,
-                      "area_unit": parcel.area_unit}],
-            intent=intent,
-            citations=[Citation("parcel", parcel.external_id,
-                                f"khasra {parcel.khasra_number}")],
-        )
+        return area_answer(parcel, intent)
 
     return _holdings_answer(session, parcels, intent)
 
@@ -235,9 +292,15 @@ def explain(answer: Answer, question: str) -> Answer:
         return answer
 
     settings = get_settings()
+    role_line = (
+        "You are helping a revenue officer review land records within their "
+        "jurisdiction.\n"
+        if answer.audience == "officer"
+        else "You are helping a citizen understand their own land record.\n"
+    )
     prompt = (
-        "You are helping a citizen understand their own land record.\n"
-        "Answer ONLY from the facts below. Do not add, infer or estimate "
+        role_line
+        + "Answer ONLY from the facts below. Do not add, infer or estimate "
         "anything. If the facts do not answer the question, say so plainly.\n\n"
         f"QUESTION: {question}\n\n"
         # The retrieved FINDING has to travel with the rows. The rows alone
@@ -246,7 +309,7 @@ def explain(answer: Answer, question: str) -> Answer:
         # retrieved 1998 ownership row -- contradicting our own retrieval.
         # This is still grounding, not leakage: the finding is built from the
         # same authorized rows and adds nothing the caller cannot already see.
-        f"FINDING (already retrieved under this citizen's authorization, and "
+        f"FINDING (already retrieved under this user's authorization, and "
         f"authoritative): {answer.answer}\n\n"
         f"SUPPORTING ROWS: {answer.records}\n\n"
         "Restate the finding in two or three plain sentences."

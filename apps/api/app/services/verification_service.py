@@ -89,16 +89,18 @@ def workspace(session: Session, document: Document) -> dict:
         .order_by(Extraction.field, Extraction.row_index)
     ).scalars())
 
-    page = session.execute(
+    pages = list(session.execute(
         select(DocumentPage).where(DocumentPage.document_id == document.id)
         .order_by(DocumentPage.page_number)
-    ).scalars().first()
+    ).scalars())
+    page = pages[0] if pages else None
+    page_number_by_id = {p.id: p.page_number for p in pages}
 
     blocks = []
-    if page:
+    if pages:
         blocks = list(session.execute(
-            select(OcrBlock).where(OcrBlock.page_id == page.id)
-            .order_by(OcrBlock.reading_order)
+            select(OcrBlock).where(OcrBlock.page_id.in_(page_number_by_id))
+            .order_by(OcrBlock.page_id, OcrBlock.reading_order)
         ).scalars())
 
     findings = list(session.execute(
@@ -110,10 +112,15 @@ def workspace(session: Session, document: Document) -> dict:
         "state": document.state,
         "document_type": document.document_type,
         "quality": document.quality_report,
+        # First page, kept for single-page clients.
         "page": {
             "width": page.width if page else None,
             "height": page.height if page else None,
         },
+        "pages": [
+            {"page_number": p.page_number, "width": p.width, "height": p.height}
+            for p in pages
+        ],
         "fields": [
             {
                 "extraction_id": e.id,
@@ -128,6 +135,7 @@ def workspace(session: Session, document: Document) -> dict:
                 "confidence_breakdown": e.confidence_breakdown,
                 "bbox": [e.bbox_x1, e.bbox_y1, e.bbox_x2, e.bbox_y2],
                 "status": e.status,
+                "page_number": e.page_number,
                 "row_index": e.row_index,
                 "model_version": e.model_version,
             }
@@ -139,6 +147,7 @@ def workspace(session: Session, document: Document) -> dict:
                 "confidence": b.confidence,
                 "bbox": [b.bbox_x1, b.bbox_y1, b.bbox_x2, b.bbox_y2],
                 "reading_order": b.reading_order,
+                "page_number": page_number_by_id[b.page_id],
             }
             for b in blocks
         ],

@@ -25,7 +25,7 @@ from dataclasses import dataclass, field
 
 import cv2
 import numpy as np
-from extraction.field_extractor import ExtractedValue, extract
+from extraction.field_extractor import ExtractedValue, extract, extract_table_rows
 from normalization.normalizers import normalize_field
 from ocr.provider import OcrEngine, OcrResult
 from preprocessing.enhance import enhance_for_quality
@@ -116,9 +116,15 @@ def run(
     report("ocr", 35, "Recognising Devanagari text")
     ocr = engine.recognize(prepared)
 
-    report("layout", 55, "Parsing document structure")
+    # This stage used to report "Parsing document structure" and then do
+    # nothing before the next stage began. Table structure is the layout work
+    # this pipeline really performs -- geometry over OCR boxes, not a layout
+    # model -- so it runs here and its result feeds extraction.
+    report("layout", 55, "Detecting table rows from text positions")
+    table_rows = extract_table_rows(ocr.blocks)
+
     report("extraction", 65, "Extracting record fields")
-    extraction = extract(ocr.blocks, prepared.shape[1])
+    extraction = extract(ocr.blocks, prepared.shape[1], table_rows=table_rows)
 
     report("normalization", 78, "Normalising values")
     normalized: dict[str, str | None] = {}

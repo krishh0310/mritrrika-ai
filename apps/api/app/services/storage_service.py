@@ -187,3 +187,16 @@ def presigned_url(key: str, bucket: str | None = None, expires: int = 900) -> st
 
 def open_stream(key: str, bucket: str | None = None) -> io.BytesIO:
     return io.BytesIO(get_bytes(key, bucket))
+
+
+def derived_bucket() -> str:
+    return get_settings().minio_bucket_derived
+
+
+def put_page_image(image) -> str:
+    """Store a rendered page as PNG in the derived bucket; return its key."""
+    from ingest.rasterize import encode_png
+
+    key = build_key("pages", "image/png")
+    put_bytes(encode_png(image), key, "image/png")
+    return key

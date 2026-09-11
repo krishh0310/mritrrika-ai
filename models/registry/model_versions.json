@@ -1,44 +1,54 @@
 {
   "_comment": [
     "The §64 model registry. Every prediction stores which version made it,",
-    "so a field can always be traced to the model that produced it.",
-    "scripts/seed_demo.py loads this into the model_versions table."
+    "so a field can always be traced to what produced it.",
+    "scripts/seed_demo.py loads THIS file into the model_versions table; it keeps no copy.",
+    "",
+    "§69: describe only what runs. `provider` must name an implementation that exists;",
+    "tests/ai/test_model_registry.py fails if it names one that does not.",
+    "An earlier version listed PP-Structure, LayoutLMv3 and IndicBERT here. None of them",
+    "was ever integrated."
   ],
   "versions": [
     {
       "name": "ocr-v1",
       "kind": "ocr",
-      "description": "PaddleOCR PP-OCRv5, Devanagari + Latin",
+      "provider": "paddleocr",
+      "description": "PaddleOCR PP-OCRv5 with lang='hi' (the Devanagari recognition model, which also reads Latin letters and digits). Gemini vision is registered as a fallback and marks its output degraded.",
       "trained": false,
-      "notes": "Pretrained. §66 says do not fine-tune before measuring."
+      "notes": "Pretrained, not fine-tuned. §66: measure before training."
     },
     {
       "name": "layout-v1",
       "kind": "layout",
-      "description": "PP-Structure table and region detection",
+      "provider": "geometry-rules",
+      "description": "Deterministic geometry, not a model: table rows are detected from OCR box positions, and each extracted field gets a fixed layout-evidence score for how its value was located (value right of label 0.90, table column 0.85, beside the area 0.80, below the label 0.78, inline 0.62).",
       "trained": false,
-      "notes": "Baseline. LayoutLMv3 is wired behind the same interface but not trained."
+      "notes": "No layout model runs. PP-Structure and LayoutLMv3 are not integrated; they are candidates only if §66 failure analysis shows layout is the bottleneck."
     },
     {
       "name": "extractor-v1",
       "kind": "extraction",
-      "description": "Deterministic rules over OCR blocks, with optional IndicBERT assist",
+      "provider": "rules",
+      "description": "Deterministic rules over OCR blocks: fuzzy label matching, then value-right, inline and value-below strategies, plus table-column extraction. Values that cannot be normalised are dropped and reported missing.",
       "trained": false,
-      "notes": "Rules first (§7). Explainable, and it can say why it chose a value."
+      "notes": "No ML model. IndicBERT is not integrated. Rules first (§7): each value records which strategy found it."
     },
     {
       "name": "confidence-v1",
       "kind": "confidence",
-      "description": "Weighted fusion of OCR, extraction, layout and validation signals",
+      "provider": "weighted-fusion",
+      "description": "Weighted fusion of OCR 0.40, extraction 0.25, layout 0.15, validation 0.15 and language 0.05, renormalised over the signals present.",
       "trained": false,
       "notes": "Not calibrated. ECE and reliability diagrams are §65 work not yet done."
     },
     {
       "name": "anomaly-v1",
       "kind": "anomaly",
-      "description": "Deterministic history rules plus an Isolation Forest over 10 features",
+      "provider": "rules+isolation-forest",
+      "description": "Deterministic history rules, plus a scikit-learn Isolation Forest over 10 parcel features.",
       "trained": true,
-      "notes": "The forest is fitted on the corpus at analysis time, not shipped as a checkpoint."
+      "notes": "The forest is fitted on the corpus at analysis time, not shipped as a checkpoint. With fewer than 30 parcels, or without scikit-learn, only the rules run."
     }
   ]
 }

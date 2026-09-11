@@ -220,9 +220,13 @@ def assess(image: np.ndarray) -> QualityReport:
 
 
 def assess_bytes(data: bytes) -> QualityReport:
-    """Assess an encoded image (JPEG/PNG). PDFs are rasterised upstream."""
-    array = np.frombuffer(data, dtype=np.uint8)
-    image = cv2.imdecode(array, cv2.IMREAD_COLOR)
-    if image is None:
-        raise ValueError("could not decode image bytes")
-    return assess(image)
+    """Assess an upload (JPEG, PNG or PDF), returning its WEAKEST page.
+
+    This docstring used to say "PDFs are rasterised upstream" while nothing
+    did, so every PDF failed to decode here. Pages are now rendered by
+    ingest.rasterize, and the document is only as good as its worst page.
+    """
+    from ingest.rasterize import decode_pages
+
+    return min((assess(image) for image in decode_pages(data)),
+               key=lambda report: report.overall_score)

@@ -12,6 +12,7 @@ would silently break the "shares sum to 1" invariant.
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -66,13 +67,14 @@ PERMISSIONS: dict[str, list[str]] = {
     ],
 }
 
-MODEL_VERSIONS = [
-    ("ocr-v1", "ocr", "PaddleOCR PP-OCRv5 (devanagari)"),
-    ("layout-v1", "layout", "PP-Structure"),
-    ("extractor-v1", "extraction", "deterministic rules + IndicBERT assist"),
-    ("confidence-v1", "confidence", "weighted fusion"),
-    ("anomaly-v1", "anomaly", "rules + IsolationForest"),
-]
+#: The registry is the single source of truth (§64). This used to be a
+#: hard-coded copy that had drifted from it -- and named PP-Structure and
+#: IndicBERT, neither of which was ever integrated (§69).
+MODEL_REGISTRY = REPO_ROOT / "models" / "registry" / "model_versions.json"
+
+
+def load_model_versions() -> list[dict]:
+    return json.loads(MODEL_REGISTRY.read_text())["versions"]
 
 
 def upsert(session: Session, model, external_id: str, **values):
@@ -131,12 +133,18 @@ def seed_roles_and_permissions(session: Session) -> dict[str, Role]:
 def seed(session: Session, world: SyntheticWorld, password: str) -> dict[str, int]:
     roles = seed_roles_and_permissions(session)
 
-    for code, kind, description in MODEL_VERSIONS:
-        existing = session.execute(
-            select(ModelVersion).where(ModelVersion.code == code)
+    for entry in load_model_versions():
+        row = session.execute(
+            select(ModelVersion).where(ModelVersion.code == entry["name"])
         ).scalar_one_or_none()
-        if existing is None:
-            session.add(ModelVersion(code=code, kind=kind, description=description))
+        if row is None:
+            row = ModelVersion(code=entry["name"])
+            session.add(row)
+        # Update, not insert-if-missing: otherwise correcting the registry
+        # never reaches a database that was seeded with the old wording.
+        row.kind = entry["kind"]
+        row.provider = entry["provider"]
+        row.description = f"{entry['description']} {entry['notes']}".strip()
     session.flush()
 
     # Locations, parents first so parent_id always resolves.

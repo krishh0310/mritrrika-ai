@@ -133,15 +133,16 @@ their domain responsibility (`ocr_service.py`, `token_service.py`,
 
 ## 4. Provider abstractions (§81)
 
-Interfaces, so no single vendor is load-bearing:
+What actually sits behind an abstraction today. Rows that are not built are
+listed so the table cannot be read as a claim (§69):
 
-| Interface | Primary | Fallback (§82) |
+| Capability | Implementation | Fallback (§82) |
 |---|---|---|
-| `OCRProvider` | PaddleOCR (`lang='hi'`) | Gemini vision |
-| `LayoutProvider` | PP-Structure | deterministic rule extractor |
-| `HandwritingProvider` | Gemini vision | region marked `NEEDS_REVIEW` |
-| `LLMProvider` | Gemini | Groq |
-| `EmbeddingProvider` | Gemini `text-embedding-004` (768-d) | — |
+| OCR — `OcrProvider` (abstract base) | `PaddleOcrProvider` (`lang='hi'`) | `GeminiVisionOcrProvider`, output marked degraded |
+| LLM phrasing of answers | Gemini, via `rag_service` | Groq; if neither responds, the structured database answer is returned flagged `degraded` |
+| Layout | no provider — deterministic geometry in the extractor | — |
+| Handwriting | not implemented | — |
+| Embeddings | not implemented — the `embeddings` table (768-d) exists but is never written | — |
 
 No `ANTHROPIC_API_KEY` exists on this machine; `GEMINI_API_KEY` and
 `GROQ_API_KEY` do. The embedding dimension (768) fixes the `pgvector` column

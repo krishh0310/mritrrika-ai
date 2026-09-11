@@ -115,7 +115,9 @@ export function AssistantScreen() {
 
             <Text style={styles.answer}>{answer.answer}</Text>
 
-            {answer.degraded || !answer.llm_used ? (
+            {/* Only when a model was tried and unreachable -- a refusal or a
+                "which parcel?" prompt never needed one. */}
+            {answer.degraded ? (
               <Text style={styles.degraded}>
                 No language model was reachable, so this is assembled straight
                 from your records rather than written up.

@@ -59,6 +59,8 @@ export type ExtractionField = {
   confidence_breakdown: Record<string, number> | null;
   bbox: [number, number, number, number];
   status: string;
+  /** Which page the bbox is on. A PDF upload has one image per page. */
+  page_number: number;
   row_index: number | null;
   model_version: string | null;
 };
@@ -68,6 +70,13 @@ export type OcrBlock = {
   confidence: number;
   bbox: [number, number, number, number];
   reading_order: number;
+  page_number: number;
+};
+
+export type DocumentPageInfo = {
+  page_number: number;
+  width: number | null;
+  height: number | null;
 };
 
 export type ValidationFinding = {
@@ -83,6 +92,7 @@ export type Workspace = {
   document_type: string;
   quality: Quality | null;
   page: { width: number | null; height: number | null };
+  pages: DocumentPageInfo[];
   fields: ExtractionField[];
   ocr_blocks: OcrBlock[];
   findings: ValidationFinding[];
@@ -219,6 +229,8 @@ export type AiAnswer = {
   /** False when no LLM was reachable and the structured result stands alone (§82). */
   llm_used: boolean;
   degraded: boolean;
+  /** Officers are scoped by jurisdiction, citizens by ownership (§18, §35). */
+  audience: "citizen" | "officer";
   is_synthetic: boolean;
 };
 
