@@ -21,7 +21,7 @@ Baseline captured before any change:
 
 | # | Claimed gap | Verdict | Evidence |
 |---|---|---|---|
-| 1 | No YOLOv8 / layout-region detection | **CONFIRMED MISSING** | No `yolo`/`ultralytics`/`detectron`/`layoutparser` anywhere. `services/ai-worker/layout/` is an empty, *untracked* directory. |
+| 1 | No YOLOv8 / layout-region detection | **CONFIRMED MISSING** | No `yolo`/`ultralytics`/`detectron`/`layoutparser` anywhere. `services/ai-worker/layout/` is an empty, *untracked* directory. Training data, however, exists — see the note below. |
 | 2 | No trained field-extraction model (LayoutLMv3) | **CONFIRMED MISSING** | Extraction is label-anchored and spatial — `services/ai-worker/extraction/field_extractor.py`. No checkpoints, no training script. |
 | 3 | No AI4Bharat / IndicBERT / MuRIL | **CONFIRMED MISSING** (deliberately) | Absent from `requirements-ai.txt`. The only references are in `tests/ai/test_model_registry.py`, which *asserts* these names stay out of the registry until integrated. |
 | 4 | OCR is Hindi-only | **CONFIRMED** | `RECOGNITION_MODELS = {"hi": "devanagari_PP-OCRv5_mobile_rec"}`, `lang: str = "hi"` — `services/ai-worker/ocr/provider.py:336`. |
@@ -36,6 +36,27 @@ Baseline captured before any change:
 | 13 | Misleading `services/ai-worker/confidence/` | **CONFIRMED** | `confidence/__init__.py` *is* tracked and is empty. Real confidence scoring lives in `services/ai-worker/extraction_pipeline.py` (`_status_for`, `lowest_confidence`) and `validation/rules.py:232`. The package advertises a module that does not exist. |
 | 14 | README inaccurate | **CONFIRMED** | Two defects. (a) Quick start never starts the Celery worker, yet the pipeline is async and depends on it — a reader following the README gets uploads that never process. (b) Every test count in the Tests section is stale: 322/12/11 against an actual 388/38/17. Command spellings themselves check out against `package.json`. |
 | 15 | Branch unmerged / unpushed | **CONFIRMED — and blocked** | 4 commits ahead of `main`. `git remote -v` is **empty**: there is no remote, so the branch cannot be pushed and no pull request can be opened from here. |
+
+### Correction found while checking Phase 2 feasibility
+
+`datasets/annotations/layout/`, `ocr/` and `tables/` are all empty, which reads
+as "there is no layout ground truth to train on". That is wrong.
+
+`scripts/generate_documents.py` created those three directories and never wrote
+to them. All four annotation views are written into a single file per page
+under `annotations/fields/`, because they describe the same render and must not
+drift apart. Every one of the 500 pages carries its `layout` boxes inline:
+
+    500 header boxes, 667 table boxes, 2 classes
+
+The templates genuinely produce this ground truth —
+`services/dataset-generator/templates/base.py` calls `add_layout_box` in four
+places, and `annotations/writer.py` plumbs it through. So Phase 2 has a real,
+if small, two-class training set.
+
+The three permanently-empty directories are removed and no longer created, for
+the same reason the empty `confidence/` package was: a directory that advertises
+data it never holds costs a reader more than it saves.
 
 ### Correction to the prior analysis
 
@@ -60,7 +81,7 @@ Confirmed missing or partial, in the order the phases address them:
 
 - **Housekeeping**: the empty tracked `confidence/` package (13); the README's
   missing worker step (14). Items 11 and 12 need no work.
-- **Vision**: layout/region detection (1).
+- **Vision**: layout/region detection (1), trainable on the 2-class inline layout ground truth described above.
 - **NLP**: a trained extraction model (2) and Indic normalization (3).
 - **OCR**: a second script with language routing (4).
 - **Validation**: the duplicate check over the existing checksum index (5),

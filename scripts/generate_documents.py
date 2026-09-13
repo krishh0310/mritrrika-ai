@@ -53,11 +53,13 @@ def main() -> int:
 
     clean_dir = DATASETS / "generated" / "clean"
     degraded_dir = DATASETS / "generated" / "degraded"
+    # One file per page holds all four annotation views -- fields, ocr, layout
+    # and tables -- because they describe the same render and must never drift
+    # apart. Sibling ocr/, layout/ and tables/ directories used to be created
+    # here and never written, which read as missing ground truth when it was
+    # actually present inline under those keys of each fields/ file.
     ann_dir = DATASETS / "annotations" / "fields"
-    for d in (clean_dir, degraded_dir, ann_dir,
-              DATASETS / "annotations" / "ocr",
-              DATASETS / "annotations" / "layout",
-              DATASETS / "annotations" / "tables"):
+    for d in (clean_dir, degraded_dir, ann_dir):
         d.mkdir(parents=True, exist_ok=True)
 
     template_names = list(TEMPLATES)
