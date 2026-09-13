@@ -54,7 +54,11 @@ cp .env.example .env
 # 4. API
 .venv/bin/python -m uvicorn app.main:app --app-dir apps/api --port 8000
 
-# 5. Web
+# 5. Worker (separate shell) — uploads stay queued without it
+cd apps/api && ../../.venv/bin/celery -A app.worker.celery_app worker \
+  --loglevel=info --concurrency=1
+
+# 6. Web
 npm install
 npm run dev
 
@@ -121,11 +125,11 @@ Why each directory exists is documented in
 ## Tests
 
 ```bash
-.venv/bin/python -m pytest tests                  # 322 collected; 1 data-dependent skip
-npm test                                          # 12 web/mobile unit tests
+.venv/bin/python -m pytest tests                  # 388 collected; 1 data-dependent skip
+npm test                                          # 38 web/mobile unit tests
 npm run lint && npm run typecheck                 # web + mobile
 npm run build && npm run build:mobile             # production web + mobile export
-npx playwright test --config apps/web/playwright.config.ts  # 11 browser e2e
+npx playwright test --config apps/web/playwright.config.ts  # 17 browser e2e
 .venv/bin/python -m ruff check .
 ```
 
