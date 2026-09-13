@@ -38,6 +38,25 @@ psycopg[binary]>=3.2
 # ML (§7 anomaly detection)
 scikit-learn>=1.5
 
+# Field-extraction model (§6, §66). Optional at runtime: without them the
+# deterministic extractor runs alone and nothing else changes (§82).
+#
+# NOT layoutlmv3: its byte-level BPE cannot represent Devanagari -- 1.67 tokens
+# per CHARACTER, as mojibake fragments carrying no pretrained meaning. MuRIL
+# tokenises the same Hindi in one token per word. LayoutXLM would fix the
+# tokenizer and needs detectron2, which does not build here. See
+# services/ai-worker/extraction/layout_model.py.
+torch>=2.4
+transformers>=4.44
+sentencepiece>=0.2
+
+# Devanagari canonicalisation (AI4Bharat). One job: making 'क़' compare equal
+# to itself whichever of its two encodings OCR emitted.
+indic-nlp-library>=0.92
+
+# Region detection (§6). Opt-in; see docs/ai-pipeline.md for why it is off.
+ultralytics>=8.3
+
 # Providers (§81)
 google-genai>=1.0       # LLM + embeddings + OCR fallback
 httpx>=0.28             # Gemini authorization-key REST calls

@@ -10,6 +10,44 @@ from __future__ import annotations
 import re
 import unicodedata
 
+# AI4Bharat's Indic NLP Library, used for one narrow job: canonicalising
+# Devanagari before anything is compared.
+#
+# The case that matters is the nukta. 'क़' can arrive from OCR as a single
+# precomposed codepoint or as 'क' followed by U+093C, and the two are visually
+# identical and byte-unequal -- so a village name matches its own record or
+# does not, depending on which form the recogniser happened to emit. The
+# library also strips the zero-width joiners that scanned text collects.
+#
+# Optional, like every other model dependency here (§82): absent, normalisation
+# behaves exactly as it did before, which is NFC only.
+try:  # pragma: no cover - exercised by whichever environment is installed
+    from indicnlp.normalize.indic_normalize import IndicNormalizerFactory
+
+    _INDIC_NORMALIZER = IndicNormalizerFactory().get_normalizer("hi")
+except Exception:  # the library is optional and its import touches resources
+    _INDIC_NORMALIZER = None
+
+INDIC_NLP_AVAILABLE = _INDIC_NORMALIZER is not None
+
+
+def canonicalise_devanagari(text: str) -> str:
+    """One spelling per word, so comparison means what it appears to mean.
+
+    NFC first, because the Indic normaliser expects composed input. Then the
+    library's own pass, which is where the nukta variants converge.
+    """
+    if not text:
+        return text
+    composed = unicodedata.normalize("NFC", text)
+    if _INDIC_NORMALIZER is None:
+        return composed
+    try:
+        return _INDIC_NORMALIZER.normalize(composed)
+    except Exception:  # pragma: no cover - never fail a value over normalising it
+        return composed
+
+
 DEVANAGARI_DIGITS = "०१२३४५६७८९"
 _DIGIT_MAP = {d: str(i) for i, d in enumerate(DEVANAGARI_DIGITS)}
 
@@ -171,6 +209,10 @@ NORMALIZERS = {
 
 def normalize_field(field: str, raw: str | None) -> str | None:
     """Apply the right normalizer for a field. Never mutates `raw`."""
+    # Canonicalise the script BEFORE any field-specific rule looks at it, so
+    # every rule below compares one spelling rather than two.
+    if raw is not None:
+        raw = canonicalise_devanagari(raw)
     if field == "AREA":
         value = normalize_number(raw)
         return None if value is None else f"{value:g}"

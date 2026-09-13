@@ -101,6 +101,11 @@ def main() -> int:
                         help="scope extraction with the YOLOv8 region detector")
     parser.add_argument("--tag", default=None,
                         help="suffix for the report filename, to keep runs apart")
+    parser.add_argument("--extractor", default="rules", choices=["rules", "model"],
+                        help="'model' runs the trained layout model with the "
+                             "rules as a per-field fallback")
+    parser.add_argument("--weights", default=None,
+                        help="checkpoint for --extractor model")
     args = parser.parse_args()
 
     docs = load_split(args.split, args.profile)
@@ -113,6 +118,18 @@ def main() -> int:
     )
 
     # Built once: loading the weights per page would dominate the run.
+    model_extractor = None
+    if args.extractor == "model":
+        from extraction.model_extractor import ModelExtractor
+
+        model_extractor = ModelExtractor(args.weights)
+        if not model_extractor.available:
+            raise SystemExit(
+                "--extractor model requested but it is unavailable: "
+                f"{model_extractor.unavailable_reason}"
+            )
+        print("extractor: trained model, rules as per-field fallback")
+
     detector = None
     if args.layout:
         from layout import build_default_detector
@@ -157,7 +174,15 @@ def main() -> int:
                     round(x2 * sx), round(y2 * sy),
                 )))
 
-        predicted_all = extract(result.blocks, prepared.shape[1], regions=regions)
+        if model_extractor is not None:
+            from extraction.model_extractor import extract as extract_with_model
+
+            predicted_all = extract_with_model(
+                result.blocks, prepared.shape[1], prepared.shape[0],
+                extractor=model_extractor, regions=regions,
+            )
+        else:
+            predicted_all = extract(result.blocks, prepared.shape[1], regions=regions)
         truth_scalars, truth_multi = truth_for(doc)
         tier = doc["difficulty"]
 
@@ -248,6 +273,7 @@ def main() -> int:
     report.write_text(json.dumps({
         "split": args.split,
         "layout_scoping": bool(args.layout),
+        "extractor": args.extractor,
         "documents": len(docs),
         "per_field": {k: dict(v) for k, v in per_field.items()},
         "per_difficulty": {k: dict(v) for k, v in per_tier.items()},

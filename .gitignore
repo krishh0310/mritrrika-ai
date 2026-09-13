@@ -29,6 +29,7 @@ datasets/splits/
 datasets/reports/
 datasets/gis/*.geojson
 datasets/yolo-layout/
+datasets/ocr-cache/
 datasets/metadata/*.json
 
 # Model weights — never commit large binaries (§78 "models")
