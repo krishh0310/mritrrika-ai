@@ -9,7 +9,7 @@ import {
   useCitizenDashboard, useMyGrievances, useMyParcels,
 } from "@/lib/queries";
 import {
-  Button, Card, CardHeader, EmptyState, StatCard, Table, Td, Th, RecordText,
+  Button, Card, CardHeader, EmptyState, RecordText, StatCard, Table, Td, Th, useT,
 } from "@mrittika/ui";
 
 /**
@@ -18,6 +18,7 @@ import {
  * could send (§62).
  */
 export default function CitizenDashboardPage() {
+  const t = useT();
   const summary = useCitizenDashboard();
   const parcels = useMyParcels();
   const grievances = useMyGrievances();
@@ -33,7 +34,7 @@ export default function CitizenDashboardPage() {
         title={
           summary.data ? `Welcome, ${summary.data.citizen_name}` : "Your land"
         }
-        description="Everything recorded against your name, as approved by the tehsildar."
+        description={t("citizen.dashboard.description")}
         actions={
           <Button asChild variant="outline">
             <Link href="/citizen/my-land">Open my land</Link>
@@ -41,28 +42,28 @@ export default function CitizenDashboardPage() {
         }
       />
 
-      <QueryBoundary query={summary} label="your summary">
+      <QueryBoundary query={summary} label={t("citizen.dashboard.loadLabel")}>
         {(data) => (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard
-              label="My parcels"
+              label={t("citizen.dashboard.myParcels")}
               value={data.parcel_count}
               icon={<Landmark className="size-4" />}
             />
             <StatCard
-              label="Total recorded area"
+              label={t("citizen.dashboard.totalArea")}
               value={data.total_area}
               hint={data.area_units.join(", ") || "no units recorded"}
               icon={<Ruler className="size-4" />}
             />
             <StatCard
-              label="Verified records"
+              label={t("citizen.dashboard.verifiedRecords")}
               value={holdings.length}
               hint="Approved and available to you"
               icon={<FileText className="size-4" />}
             />
             <StatCard
-              label="Open grievances"
+              label={t("citizen.dashboard.openGrievances")}
               value={openGrievances}
               tone={openGrievances > 0 ? "attention" : "default"}
               icon={<MessageSquareWarning className="size-4" />}
@@ -73,8 +74,8 @@ export default function CitizenDashboardPage() {
 
       <Card className="mt-6">
         <CardHeader
-          title="My land records"
-          description="Each row is a parcel you hold an interest in."
+          title={t("citizen.dashboard.recordsTitle")}
+          description={t("citizen.dashboard.recordsBody")}
           action={
             <Button asChild variant="ghost" size="sm">
               <Link href="/citizen/map">
@@ -85,12 +86,12 @@ export default function CitizenDashboardPage() {
           }
         />
 
-        <QueryBoundary query={parcels} label="your parcels">
+        <QueryBoundary query={parcels} label={t("citizen.myLand.loadLabel")}>
           {(data) =>
             data.parcels.length === 0 ? (
               <EmptyState
-                title="No parcels are recorded against your name yet"
-                description="A parcel appears here once a tehsildar approves a record naming you as a holder."
+                title={t("citizen.dashboard.emptyTitle")}
+                description={t("citizen.dashboard.emptyBody")}
                 action={
                   <Button asChild variant="outline" size="sm">
                     <Link href="/citizen/search">Search public records</Link>

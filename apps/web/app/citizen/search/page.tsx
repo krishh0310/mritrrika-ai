@@ -7,8 +7,7 @@ import { QueryBoundary } from "@/components/shared/query-boundary";
 import { PageHeader } from "@/components/shell/app-shell";
 import { useLocations, useRecordSearch, type SearchFilters } from "@/lib/queries";
 import {
-  Button, Card, CardHeader, EmptyState, Field, Input, Select, SyntheticNotice,
-  Table, Td, Th, RecordText,
+  Button, Card, CardHeader, EmptyState, Field, Input, RecordText, Select, SyntheticNotice, Table, Td, Th, useT,
 } from "@mrittika/ui";
 
 /**
@@ -19,6 +18,7 @@ import {
  * server. This page therefore has nothing to hide: it renders what it is given.
  */
 export default function CitizenSearchPage() {
+  const t = useT();
   const [draft, setDraft] = useState<SearchFilters>({});
   const [submitted, setSubmitted] = useState<SearchFilters | null>(null);
 
@@ -32,8 +32,8 @@ export default function CitizenSearchPage() {
   return (
     <>
       <PageHeader
-        title="Search records"
-        description="Approved public land records. Search by location, khasra, khata or parcel identifier."
+        title={t("citizen.search.title")}
+        description={t("citizen.search.description")}
       />
 
       <Card>
@@ -45,7 +45,7 @@ export default function CitizenSearchPage() {
           }}
         >
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Field label="Village">
+            <Field label={t("citizen.search.villageLabel")}>
               <Select
                 value={draft.village_id ?? ""}
                 onChange={(e) => update("village_id", e.target.value)}
@@ -59,7 +59,7 @@ export default function CitizenSearchPage() {
               </Select>
             </Field>
 
-            <Field label="Khasra number">
+            <Field label={t("citizen.search.khasraLabel")}>
               <Input
                 value={draft.khasra ?? ""}
                 onChange={(e) => update("khasra", e.target.value)}
@@ -67,7 +67,7 @@ export default function CitizenSearchPage() {
               />
             </Field>
 
-            <Field label="Khata number">
+            <Field label={t("citizen.search.khataLabel")}>
               <Input
                 value={draft.khata ?? ""}
                 onChange={(e) => update("khata", e.target.value)}
@@ -75,7 +75,7 @@ export default function CitizenSearchPage() {
               />
             </Field>
 
-            <Field label="Parcel identifier">
+            <Field label={t("citizen.search.parcelLabel")}>
               <Input
                 className="id"
                 value={draft.parcel_id ?? ""}
@@ -109,7 +109,7 @@ export default function CitizenSearchPage() {
       {submitted ? (
         <Card className="mt-5">
           <CardHeader
-            title="Results"
+            title={t("citizen.search.resultsTitle")}
             description={
               results.data ? `${results.data.count} matching records` : undefined
             }
@@ -117,13 +117,13 @@ export default function CitizenSearchPage() {
           />
           <QueryBoundary
             query={results}
-            label="search results"
+            label={t("citizen.search.loadLabel")}
             empty={{
               when: (data) => data.results.length === 0,
               node: (
                 <EmptyState
-                  title="No approved records match those filters"
-                  description="Try a broader search — a village on its own, or just the khasra number."
+                  title={t("citizen.search.emptyTitle")}
+                  description={t("citizen.search.emptyBody")}
                 />
               ),
             }}

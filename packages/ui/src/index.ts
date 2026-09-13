@@ -63,3 +63,14 @@ export {
 } from "./record-text";
 
 export { RECORD_GLOSSARY, toEnglish, transliterate, type EnglishReading } from "./script";
+
+export {
+  UiLanguageProvider,
+  UiLanguageToggle,
+  useT,
+  useUiLanguage,
+  en,
+  hi,
+  type MessageKey,
+  type UiLanguage,
+} from "./i18n";

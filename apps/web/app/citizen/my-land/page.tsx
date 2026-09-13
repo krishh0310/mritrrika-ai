@@ -8,7 +8,7 @@ import { QueryBoundary } from "@/components/shared/query-boundary";
 import { PageHeader } from "@/components/shell/app-shell";
 import { useMyParcels } from "@/lib/queries";
 import {
-  Button, Card, EmptyState, ParcelCard, Table, Td, Th, cn, RecordText,
+  Button, Card, EmptyState, ParcelCard, Table, Td, Th, cn, RecordText, useT,
 } from "@mrittika/ui";
 
 /**
@@ -19,24 +19,25 @@ import {
  * the table; one checking a single holding wants the card.
  */
 export default function MyLandPage() {
+  const t = useT();
   const parcels = useMyParcels();
   const [view, setView] = useState<"cards" | "table">("cards");
 
   return (
     <>
       <PageHeader
-        title="My land"
-        description="Parcels linked to your owner identity. Derived from your session, not from anything this page sends."
+        title={t("citizen.myLand.title")}
+        description={t("citizen.myLand.description")}
         actions={
           <div
             role="group"
-            aria-label="View"
+            aria-label={t("citizen.myLand.viewLabel")}
             className="inline-flex overflow-hidden rounded-card border border-sand-200 bg-white"
           >
             {(
               [
-                ["cards", LayoutGrid, "Cards"],
-                ["table", List, "Table"],
+                ["cards", LayoutGrid, t("citizen.myLand.cards")],
+                ["table", List, t("citizen.myLand.table")],
               ] as const
             ).map(([mode, Icon, label]) => (
               <button
@@ -61,17 +62,17 @@ export default function MyLandPage() {
 
       <QueryBoundary
         query={parcels}
-        label="your parcels"
+        label={t("citizen.myLand.loadLabel")}
         empty={{
           when: (data) => data.parcels.length === 0,
           node: (
             <Card>
               <EmptyState
-                title="Nothing is recorded against your name yet"
-                description="Parcels appear here once a tehsildar approves a record naming you as a holder."
+                title={t("citizen.myLand.emptyTitle")}
+                description={t("citizen.myLand.emptyBody")}
                 action={
                   <Button asChild variant="outline" size="sm">
-                    <Link href="/citizen/search">Search public records</Link>
+                    <Link href="/citizen/search">{t("citizen.myLand.searchPublic")}</Link>
                   </Button>
                 }
               />
@@ -90,13 +91,13 @@ export default function MyLandPage() {
                     <>
                       <Button asChild variant="outline" size="sm">
                         <Link href={`/citizen/records/${parcel.parcel_id}`}>
-                          Open record
+                          {t("citizen.myLand.openRecord")}
                         </Link>
                       </Button>
                       <Button asChild variant="ghost" size="sm">
                         <Link href={`/citizen/map?parcel=${parcel.parcel_id}`}>
                           <MapPin aria-hidden />
-                          Map
+                          {t("citizen.myLand.map")}
                         </Link>
                       </Button>
                     </>
@@ -109,14 +110,14 @@ export default function MyLandPage() {
               <Table>
                 <thead>
                   <tr>
-                    <Th>Khasra</Th>
-                    <Th>Parcel</Th>
-                    <Th>Village</Th>
-                    <Th>Area</Th>
-                    <Th>Share</Th>
-                    <Th>Class</Th>
-                    <Th>Held since</Th>
-                    <Th className="text-right">Record</Th>
+                    <Th>{t("citizen.myLand.khasra")}</Th>
+                    <Th>{t("citizen.myLand.parcel")}</Th>
+                    <Th>{t("citizen.myLand.village")}</Th>
+                    <Th>{t("citizen.myLand.area")}</Th>
+                    <Th>{t("citizen.myLand.share")}</Th>
+                    <Th>{t("citizen.myLand.landClass")}</Th>
+                    <Th>{t("citizen.myLand.heldSince")}</Th>
+                    <Th className="text-right">{t("citizen.myLand.record")}</Th>
                   </tr>
                 </thead>
                 <tbody>

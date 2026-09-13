@@ -11,13 +11,23 @@ import { QueryBoundary } from "@/components/shared/query-boundary";
 import { PageHeader } from "@/components/shell/app-shell";
 import { useMyParcels, useOwnershipHistory, useVillageParcels } from "@/lib/queries";
 import {
-  Button, Card, CardHeader, EmptyState, LoadingState, Select, SyntheticNotice, RecordText,
+  Button, Card, CardHeader, EmptyState, LoadingState, RecordText, Select, SyntheticNotice, useT,
 } from "@mrittika/ui";
+
+/**
+ * The map's loading state is its own component because `dynamic()` is called
+ * at module scope, where no hook can run -- a `useT()` there would be a hook
+ * outside a component.
+ */
+function MapLoading() {
+  const t = useT();
+  return <LoadingState label={t("citizen.map.loadLabel")} />;
+}
 
 // MapLibre touches `window` at import time, so it cannot be server-rendered.
 const ParcelMap = dynamic(
   () => import("@/components/shared/parcel-map").then((m) => m.ParcelMap),
-  { ssr: false, loading: () => <LoadingState label="the map" /> },
+  { ssr: false, loading: () => <MapLoading /> },
 );
 
 /**
@@ -28,6 +38,7 @@ const ParcelMap = dynamic(
  * about confidence or verification appears here.
  */
 function CitizenMapScreen() {
+  const t = useT();
   const requested = useSearchParams().get("parcel");
 
   const parcels = useMyParcels();
@@ -58,15 +69,15 @@ function CitizenMapScreen() {
   return (
     <>
       <PageHeader
-        title="Parcel map"
-        description="Your parcels are filled in orange; the rest of the village is drawn for context."
+        title={t("citizen.map.heading")}
+        description={t("citizen.map.description")}
         actions={
           villages.length > 1 ? (
             <Select
               value={villageId ?? ""}
               onChange={(e) => setChosenVillageId(e.target.value)}
               className="w-48"
-              aria-label="Village"
+              aria-label={t("citizen.search.villageLabel")}
             >
               {villages.map(([id, name]) => (
                 <option key={id} value={id}>
@@ -80,15 +91,15 @@ function CitizenMapScreen() {
 
       <QueryBoundary
         query={parcels}
-        label="your parcels"
+        label={t("citizen.myLand.loadLabel")}
         empty={{
           when: (data) => data.parcels.length === 0,
           node: (
             <Card>
               <EmptyState
                 icon={<MapPin className="size-7" aria-hidden />}
-                title="No parcels to show"
-                description="Once a record naming you is approved, its parcel appears here."
+                title={t("citizen.map.emptyTitle")}
+                description={t("citizen.map.emptyBody")}
               />
             </Card>
           ),
@@ -99,13 +110,13 @@ function CitizenMapScreen() {
             <div className="h-[32rem] lg:h-[38rem]">
               {geo.isPending && villageId ? (
                 <Card className="flex h-full items-center justify-center">
-                  <LoadingState label="the cadastre" />
+                  <LoadingState label={t("citizen.map.cadastreLabel")} />
                 </Card>
               ) : geo.isError ? (
                 <Card className="flex h-full items-center justify-center">
                   <EmptyState
-                    title="The cadastre could not be loaded"
-                    description="The parcel geometry for this village is unavailable right now."
+                    title={t("citizen.map.cadastreErrorTitle")}
+                    description={t("citizen.map.cadastreErrorBody")}
                   />
                 </Card>
               ) : (
@@ -131,7 +142,7 @@ function CitizenMapScreen() {
                         variant="ghost"
                         size="icon"
                         onClick={() => setSelected(null)}
-                        aria-label="Close panel"
+                        aria-label={t("citizen.map.closePanel")}
                       >
                         <X aria-hidden />
                       </Button>
@@ -164,7 +175,7 @@ function CitizenMapScreen() {
 
                   <div className="border-t border-sand-200 p-5">
                     <p className="eyebrow mb-3">Ownership history</p>
-                    <QueryBoundary query={history} label="the history">
+                    <QueryBoundary query={history} label={t("citizen.map.historyLabel")}>
                       {(data) => <OwnershipTimeline history={data.history} />}
                     </QueryBoundary>
                   </div>
@@ -226,8 +237,9 @@ function CitizenMapScreen() {
 }
 
 export default function CitizenMapPage() {
+  const t = useT();
   return (
-    <Suspense fallback={<LoadingState label="the map" />}>
+    <Suspense fallback={<LoadingState label={t("citizen.map.loadLabel")} />}>
       <CitizenMapScreen />
     </Suspense>
   );

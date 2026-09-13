@@ -10,8 +10,7 @@ import { PageHeader } from "@/components/shell/app-shell";
 import { ApiError, api } from "@/lib/api-client";
 import { useIssueTypes, useMyGrievances, useMyParcels } from "@/lib/queries";
 import {
-  Button, Card, CardHeader, EmptyState, Field, GrievanceStatus, Input,
-  LoadingState, Select, Table, Td, Textarea, Th,
+  Button, Card, CardHeader, EmptyState, Field, GrievanceStatus, Input, LoadingState, Select, Table, Td, Textarea, Th, useT,
 } from "@mrittika/ui";
 
 /** Issue types come from the API; these are the words a citizen reads. */
@@ -26,6 +25,7 @@ const ISSUE_LABELS: Record<string, string> = {
 };
 
 function GrievancesScreen() {
+  const t = useT();
   const preselected = useSearchParams().get("parcel") ?? "";
   const queryClient = useQueryClient();
 
@@ -65,13 +65,13 @@ function GrievancesScreen() {
   return (
     <>
       <PageHeader
-        title="Grievances"
-        description="Raise an issue with a record, and follow what happens to it."
+        title={t("citizen.grievances.title")}
+        description={t("citizen.grievances.description")}
       />
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
         <Card className="self-start">
-          <CardHeader title="Raise a grievance" />
+          <CardHeader title={t("citizen.grievances.raiseTitle")} />
           <form
             className="space-y-4 p-5"
             onSubmit={(event) => {
@@ -80,7 +80,7 @@ function GrievancesScreen() {
             }}
           >
             <Field
-              label="Which parcel?"
+              label={t("citizen.grievances.whichParcel")}
               hint="Leave blank if the issue is not about one of your parcels."
             >
               <Select value={parcelId} onChange={(e) => setParcelId(e.target.value)}>
@@ -93,7 +93,7 @@ function GrievancesScreen() {
               </Select>
             </Field>
 
-            <Field label="What is wrong?" required>
+            <Field label={t("citizen.grievances.whatIsWrong")} required>
               <Select
                 value={issueType}
                 onChange={(e) => setIssueType(e.target.value)}
@@ -110,7 +110,7 @@ function GrievancesScreen() {
             </Field>
 
             <Field
-              label="Describe the problem"
+              label={t("citizen.grievances.describe")}
               required
               hint="Say what the record shows and what it should show."
             >
@@ -124,7 +124,7 @@ function GrievancesScreen() {
             </Field>
 
             <Field
-              label="Supporting document"
+              label={t("citizen.grievances.attachment")}
               hint="Optional. PDF, PNG or JPEG."
             >
               <Input
@@ -167,18 +167,18 @@ function GrievancesScreen() {
 
         <Card>
           <CardHeader
-            title="Your grievances"
+            title={t("citizen.grievances.yoursTitle")}
             description={mine.data ? `${mine.data.count} filed` : undefined}
           />
           <QueryBoundary
             query={mine}
-            label="your grievances"
+            label={t("citizen.grievances.loadLabel")}
             empty={{
               when: (data) => data.grievances.length === 0,
               node: (
                 <EmptyState
-                  title="You have not raised anything yet"
-                  description="If a record about your land looks wrong, file it on the left and an officer will review it."
+                  title={t("citizen.grievances.emptyTitle")}
+                  description={t("citizen.grievances.emptyBody")}
                 />
               ),
             }}
@@ -234,8 +234,9 @@ function GrievancesScreen() {
 }
 
 export default function CitizenGrievancesPage() {
+  const t = useT();
   return (
-    <Suspense fallback={<LoadingState label="grievances" />}>
+    <Suspense fallback={<LoadingState label={t("citizen.grievances.loadLabel")} />}>
       <GrievancesScreen />
     </Suspense>
   );

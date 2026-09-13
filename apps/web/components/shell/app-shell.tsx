@@ -10,7 +10,8 @@ import { useLocations } from "@/lib/queries";
 import { ROLE_LABELS, type Role } from "@/lib/session";
 import {
   Button, DisplayLanguageProvider, DisplayLanguageToggle, ForbiddenState, LoadingState,
-  RoleBadge, SyntheticNotice, cn,
+  RoleBadge, SyntheticNotice, UiLanguageProvider, UiLanguageToggle, cn, useT,
+  type MessageKey, type UiLanguage,
 } from "@mrittika/ui";
 
 /**
@@ -23,18 +24,40 @@ import {
  * person through.
  */
 
-export type NavItem = { href: string; label: string };
+/**
+ * Nav items carry a message KEY, not a label. A literal string here would be
+ * a piece of chrome that the language toggle cannot reach -- and navigation is
+ * the first thing a reader needs in their own language.
+ */
+export type NavItem = { href: string; labelKey: MessageKey };
+
+/**
+ * What each role reads before anyone chooses.
+ *
+ * Citizens default to Hindi: the portal is public-facing and the records
+ * themselves are in Hindi. Officers default to English, which is the revenue
+ * service's working language and what every internal screen, export and audit
+ * entry is already written in. A stored choice always overrides this -- the
+ * default is a starting point, not a statement about what someone can read.
+ */
+const DEFAULT_LANGUAGE: Record<Role, UiLanguage> = {
+  CITIZEN: "hi",
+  DEO: "en",
+  VERIFIER: "en",
+  TEHSILDAR: "en",
+};
 
 export function AppShell({
   role,
   nav,
-  title,
+  titleKey,
   children,
 }: {
   /** The role this section belongs to. Used for the guard and the header. */
   role: Role;
   nav: NavItem[];
-  title: string;
+  /** Message key for the section name, so the header speaks the chosen language. */
+  titleKey: MessageKey;
   children: ReactNode;
 }) {
   const { user, loading, signOut, hasRole } = useAuth();
@@ -77,39 +100,78 @@ export function AppShell({
     );
   }
 
+  // The chrome is a separate component because `useT` reads the provider, and
+  // a hook cannot see a context its own component renders.
   return (
-    <DisplayLanguageProvider places={places}>
+    <UiLanguageProvider defaultLanguage={DEFAULT_LANGUAGE[role] ?? "en"}>
+      <DisplayLanguageProvider places={places}>
+        <ShellChrome
+          role={role}
+          nav={nav}
+          titleKey={titleKey}
+          pathname={pathname}
+          userName={user.full_name}
+          onSignOut={() => {
+            signOut();
+            router.replace("/login");
+          }}
+        >
+          {children}
+        </ShellChrome>
+      </DisplayLanguageProvider>
+    </UiLanguageProvider>
+  );
+}
+
+function ShellChrome({
+  role,
+  nav,
+  titleKey,
+  pathname,
+  userName,
+  onSignOut,
+  children,
+}: {
+  role: Role;
+  nav: NavItem[];
+  titleKey: MessageKey;
+  pathname: string;
+  userName: string;
+  onSignOut: () => void;
+  children: ReactNode;
+}) {
+  const t = useT();
+
+  return (
     <div className="min-h-dvh bg-offwhite">
       <header className="border-b border-navy-700 bg-navy-900 text-white">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-5 gap-y-3 px-5 py-3">
           <Link href="/" className="text-base font-semibold tracking-tight">
-            Mrittika AI
+            {t("app.name")}
           </Link>
-          <span className="text-sm text-navy-300">{title}</span>
+          <span className="text-sm text-navy-300">{t(titleKey)}</span>
           <SyntheticNotice className="border-warm text-warm" />
 
           <div className="ml-auto flex items-center gap-3">
+            <UiLanguageToggle className="border-navy-600" />
             <DisplayLanguageToggle />
             <span className="hidden text-sm text-navy-100 sm:inline">
-              {user.full_name}
+              {userName}
             </span>
             <RoleBadge role={role} className="border-navy-600 bg-navy-800 text-white" />
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => {
-                signOut();
-                router.replace("/login");
-              }}
+              onClick={onSignOut}
               className="text-navy-100 hover:bg-white/10"
             >
               <LogOut aria-hidden />
-              Sign out
+              {t("nav.signOut")}
             </Button>
           </div>
         </div>
 
-        <nav aria-label={`${title} sections`} className="mx-auto max-w-7xl px-5">
+        <nav aria-label={t(titleKey)} className="mx-auto max-w-7xl px-5">
           <ul className="flex gap-1 overflow-x-auto">
             {nav.map((item) => {
               const active =
@@ -126,7 +188,7 @@ export function AppShell({
                         : "border-transparent text-navy-300 hover:text-white",
                     )}
                   >
-                    {item.label}
+                    {t(item.labelKey)}
                   </Link>
                 </li>
               );
@@ -139,7 +201,6 @@ export function AppShell({
         {children}
       </main>
     </div>
-    </DisplayLanguageProvider>
   );
 }
 

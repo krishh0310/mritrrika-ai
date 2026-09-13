@@ -5,7 +5,9 @@ import { Suspense } from "react";
 
 import { AiAssistant } from "@/components/shared/ai-assistant";
 import { PageHeader } from "@/components/shell/app-shell";
-import { LoadingState } from "@mrittika/ui";
+import {
+  LoadingState, useT,
+} from "@mrittika/ui";
 
 const SUGGESTIONS = [
   "Show my land parcels.",
@@ -16,12 +18,13 @@ const SUGGESTIONS = [
 
 /** §18. Authorization happens server-side before retrieval, never after. */
 function Assistant() {
+  const t = useT();
   const initial = useSearchParams().get("q") ?? undefined;
   return (
     <>
       <PageHeader
-        title="Ask about your records"
-        description="The assistant can only reach records you are already entitled to see, and cites what it used."
+        title={t("citizen.assistant.heading")}
+        description={t("citizen.assistant.description")}
       />
       <AiAssistant suggestions={SUGGESTIONS} initialQuestion={initial} />
     </>
@@ -29,8 +32,9 @@ function Assistant() {
 }
 
 export default function CitizenAssistantPage() {
+  const t = useT();
   return (
-    <Suspense fallback={<LoadingState label="the assistant" />}>
+    <Suspense fallback={<LoadingState label={t("citizen.assistant.loadLabel")} />}>
       <Assistant />
     </Suspense>
   );

@@ -3,17 +3,17 @@
 import { AppShell, type NavItem } from "@/components/shell/app-shell";
 
 const NAV: NavItem[] = [
-  { href: "/citizen/dashboard", label: "Dashboard" },
-  { href: "/citizen/my-land", label: "My land" },
-  { href: "/citizen/map", label: "Map" },
-  { href: "/citizen/search", label: "Search" },
-  { href: "/citizen/assistant", label: "Ask AI" },
-  { href: "/citizen/grievances", label: "Grievances" },
+  { href: "/citizen/dashboard", labelKey: "citizen.nav.dashboard" },
+  { href: "/citizen/my-land", labelKey: "citizen.nav.myLand" },
+  { href: "/citizen/map", labelKey: "citizen.nav.map" },
+  { href: "/citizen/search", labelKey: "citizen.nav.search" },
+  { href: "/citizen/assistant", labelKey: "citizen.nav.assistant" },
+  { href: "/citizen/grievances", labelKey: "citizen.nav.grievances" },
 ];
 
 export default function CitizenLayout({ children }: { children: React.ReactNode }) {
   return (
-    <AppShell role="CITIZEN" nav={NAV} title="Citizen portal">
+    <AppShell role="CITIZEN" nav={NAV} titleKey="citizen.section.title">
       {children}
     </AppShell>
   );

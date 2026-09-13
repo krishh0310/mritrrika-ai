@@ -3,13 +3,13 @@
 import { AppShell, type NavItem } from "@/components/shell/app-shell";
 
 const NAV: NavItem[] = [
-  { href: "/deo/dashboard", label: "Dashboard" },
-  { href: "/deo/upload", label: "Upload" },
+  { href: "/deo/dashboard", labelKey: "deo.nav.dashboard" },
+  { href: "/deo/upload", labelKey: "deo.nav.upload" },
 ];
 
 export default function DeoLayout({ children }: { children: React.ReactNode }) {
   return (
-    <AppShell role="DEO" nav={NAV} title="Data entry">
+    <AppShell role="DEO" nav={NAV} titleKey="deo.section.title">
       {children}
     </AppShell>
   );

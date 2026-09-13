@@ -33,7 +33,15 @@ jobs:
       - run: npm ci
 
       - name: Typecheck web and mobile
+        # This is also the key-parity check for the message catalogues: hi.ts
+        # is typed Record<MessageKey, string>, so a missing key fails here and
+        # an extra one fails as an excess property (§14).
         run: npm run typecheck
+
+      - name: Message catalogues
+        # What the type system cannot see: an empty translation, a Hindi value
+        # byte-identical to the English one, a duplicate key.
+        run: python3 scripts/check_i18n.py
 
       - name: Lint
         run: npm run lint

@@ -16,6 +16,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { ActivityIndicator, View } from "react-native";
 
 import { useAuth } from "../auth/auth-context";
+import { UiLanguageProvider, useT, type UiLanguage } from "../i18n";
 import { colors } from "../theme";
 import { DesktopOnlyScreen } from "../screens/DesktopOnlyScreen";
 import { LoginScreen } from "../screens/LoginScreen";
@@ -73,44 +74,47 @@ const screenOptions = {
 };
 
 function CitizenRoutes() {
+  const t = useT();
   return (
     <CitizenStack.Navigator screenOptions={screenOptions}>
       <CitizenStack.Screen
         name="CitizenDashboard"
         component={CitizenDashboardScreen}
-        options={{ title: "Mrittika AI" }}
+        options={{ title: t("app.name") }}
       />
       <CitizenStack.Screen
         name="MyLand"
         component={MyLandScreen}
-        options={{ title: "My Land" }}
+        options={{ title: t("citizen.myLand.title") }}
       />
       <CitizenStack.Screen
         name="CitizenSearch"
         component={CitizenSearchScreen}
-        options={{ title: "Search records" }}
+        options={{ title: t("citizen.search.title") }}
       />
       <CitizenStack.Screen
         name="CitizenRecord"
         component={CitizenRecordScreen}
         options={({ route }) => ({
-          title: route.params.khasra ? `Khasra ${route.params.khasra}` : "Record",
+          title: route.params.khasra
+            ? `${t("citizen.myLand.khasra")} ${route.params.khasra}`
+            : t("record.title"),
         })}
       />
       <CitizenStack.Screen
         name="CitizenMap"
         component={CitizenMapScreen}
-        options={{ title: "Parcel map" }}
+        options={{ title: t("citizen.map.heading") }}
       />
       <CitizenStack.Screen
         name="Grievances"
         component={GrievancesScreen}
-        options={{ title: "Grievances" }}
+        options={{ title: t("citizen.grievances.title") }}
       />
       <CitizenStack.Screen
         name="Assistant"
         component={AssistantScreen}
-        options={{ title: "Ask about your land" }}
+        options={{ title: t("citizen.assistant.heading") }}
       />
     </CitizenStack.Navigator>
   );
@@ -178,12 +182,18 @@ function Splash() {
 export function RootNavigator() {
   const { user, loading, experience } = useAuth();
 
+  // Citizens read Hindi by default -- the portal is public-facing and the
+  // records are in Hindi. Field and desktop experiences default to English,
+  // the revenue service's working language. A stored choice overrides both.
+  const defaultLanguage: UiLanguage = experience === "CITIZEN" ? "hi" : "en";
+
   // Hold the splash until /auth/me settles. Mounting the login stack first and
   // swapping it out a moment later would flash a sign-in form at a user who is
   // already signed in.
   if (loading) return <Splash />;
 
   return (
+    <UiLanguageProvider defaultLanguage={defaultLanguage}>
     <NavigationContainer>
       {!user ? (
         <AuthStack.Navigator screenOptions={{ headerShown: false }}>
@@ -197,5 +207,6 @@ export function RootNavigator() {
         <DesktopRoutes />
       )}
     </NavigationContainer>
+    </UiLanguageProvider>
   );
 }
