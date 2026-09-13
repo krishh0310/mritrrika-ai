@@ -124,6 +124,7 @@ Why each directory exists is documented in
 | [gis-integration.md](docs/gis-integration.md) | WMS/WFS publication, and why GeoServer never sees ownership |
 | [deployment.md](docs/deployment.md) | the intended production target, and the distance from it |
 | [i18n.md](docs/i18n.md) | Hindi and English, and why record values are never translated |
+| [monitoring.md](docs/monitoring.md) | Prometheus and Grafana over the pipeline |
 
 ## Tests
 

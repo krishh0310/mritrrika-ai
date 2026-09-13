@@ -1,0 +1,70 @@
+# Prometheus + Grafana over the API's /metrics exposition (§74).
+#
+# An OVERLAY, like the GeoServer one:
+#
+#   echo -n "$METRICS_SCRAPE_TOKEN" > .monitoring/scrape-token
+#   docker compose -f docker-compose.yml \
+#                  -f infrastructure/docker/compose.monitoring.yml up -d
+#
+# The API is NOT in this compose network during development: paddlepaddle has
+# no reliable linux/arm64 wheel, so the API and worker run natively on the host
+# (docs/architecture.md). Prometheus reaches them through
+# host.docker.internal, which is why the extra_hosts entry exists for Linux.
+#
+# Volume paths are written relative to the REPO ROOT, not to this file.
+# Compose resolves them against the project directory -- the directory of the
+# FIRST -f file -- so a path relative to this file resolves two levels too high
+# and fails with a permission error on /Users. Always pass docker-compose.yml
+# first, from the repo root.
+#
+# Both ports bind to 127.0.0.1. Metrics describe workload, queue depth and
+# processing state; an exposed Prometheus is a description of the system's
+# behaviour handed to anyone who asks.
+
+name: mrittika-ai
+
+services:
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    container_name: mrittika-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+      - --web.enable-lifecycle
+    volumes:
+      - ./infrastructure/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      # The scrape token, mounted from a gitignored file rather than baked into
+      # the committed config.
+      - ./.monitoring/scrape-token:/etc/prometheus/scrape-token:ro
+      - prometheusdata:/prometheus
+    extra_hosts:
+      # Docker Desktop provides this automatically; Linux does not.
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.5.1
+    container_name: mrittika-grafana
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-change_me_locally}
+      # Anonymous access off. The dashboard shows queue depth and failure
+      # counts, which is operational intelligence about a revenue system.
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+    volumes:
+      - ./infrastructure/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infrastructure/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafanadata:/var/lib/grafana
+    ports:
+      - "127.0.0.1:${GRAFANA_PORT:-3001}:3000"
+    restart: unless-stopped
+
+volumes:
+  prometheusdata:
+  grafanadata:

@@ -41,6 +41,8 @@ runs/
 *.safetensors
 
 # Local infra state
+# The Prometheus scrape token, mounted into the container at runtime.
+.monitoring/
 .minio-data/
 .pgdata/
 

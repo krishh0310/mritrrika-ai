@@ -68,6 +68,12 @@ class Settings(BaseSettings):
     ocr_detection_model: str | None = None
 
     # ── providers (§81) ───────────────────────────────────────────────────
+    # Monitoring (§74). A scrape token, because Prometheus cannot hold a JWT:
+    # it has no login and its bearer credentials are static. Unset means only
+    # analytics:view can read /metrics, which is the safe default -- an
+    # unauthenticated metrics endpoint publishes workload and processing state.
+    metrics_scrape_token: str | None = None
+
     # Notifications (§19). Absent credentials are not an error: the dispatcher
     # falls back to recording the attempt and the in-app notification is still
     # written. See app/services/notification_service.py.

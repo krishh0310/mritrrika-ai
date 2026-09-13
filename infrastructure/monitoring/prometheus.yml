@@ -1,0 +1,32 @@
+# Scrapes the API's /metrics exposition (§74).
+#
+# host.docker.internal because the API runs NATIVELY, not in this compose
+# network -- paddlepaddle has no reliable linux/arm64 wheel, so the worker and
+# the API stay on the host during development (docs/architecture.md). In a
+# production deployment where the API is containerised, this becomes its
+# service name.
+#
+# The bearer token is read from a file rather than written here: this file is
+# committed, and a committed credential is a leaked credential.
+
+global:
+  scrape_interval: 30s
+  scrape_timeout: 10s
+  external_labels:
+    deployment: mrittika-demo
+
+scrape_configs:
+  - job_name: mrittika-api
+    metrics_path: /metrics
+    scheme: http
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/scrape-token
+    static_configs:
+      - targets: ["host.docker.internal:8000"]
+        labels:
+          service: api
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

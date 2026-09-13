@@ -6,15 +6,16 @@ rules live here, never in a frontend.
 
 from __future__ import annotations
 
+import hmac
 import time
 
-from fastapi import Depends, FastAPI, Request, Response
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
-from app.auth.dependencies import require
 from app.config.settings import get_settings
 from app.db import SessionLocal, engine
+from app.repositories import user_repository
 from app.routers import (
     ai,
     anomalies,
@@ -27,7 +28,9 @@ from app.routers import (
     records,
     workflow,
 )
+from app.security.tokens import TokenError, decode_token
 from app.services import metrics_service
+from app.services.auth_service import build_principal
 
 settings = get_settings()
 
@@ -119,13 +122,52 @@ def ready(response: Response) -> dict:
     return {"ready": ready_now, "checks": checks}
 
 
-@app.get("/metrics", tags=["ops"])
-def metrics(_principal=Depends(require("analytics:view"))) -> Response:
-    """Prometheus exposition (§74).
+def _metrics_authorised(request: Request) -> None:
+    """Let Prometheus in on a token, or an officer in on their permission.
 
-    Operational metrics reveal workload and processing state, so only the
-    Tehsildar's existing analytics permission may read them.
+    Two ways in and no third. Operational metrics reveal workload, queue depth
+    and processing state, so this endpoint is never public.
+
+    The token exists because Prometheus cannot hold a JWT: it has no login and
+    its bearer credentials are static. With METRICS_SCRAPE_TOKEN unset there is
+    no token path at all -- the safe default, where a misconfigured scraper
+    fails to authenticate instead of silently publishing the exposition.
     """
+    settings = get_settings()
+    expected = settings.metrics_scrape_token
+    presented = (request.headers.get("authorization") or "")
+    presented = presented.removeprefix("Bearer ").strip()
+
+    # compare_digest, not ==: an early-exit comparison leaks the token's length
+    # and prefix to anyone who can time the response.
+    if expected and hmac.compare_digest(presented, expected):
+        return
+
+    # Otherwise the caller must be an officer. current_principal raises 401 on
+    # a bad or absent token, and this raises 403 on a valid one without the
+    # permission -- so a scraper with a stale token gets a real error rather
+    # than an empty body.
+    with SessionLocal() as session:
+        try:
+            payload = decode_token(presented)
+            user = user_repository.get_by_id(session, payload["sub"])
+        except (TokenError, KeyError):
+            user = None
+        if user is None or not user.is_active:
+            raise HTTPException(
+                status_code=401, detail="Not authenticated",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        principal = build_principal(session, user)
+
+    if not principal.has("analytics:view"):
+        raise HTTPException(status_code=403, detail="Missing permission(s): analytics:view")
+
+
+@app.get("/metrics", tags=["ops"])
+def metrics(request: Request) -> Response:
+    """Prometheus exposition (§74)."""
+    _metrics_authorised(request)
     with SessionLocal() as session:
         body = metrics_service.render(session)
     return Response(content=body, media_type="text/plain; version=0.0.4")
