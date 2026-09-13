@@ -16,6 +16,15 @@ identically whether or not a broker is running.
 from __future__ import annotations
 
 import logging
+import os
+import sys
+
+if sys.platform == "darwin":
+    # macOS forbids most work after fork() in a process that has initialised
+    # Objective-C or extra threads, and kills the child with SIGSEGV. Celery's
+    # prefork pool plus PaddlePaddle's threads hit exactly that, losing OCR
+    # processes mid-document. Set before Celery or Paddle is imported.
+    os.environ.setdefault("OBJC_DISABLE_INITIALIZE_FORK_SAFETY", "YES")
 
 from celery import Celery
 from celery.signals import worker_process_init, worker_ready
@@ -52,6 +61,11 @@ celery_app.conf.update(
     task_acks_late=True,
     task_reject_on_worker_lost=True,
 )
+
+# A child killed mid-task (SIGSEGV, OOM, reboot) is replaced by Celery, and
+# late acknowledgement puts its document back on the queue. Whatever escapes
+# both -- a worker that never comes back -- is caught by the startup sweep in
+# recover_orphaned_jobs below.
 
 
 @celery_app.task(name="mrittika.process_document", bind=True)

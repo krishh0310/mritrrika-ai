@@ -113,8 +113,9 @@ test.describe("the land-record lifecycle", () => {
     // §28 — the scan and the fields are both on screen.
     await expect(page.getByRole("heading", { name: /extracted fields/i })).toBeVisible();
 
-    // §26 — the raw OCR value is shown, never discarded.
-    await expect(page.getByText("RAW", { exact: false }).first()).toBeVisible();
+    // §26 — the raw OCR value is shown, never discarded. Labelled "Read from
+    // page" since the provenance strip stopped speaking in pipeline jargon.
+    await expect(page.getByText("Read from page").first()).toBeVisible();
 
     // Correct the first field. §30: the prediction survives the correction.
     const firstCorrect = page.getByRole("button", { name: "Correct" }).first();

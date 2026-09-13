@@ -139,7 +139,21 @@ def process_document(
                 progress=progress,
             )))
     except (OcrUnavailable, ValueError) as exc:
-        reason = str(exc) if total == 1 else f"page {current.page_number} of {total}: {exc}"
+        detail = str(exc) if total == 1 else f"page {current.page_number} of {total}: {exc}"
+        # "Rescan required" tells an operator to go and fetch a better scan.
+        # That is the right answer for an unreadable page and the wrong one for
+        # an OCR provider that is switched off or missing its key -- rescanning
+        # a perfect page changes nothing. Same state (§37 offers no other way
+        # out of PROCESSING), but say which it is.
+        misconfigured = isinstance(exc, OcrUnavailable) and any(
+            hint in str(exc).lower()
+            for hint in ("not configured", "not installed", "api key", "could not initialise")
+        )
+        reason = (
+            f"OCR is unavailable, so this page was never read: {detail}. "
+            "This is a configuration problem, not a problem with the scan."
+            if misconfigured else detail
+        )
         job.status = "FAILED"
         job.error = reason
         job.finished_at = datetime.now(UTC)
@@ -151,7 +165,8 @@ def process_document(
         document_service.transition(
             session, document, DocumentState.RESCAN_REQUIRED,
             principal=principal, action=audit_service.PROCESSING_FAILED,
-            reason=f"AI pipeline could not process this document: {reason}",
+            reason=(reason if misconfigured
+                    else f"AI pipeline could not process this document: {reason}"),
         )
         audit_service.record(
             session, action=audit_service.PROCESSING_FAILED,

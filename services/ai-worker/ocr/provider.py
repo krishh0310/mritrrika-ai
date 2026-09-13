@@ -360,5 +360,10 @@ def build_default_engine(
     paddle = PaddleOcrProvider(lang=lang, detection_model=detection_model)
     gemini = GeminiVisionOcrProvider(api_key=gemini_api_key, model=gemini_model)
     if provider == "gemini":
-        return OcrEngine(primary=gemini, fallbacks=[paddle])
+        # A Paddle native crash is a process-level SIGSEGV and cannot be
+        # caught as OcrUnavailable, so it must never be an automatic fallback.
+        return OcrEngine(primary=gemini)
+    # Paddle first: it runs offline, needs no API key, and is what the measured
+    # accuracy figures describe. Gemini backs it up for pages Paddle refuses --
+    # a caught OcrUnavailable, which is safe to fall through.
     return OcrEngine(primary=paddle, fallbacks=[gemini])

@@ -75,7 +75,10 @@ class Settings(BaseSettings):
     embedding_dim: int = 768
     groq_api_key: str | None = None
     groq_model: str = "openai/gpt-oss-20b"
-    ocr_provider: str = "paddle"
+    # Paddle's native runtime can terminate the entire interpreter on some
+    # macOS/ARM builds. Keep it opt-in; the Gemini provider fails normally and
+    # is reported to the user instead of taking down the API process.
+    ocr_provider: str = "gemini"
     ocr_fallback_provider: str = "gemini"
     ocr_lang: str = "hi"
 

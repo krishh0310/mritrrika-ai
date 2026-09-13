@@ -171,6 +171,38 @@ real records:
    reconciler which anomaly types the current input could actually reach a
    verdict on.
 
+## What a page costs to process
+
+Measured on this machine (Apple Silicon, 14 cores, 24 GB), four generated
+pages per configuration:
+
+| text detector | peak memory per OCR process | 4 pages | extraction F1 (val, 40 docs) |
+|---|---|---|---|
+| `PP-OCRv5_server_det` (default) | 11 GB on page 1, 19 GB by page 4 | 32 s | 0.68 |
+| `PP-OCRv5_mobile_det` | 1.8 GB | 11 s | 0.57 |
+
+The server detector's appetite is the single most expensive fact about this
+pipeline, and it is why the worker is configured the way it is:
+
+* **One OCR process at a time** (`WORKER_CONCURRENCY=1`). Celery's default is
+  one process per CPU. Fourteen of these on a 24 GB machine is not throughput,
+  it is memory exhaustion -- with only two running, swap reached 18.8 of
+  20.5 GB and every job slowed to minutes.
+* **The process is recycled** once a task leaves it above `WORKER_MAX_MEMORY_MB`
+  (4 GB). Paddle does not return the memory between documents.
+* Disabling MKLDNN and capping the detector's input size were both measured and
+  changed nothing. The memory belongs to the detector itself.
+
+Accuracy keeps the default. A machine that cannot afford it can set
+`OCR_DETECTION_MODEL=PP-OCRv5_mobile_det` and lose ~0.11 F1.
+
+**Everything else is fast.** Every API endpoint answers in 5-30 ms at slice
+scale (160 parcels, ~1,700 audit events), on index scans. The one figure that
+grows without bound is `GET /api/v1/audit/verify`, which walks the whole hash
+chain: ~18 microseconds per event, so ~2 s at 100,000 events. It is an
+integrity check, not a page load, but it will need a bounded window before the
+chain gets large.
+
 ## Model versioning and evaluation
 
 Every prediction stores its model version (`ocr-v1`, `extractor-v1`,
