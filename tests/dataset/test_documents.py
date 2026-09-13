@@ -257,6 +257,58 @@ class TestGeneratedSet:
         assert {d["template"] for d in index} == set(TEMPLATES)
 
 
+class TestLayoutAnnotation:
+    """§48 again, for the structural regions.
+
+    Layout boxes used to be written in canvas coordinates while the annotation
+    recorded the POST-degradation size. Every tier rotates, warps and rescales,
+    so those boxes described a page that was never saved -- and because no test
+    read them, a region detector trained on this corpus would have learned
+    misaligned targets rather than a visible defect.
+    """
+
+    def test_layout_boxes_stay_inside_the_image(self, index):
+        for doc in index:
+            ann = json.loads((DATASETS / doc["annotation"]).read_text())
+            w, h = ann["width"], ann["height"]
+            for box in ann["layout"]:
+                x1, y1, x2, y2 = box["bbox"]
+                assert 0 <= x1 < x2 <= w and 0 <= y1 < y2 <= h, (
+                    f"{doc['document_id']}/{box['type']} {box['bbox']} vs {w}x{h}"
+                )
+
+    def test_table_cells_fall_inside_a_table_region(self, index):
+        """The invariant the canvas-coordinate bug broke.
+
+        Cell boxes travel through degradation; the table region that encloses
+        them must travel the same way or it stops enclosing them. A few pixels
+        of slack absorbs the rounding in the corner-bounds arithmetic.
+        """
+        slack = 6
+        offenders = []
+        for doc in index:
+            ann = json.loads((DATASETS / doc["annotation"]).read_text())
+            regions = [b["bbox"] for b in ann["layout"] if b["type"] == "table"]
+            if not regions:
+                continue
+            for cell in ann["tables"]:
+                cx1, cy1, cx2, cy2 = cell["bbox"]
+                inside = any(
+                    rx1 - slack <= cx1 and ry1 - slack <= cy1
+                    and cx2 <= rx2 + slack and cy2 <= ry2 + slack
+                    for rx1, ry1, rx2, ry2 in regions
+                )
+                if not inside:
+                    offenders.append((doc["document_id"], cell["bbox"], regions))
+        assert not offenders, offenders[:3]
+
+    def test_every_page_carries_layout_ground_truth(self, index):
+        """The four annotation views live in one file; none may quietly empty."""
+        missing = [d["document_id"] for d in index
+                   if not json.loads((DATASETS / d["annotation"]).read_text())["layout"]]
+        assert not missing, missing[:5]
+
+
 class TestSplitIntegrity:
     def test_no_group_spans_two_splits(self, splits):
         """§51 -- the check the whole split exists to satisfy."""

@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 
 import pytest
+from conftest import fresh_scan
 from demo_users import DEO, VERIFIER
 
 pytestmark = pytest.mark.integration
@@ -28,13 +29,14 @@ def _clean_khasra() -> Path:
 
 @pytest.fixture
 def awaiting_verification(client, auth):
-    with _clean_khasra().open("rb") as fh:
-        upload = client.post(
-            "/api/v1/documents",
-            files={"file": ("khasra.jpg", fh, "image/jpeg")},
-            data={"document_type": "KHASRA", "village_id": "LOC-VIL-01"},
-            headers=auth(DEO),
-        )
+    # Fresh bytes: the seeded corpus already contains this page verbatim, and
+    # upload refuses an exact duplicate (§22).
+    upload = client.post(
+        "/api/v1/documents",
+        files={"file": ("khasra.jpg", fresh_scan(_clean_khasra()), "image/jpeg")},
+        data={"document_type": "KHASRA", "village_id": "LOC-VIL-01"},
+        headers=auth(DEO),
+    )
     assert upload.status_code == 201, upload.text
     document_id = upload.json()["document_id"]
     processed = client.post(

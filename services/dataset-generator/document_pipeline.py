@@ -115,7 +115,23 @@ def generate_document(
     clean = page.image.copy()
 
     tier = difficulty or pick_difficulty(rng)
-    result = degrade(page.image, [r.bbox for r in page.regions], tier, rng)
+
+    # Layout boxes ride along in the SAME degrade call as the region boxes
+    # rather than being transformed separately. Every tier applies rotate,
+    # perspective and rescale, so a layout box left in canvas coordinates does
+    # not describe the image it is annotating -- and the annotation records the
+    # POST-degradation size, so nothing downstream could notice the mismatch.
+    # One call, one transform, one RNG draw: the two box sets cannot diverge.
+    region_boxes = [r.bbox for r in page.regions]
+    layout_geometry = [tuple(entry["bbox"]) for entry in page.layout_boxes]
+    result = degrade(page.image, region_boxes + layout_geometry, tier, rng)
+
+    split = len(region_boxes)
+    region_boxes_out = result.boxes[:split]
+    layout_boxes_out = [
+        {**entry, "bbox": list(box)}
+        for entry, box in zip(page.layout_boxes, result.boxes[split:], strict=True)
+    ]
 
     annotation = build_annotation(
         document_id=document_id,
@@ -126,8 +142,8 @@ def generate_document(
         difficulty=tier,
         size=result.image.size,
         regions=page.regions,
-        boxes=result.boxes,
-        layout_boxes=page.layout_boxes,
+        boxes=region_boxes_out,
+        layout_boxes=layout_boxes_out,
         degradations=result.applied,
     )
 

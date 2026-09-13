@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.dependencies import require
 from app.db import get_session
-from app.models import AnomalyFlag, Parcel
+from app.models import AnomalyFlag, Document, Parcel
 from app.services import anomaly_service, audit_service
 from app.services.auth_service import Principal, anomaly_jurisdiction_clause
 
@@ -31,9 +31,14 @@ def list_flags(
     principal: Principal = Depends(require("anomaly:view")),
     session: Session = Depends(get_session),
 ) -> dict:
+    # Document is joined as well as Parcel because a flag need not be about a
+    # parcel: an upload-time flag (a page that resembles one already stored)
+    # names only a document, and reporting it with a null parcel and nothing
+    # else leaves an officer a finding they cannot act on.
     rows = session.execute(
-        select(AnomalyFlag, Parcel)
+        select(AnomalyFlag, Parcel, Document)
         .outerjoin(Parcel, Parcel.id == AnomalyFlag.parcel_id)
+        .outerjoin(Document, Document.id == AnomalyFlag.document_id)
         .where(
             anomaly_jurisdiction_clause(session, principal),
             AnomalyFlag.status == flag_status,
@@ -48,6 +53,7 @@ def list_flags(
             {
                 "flag_id": flag.id,
                 "parcel_id": parcel.external_id if parcel else None,
+                "document_id": document.external_id if document else None,
                 "khasra_number": parcel.khasra_number if parcel else None,
                 "anomaly_type": flag.anomaly_type,
                 "score": flag.score,
@@ -56,7 +62,7 @@ def list_flags(
                 "status": flag.status,
                 "model_version": flag.model_version,
             }
-            for flag, parcel in rows
+            for flag, parcel, document in rows
         ],
         "is_synthetic": True,
     }

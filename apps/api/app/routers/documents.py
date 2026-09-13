@@ -27,6 +27,7 @@ from app.models import DocumentPage
 from app.services import document_service, pipeline_service, storage_service
 from app.services.auth_service import Principal, document_in_jurisdiction
 from app.services.document_service import DocumentAccessDenied, DocumentNotFound
+from app.services.duplicate_service import DuplicateDocument
 from app.services.storage_service import UnsupportedFileType
 
 router = APIRouter(prefix="/api/v1/documents", tags=["documents"])
@@ -95,6 +96,15 @@ async def upload_document(
             declared_khata=khata_number,
             parcel_external_id=parcel_id,
         )
+    except DuplicateDocument as exc:
+        # 409: nothing is wrong with the file, it is simply already here.
+        # Naming the existing document is the point -- an operator who cannot
+        # find it will upload a renamed copy instead.
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+            headers={"X-Existing-Document": exc.existing.external_id},
+        ) from None
     except UnsupportedFileType as exc:
         # 415: the content is not an accepted document type. Determined by
         # sniffing the bytes, not by trusting the declared Content-Type.

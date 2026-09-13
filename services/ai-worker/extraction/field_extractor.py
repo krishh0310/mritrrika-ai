@@ -500,16 +500,53 @@ def extract_table_rows(blocks: list[TextBlock]) -> list[ExtractedValue]:
     return values
 
 
+#: Fields that never appear as a table cell anywhere in the corpus, counted
+#: over all 500 generated pages:
+#:
+#:     DISTRICT 500  TEHSIL 500  VILLAGE 500  RECORD_YEAR 500
+#:     KHATA 419     AREA_UNIT 252  MUTATION 81  DATE 81
+#:
+#: all of them outside a table, none inside one. These are page-level metadata,
+#: so a value found for them INSIDE the owners table is a label anchored in the
+#: header reaching across a region boundary for a number that belongs to a row.
+#:
+#: KHASRA, AREA and LAND_CLASS are deliberately absent from this set: each
+#: appears both as page metadata (333 times) and as a table column (167 times),
+#: so scoping them would discard a third of their true values.
+HEADER_ONLY_FIELDS = frozenset({
+    "DISTRICT", "TEHSIL", "VILLAGE", "RECORD_YEAR", "KHATA",
+    "AREA_UNIT", "MUTATION", "DATE",
+})
+
+
+def _crosses_a_table_boundary(value: ExtractedValue, regions) -> bool:
+    """Whether a page-metadata value was taken from inside a table region."""
+    if value.field not in HEADER_ONLY_FIELDS:
+        return False
+    return any(
+        region.type == "table" and region.contains(value.bbox)
+        for region in regions
+    )
+
+
 def extract(
     blocks: list[TextBlock],
     page_width: int = 1240,
     table_rows: list[ExtractedValue] | None = None,
+    regions=None,
 ) -> ExtractionResult:
     """Extract every supported field from one page's OCR blocks.
 
     `table_rows` lets the pipeline's layout stage detect table structure once
     and hand it over, rather than that stage being a label with no work behind
     it. Omitted, the rows are detected here exactly as before.
+
+    `regions` are structural boxes from the layout detector (§6), used only to
+    reject a page-metadata value that was read from inside a table. They are
+    never required: an empty or absent list extracts exactly as before, which
+    is what happens whenever the detector is unavailable (§82). Nothing here
+    reads or rewrites a value -- a region can only drop a pairing, never change
+    one (§44).
     """
     values = extract_scalar_fields(blocks, page_width)
     rows = extract_table_rows(blocks) if table_rows is None else table_rows
@@ -549,6 +586,8 @@ def extract(
     kept: list[ExtractedValue] = []
     for value in values:
         if normalize_field(value.field, value.raw_value) is None:
+            continue
+        if regions and _crosses_a_table_boundary(value, regions):
             continue
         kept.append(value)
 

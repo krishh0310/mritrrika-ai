@@ -5,9 +5,13 @@ under test (RBAC, citizen isolation) are properties of the SQL and the session
 wiring, and a mocked session would not exercise them.
 """
 
+import io
+import itertools
+import os
 import sys
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -74,3 +78,36 @@ def auth(token_for):
         return {"Authorization": f"Bearer {token_for(email)}"}
 
     return _headers
+
+
+#: Unique per test RUN. See `fresh_scan`.
+_RUN_SALT = int.from_bytes(os.urandom(3), "big")
+_scan_counter = itertools.count()
+
+
+def fresh_scan(path) -> bytes:
+    """A corpus page as bytes no upload has seen before.
+
+    The demo database is seeded from the same corpus these tests draw their
+    sample pages from, so posting a page straight off disk is an exact
+    duplicate of a document that is already stored -- which upload now refuses
+    (§22). That refusal is the point of the feature; it is not something for a
+    lifecycle test to work around silently.
+
+    A small block of noise in one corner changes the bytes without changing
+    what the page is or how it reads, so OCR, extraction and the quality gate
+    all behave exactly as they did. The salt is drawn once per run, because the
+    database persists between runs: a fixed salt would pass the first time and
+    refuse every time after.
+    """
+    from PIL import Image
+
+    image = Image.open(path).convert("RGB")
+    arr = np.asarray(image).copy()
+    seed = _RUN_SALT + next(_scan_counter)
+    arr[:12, :12] = np.random.RandomState(seed).randint(
+        0, 255, (12, 12, 3), dtype=np.uint8
+    )
+    buffer = io.BytesIO()
+    Image.fromarray(arr).save(buffer, "JPEG", quality=95)
+    return buffer.getvalue()

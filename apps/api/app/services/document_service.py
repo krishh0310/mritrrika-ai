@@ -16,7 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import Document, DocumentPage, Location, Parcel, ProcessingJob
-from app.services import audit_service, storage_service
+from app.services import audit_service, duplicate_service, storage_service
 from app.services.auth_service import Principal, location_in_jurisdiction
 from app.services.storage_service import UnsupportedFileType
 
@@ -134,6 +134,14 @@ def upload(
     if not location_in_jurisdiction(session, principal, effective_village_id):
         raise DocumentAccessDenied("document is outside your jurisdiction")
 
+    # Checked BEFORE storing: an exact re-upload should cost one hash, not an
+    # object-storage write and a worker slot. Jurisdiction is checked first so
+    # this cannot be used to probe for documents outside it (§18).
+    digest = duplicate_service.checksum(data)
+    existing = duplicate_service.find_exact_duplicate(session, digest)
+    if existing is not None:
+        raise duplicate_service.DuplicateDocument(existing)
+
     stored = storage_service.put_document(
         data, declared_mime=declared_mime, prefix="documents"
     )
@@ -217,7 +225,25 @@ def run_quality_gate(
         document.quality_report = payload
         document.quality_recommendation = "REJECT_QUALITY"
 
+    # The first page's perceptual hash, computed here because this is where the
+    # pages are already decoded -- a second decode would double the cost of the
+    # gate to learn something the first decode already had in hand.
+    if images is not None and len(images):
+        try:
+            document.perceptual_hash = duplicate_service.perceptual_hash(images[0])
+        except Exception:  # hashing must never be what fails an upload
+            document.perceptual_hash = None
+
     session.flush()
+
+    if document.perceptual_hash:
+        duplicate_service.record_resemblance(
+            session,
+            document,
+            duplicate_service.find_near_duplicates(
+                session, document.perceptual_hash, exclude_id=document.id
+            ),
+        )
 
     # Page rows give downstream stages somewhere to attach OCR results. An
     # image is its own page. A PDF's pages are rendered once here and stored,

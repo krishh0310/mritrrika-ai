@@ -13,6 +13,7 @@ import json
 from pathlib import Path
 
 import pytest
+from conftest import fresh_scan
 from demo_users import CITIZEN_A, CITIZEN_B, DEO, TEHSILDAR, VERIFIER
 
 pytestmark = pytest.mark.integration
@@ -46,19 +47,21 @@ def uploaded(client, token_for):
     if not image.exists():
         pytest.skip("run scripts/generate_documents.py first")
 
-    with image.open("rb") as fh:
-        response = client.post(
-            "/api/v1/documents",
-            files={"file": (image.name, fh, "image/jpeg")},
-            data={
-                "document_type": "KHASRA",
-                "village_id": TARGET_VILLAGE,
-                "record_year": "1998-99",
-                "khasra_number": "142/2",
-                "parcel_id": TARGET_PARCEL,
-            },
-            headers={"Authorization": f"Bearer {token_for(DEO)}"},
-        )
+    # Uploaded as fresh bytes: the demo database is seeded from this same
+    # corpus, so the file as it sits on disk is already stored and upload
+    # refuses it as an exact duplicate (§22).
+    response = client.post(
+        "/api/v1/documents",
+        files={"file": (image.name, fresh_scan(image), "image/jpeg")},
+        data={
+            "document_type": "KHASRA",
+            "village_id": TARGET_VILLAGE,
+            "record_year": "1998-99",
+            "khasra_number": "142/2",
+            "parcel_id": TARGET_PARCEL,
+        },
+        headers={"Authorization": f"Bearer {token_for(DEO)}"},
+    )
     assert response.status_code == 201, response.text
     return response.json()
 

@@ -66,6 +66,9 @@ class Document(Base, TimestampMixin, SyntheticMixin):
     mime_type: Mapped[str | None] = mapped_column(String(64))
     size_bytes: Mapped[int | None] = mapped_column(Integer)
     checksum_sha256: Mapped[str | None] = mapped_column(String(64), index=True)
+    #: 64-bit dHash of the first page, hex encoded (§22). Indexed for lookup by
+    #: exact hash; near matches are a Hamming scan, not an index seek.
+    perceptual_hash: Mapped[str | None] = mapped_column(String(16), index=True)
 
     #: §22 quality gate outcome.
     quality_score: Mapped[float | None] = mapped_column(Float)

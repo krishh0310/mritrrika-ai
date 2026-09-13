@@ -165,6 +165,10 @@ class AnomalyType(StrEnum):
     LOCATION_MISMATCH = "LOCATION_MISMATCH"
     REPEATED_MODIFICATION = "REPEATED_MODIFICATION"
     UNUSUAL_OWNERSHIP_CHANGE = "UNUSUAL_OWNERSHIP_CHANGE"
+    #: The uploaded page closely resembles one already stored (§22). A rescan
+    #: after a quality rejection produces this legitimately, so it is a
+    #: resemblance to check, never a refusal.
+    DUPLICATE_DOCUMENT = "DUPLICATE_DOCUMENT"
 
 
 class GrievanceStatus(StrEnum):
