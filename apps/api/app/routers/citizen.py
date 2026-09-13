@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.dependencies import require, require_role
 from app.db import get_session
+from app.services import audit_service
 from app.services.auth_service import Principal
 from app.services.citizen_service import (
     ParcelAccessDenied,
@@ -85,6 +86,74 @@ def parcel_detail(
         # Deliberately absent for citizens (§17): raw OCR, confidence scores,
         # verification notes, internal anomaly scores.
     }
+
+
+@router.get("/parcels/{parcel_id}/certificate")
+def parcel_certificate(
+    parcel_id: str = ParcelId,
+    principal: Principal = Depends(require("parcel:view_own")),
+    session: Session = Depends(get_session),
+):
+    """A printable extract for a parcel the caller may already see (§15).
+
+    Same authorization as the detail view -- the PDF is a rendering of data the
+    caller can already read, never a way around the check.
+    """
+    from fastapi.responses import Response
+
+    from app.config.settings import get_settings
+    from app.services import certificate_service
+
+    try:
+        parcel = assert_can_access_parcel(session, principal, parcel_id)
+    except ParcelAccessDenied:
+        raise FORBIDDEN from None
+
+    settings = get_settings()
+    base_url = (getattr(settings, "public_base_url", None)
+                or (settings.cors_origins[0] if settings.cors_origins
+                    else "http://localhost:3000"))
+    certificate = certificate_service.issue(session, parcel, base_url=base_url)
+
+    audit_service.record(
+        session,
+        action="certificate.issued",
+        entity_type="parcel",
+        entity_id=certificate.parcel_id,
+        actor_id=principal.id,
+        actor_role=principal.primary_role,
+        after_state={"content_hash": certificate.content_hash,
+                     "issued_at": certificate.issued_at},
+    )
+    session.commit()
+
+    return Response(
+        content=certificate.pdf,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition":
+                f'attachment; filename="{certificate.parcel_id}-extract.pdf"',
+            "X-Content-Hash": certificate.content_hash,
+        },
+    )
+
+
+@router.get("/certificates/verify")
+def verify_certificate(
+    parcel: str = Query(..., max_length=64),
+    content_hash: str = Query(..., alias="hash", max_length=64),
+    principal: Principal = Depends(require("record:search_public")),
+    session: Session = Depends(get_session),
+) -> dict:
+    """Check a printed extract against the record as it stands (§15).
+
+    Returns match-or-not and nothing about the record. Replying with the record
+    would turn a photograph of somebody's paperwork into a way to read their
+    holdings (§17, §18).
+    """
+    from app.services import certificate_service
+
+    return certificate_service.verify(session, parcel, content_hash)
 
 
 @router.get("/parcels/{parcel_id}/ownership-history")

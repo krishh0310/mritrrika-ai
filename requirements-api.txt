@@ -24,6 +24,12 @@ celery[redis]>=5.4
 redis>=5.0
 sse-starlette>=2.1                # processing progress stream (§24)
 
+# Downloadable record certificate (§15). No reportlab: it does not shape
+# Devanagari (conjuncts and matras land in the wrong places), so the
+# certificate is rendered with Pillow -- which is already required to be
+# libraqm-linked here -- and saved as a PDF.
+qrcode>=7.4
+
 # Object storage
 boto3>=1.35
 
