@@ -172,6 +172,8 @@ export const en = {
 
   "record.title": "Record",
 
+  "deo.nav.bulk": "Batch upload",
+
   // --- record presentation ----------------------------------------------
   // These label record values; they never translate them.
   "record.asWritten": "As written",

@@ -180,6 +180,8 @@ export const hi: Record<MessageKey, string> = {
 
   "record.title": "अभिलेख",
 
+  "deo.nav.bulk": "बैच अपलोड",
+
   // --- record presentation ----------------------------------------------
   "record.asWritten": "जैसा लिखा है",
   "record.english": "अंग्रेज़ी पाठ",

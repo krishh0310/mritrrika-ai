@@ -119,6 +119,106 @@ async def upload_document(
     return _summary(document)
 
 
+#: How many files one batch may carry. A DEO's tray is a few dozen pages; the
+#: limit exists so a single request cannot hold an unbounded amount of image
+#: data in memory while the quality gate runs over each page in turn.
+MAX_BATCH_FILES = 40
+
+
+@router.post("/batch", status_code=status.HTTP_207_MULTI_STATUS)
+async def upload_batch(
+    files: list[UploadFile] = File(...),
+    document_type: str = Form(...),
+    village_id: str | None = Form(None),
+    record_year: str | None = Form(None),
+    principal: Principal = Depends(require("document:upload")),
+    session: Session = Depends(get_session),
+) -> dict:
+    """Upload a tray of scans in one request (§21).
+
+    207, not 201, because partial success is the NORMAL outcome rather than an
+    edge case. A DEO working through a day's scanning will routinely have a
+    page that is a duplicate of one already filed, a page that fails the
+    quality gate, and a page that is not an image at all -- and the other
+    thirty-seven must still land. A batch that failed as a unit would make the
+    operator re-upload everything to fix one file.
+
+    Every file goes through exactly the same `upload()` path as a single
+    upload: the same quality gate, the same duplicate check, the same audit
+    event. There is no bulk shortcut, because a shortcut is where the
+    per-document guarantees would quietly stop applying.
+    """
+    if not village_id:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Choose the village this batch belongs to.",
+        )
+    if len(files) > MAX_BATCH_FILES:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail=(
+                f"{len(files)} files in one batch; the limit is "
+                f"{MAX_BATCH_FILES}. Split the tray and upload again."
+            ),
+        )
+
+    accepted: list[dict] = []
+    rejected: list[dict] = []
+
+    for upload_file in files:
+        name = upload_file.filename or "(unnamed)"
+        try:
+            data = await upload_file.read()
+            document = document_service.upload(
+                session,
+                principal=principal,
+                data=data,
+                filename=name,
+                declared_mime=upload_file.content_type,
+                document_type=document_type,
+                village_external_id=village_id,
+                record_year=record_year,
+            )
+        except DuplicateDocument as exc:
+            rejected.append({
+                "filename": name,
+                "code": "DUPLICATE",
+                "reason": str(exc),
+                "existing_document": exc.existing.external_id,
+            })
+        except UnsupportedFileType as exc:
+            rejected.append({
+                "filename": name, "code": "UNSUPPORTED_TYPE", "reason": str(exc),
+            })
+        except DocumentAccessDenied:
+            rejected.append({
+                "filename": name,
+                "code": "OUT_OF_JURISDICTION",
+                "reason": "The selected location is outside your jurisdiction",
+            })
+        else:
+            accepted.append(_summary(document))
+
+    # Rejections are counted separately from quality failures: a file that was
+    # never stored and a page that was stored and needs rescanning are
+    # different problems with different remedies, and an operator needs to see
+    # which is which.
+    needs_rescan = sum(
+        1 for d in accepted if d.get("quality_recommendation") == "REJECT_QUALITY"
+    )
+    return {
+        "counts": {
+            "submitted": len(files),
+            "accepted": len(accepted),
+            "rejected": len(rejected),
+            "needs_rescan": needs_rescan,
+        },
+        "accepted": accepted,
+        "rejected": rejected,
+        "is_synthetic": True,
+    }
+
+
 @router.get("/{document_id}")
 def get_document(
     document_id: str,
