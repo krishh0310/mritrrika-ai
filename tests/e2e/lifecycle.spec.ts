@@ -2,6 +2,8 @@ import path from "node:path";
 
 import { expect, test, type Page } from "@playwright/test";
 
+import { freshScan } from "./fresh-scan";
+
 // Playwright resolves relative paths against the cwd it was launched from
 // (apps/web), not the repo root, so a bare "datasets/..." path only worked
 // when the suite happened to be run from the root. Anchor to this file.
@@ -69,9 +71,11 @@ test.describe("the land-record lifecycle", () => {
     await signIn(page, USERS.deo);
     await page.goto("/deo/upload");
 
+    // Fresh bytes: the seeded corpus already contains this page, and upload
+    // refuses an exact duplicate (§22). See freshScan.
     await page.setInputFiles(
       'input[type="file"]',
-      fixture("datasets/generated/degraded/DOC-00022.jpg"),
+      freshScan("datasets/generated/degraded/DOC-00022.jpg"),
     );
     await page.selectOption('select:near(:text("Document type"))', "KHASRA");
     await page.getByPlaceholder("1998-99").fill("1998-99");

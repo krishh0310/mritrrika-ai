@@ -75,25 +75,67 @@ Nothing here should be rebuilt.
 
 ---
 
-## Work actually remaining
+## Outcome
 
-Confirmed missing or partial, in the order the phases address them:
+Every item below was verified at the point it was closed, not asserted. Where a
+measurement contradicted the expected result, the measurement is what is
+recorded.
 
-- **Housekeeping**: the empty tracked `confidence/` package (13); the README's
-  missing worker step (14). Items 11 and 12 need no work.
-- **Vision**: layout/region detection (1), trainable on the 2-class inline layout ground truth described above.
-- **NLP**: a trained extraction model (2) and Indic normalization (3).
-- **OCR**: a second script with language routing (4).
-- **Validation**: the duplicate check over the existing checksum index (5),
-  cross-source verification (6), and wiring `ai_feedback` (7). *Not* the
-  Isolation Forest.
-- **GIS**: WMS/WFS exposure (8).
-- **Notifications**: a provider interface behind the existing table (9).
-- **UI**: i18n for *UI chrome* across web and mobile (10). The English record-data view is already built and is out of scope.
+| # | Gap | Outcome |
+|---|---|---|
+| 1 | YOLOv8 region detection | **Built and measured.** mAP50-95 0.958 on the held-out val split; finds the exact ground-truth instance counts on all 75 pages. It does **not** improve extraction (F1 0.592 → 0.593), so it is opt-in and off by default. See `docs/ai-pipeline.md`. |
+| 2 | Trained field-extraction model | **Skipped, on instruction, with a reason.** Phase 2 measured extraction as OCR-recall-bound (R 0.49 against P 0.75). LayoutLMv3 sits downstream of that same OCR, so it would very likely return the same null result at several times the cost. |
+| 3 | AI4Bharat / IndicBERT / MuRIL | **Not integrated**, unchanged. The model registry still asserts they stay out until they are. |
+| 4 | OCR is Hindi-only | **Six scripts read** (Devanagari, Telugu, Tamil, Kannada, Latin, Urdu) and five identified-and-refused by name. Routing recognises with each candidate and compares, scoring confidence × script agreement. Proven end to end on rendered Telugu, Tamil and Hindi pages. |
+| 5 | No duplicate detection | **Two tiers.** Identical bytes refused with 409 naming the original; a page that merely looks similar is accepted and flagged, because a rescan after a quality rejection produces exactly that signal. |
+| 6 | No cross-database verification | **Built.** Village, district, tehsil, khasra, khata and area checked against the location hierarchy, the cadastre and the PostGIS geometry. Kept in its own response key so nobody edits the page to match the reference. |
+| 7 | `ai_feedback` dead | **Has a writer.** Every correction is scored by how much it would teach; CONFIDENT_BUT_WRONG outranks UNCERTAIN_AND_WRONG. Nothing retrains itself. |
+| 8 | No GeoServer / WMS / WFS | **Running and verified.** 160 approved parcels served as GeoJSON and as rendered tiles. Ownership is unreachable at the database level, not merely omitted from a query. |
+| 9 | No notification delivery | **Template-based providers** for WhatsApp Cloud API and MSG91, because both regimes require registered templates. No template carries record content. |
+| 10 | No bilingual UI | **Chrome and all six citizen screens translated**, web and mobile, from one shared catalogue. Officer screen *body copy* is not translated — stated in `docs/i18n.md`. |
+| 11 | Mobile build broken | **Report was wrong.** It built then and builds now. |
+| 12 | Empty `infrastructure/monitoring` + `nginx` | **Report was wrong** — neither was in git. `monitoring/` is now real: Prometheus + Grafana. `nginx/` remains unneeded. |
+| 13 | Misleading `confidence/` package | **Removed.** |
+| 14 | README inaccurate | **Fixed** — missing worker step, three stale test counts. |
+| 15 | Branch unmerged / unpushed | **Still blocked.** There is no git remote. See below. |
 
-## Constraint discovered during the audit
+### Corrections to the prior analysis
 
-There is no git remote. The final step's "push and open a pull request" cannot
-be carried out from this workspace; the work lands as commits on
-`fix/cadastre-extraction-rag-e2e` and the PR must be opened once a remote
-exists.
+Three claimed gaps were not real, and two things were found that the report did
+not mention:
+
+* **Isolation Forest anomaly detection already existed** — fitted on a corpus
+  with a 30-record floor, suppressed when a rule already fired, degrading to
+  rules when scikit-learn is absent. It was not rebuilt.
+* **The mobile app already built.**
+* **`infrastructure/monitoring` and `nginx` were never in git.**
+* **A Prometheus exposition already existed** at `/metrics`, with nine metrics'
+  worth of content. Only the scrape and the dashboard were missing.
+* **The layout ground truth was silently wrong.** Boxes were written in
+  pre-degradation coordinates while the annotation recorded the
+  post-degradation size — on all 500 pages. Nothing read them, so nothing
+  caught it. Fixed, and pinned by a table-cell containment test.
+
+## Verification at the end of the work
+
+| check | result |
+|---|---|
+| `ruff check .` | clean |
+| `pytest tests` | 580 passed, 1 skipped |
+| `npm run typecheck` (web + mobile) | clean |
+| `npm run lint` | clean |
+| `npm test` | 38 passed |
+| `npm run build` | succeeds |
+| `npm run build:mobile` | succeeds |
+| Playwright | 25 passed |
+| `scripts/check_i18n.py` | 137 keys, en + hi in parity |
+| shared-types drift | up to date |
+
+Baseline at the start was 387 passed / 1 skipped, 38 unit, 17 browser.
+
+## The constraint that did not go away
+
+There is still no git remote. `git remote -v` is empty, so the work cannot be
+pushed and no pull request can be opened from this workspace. Everything lands
+as commits on `fix/cadastre-extraction-rag-e2e`, and `docs/pr-description.md`
+holds the description ready to use once a remote exists.

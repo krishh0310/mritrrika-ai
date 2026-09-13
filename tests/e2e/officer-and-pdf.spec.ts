@@ -4,6 +4,8 @@ import path from "node:path";
 
 import { expect, test, type Page } from "@playwright/test";
 
+import { freshScan } from "./fresh-scan";
+
 /**
  * Two things that looked finished and were not:
  *
@@ -92,7 +94,12 @@ test.describe("a multi-page PDF (§21, §28)", () => {
     await signIn(page, "deo@mrittika.demo");
     await page.goto("/deo/upload");
 
-    await page.setInputFiles('input[type="file"]', twoPagePdf());
+    // The generated PDF is deterministic, so it too would be a duplicate on a
+    // second run. freshScan makes it unique without changing what it renders.
+    await page.setInputFiles(
+      'input[type="file"]',
+      freshScan(path.relative(REPO_ROOT, twoPagePdf())),
+    );
     await page.selectOption('select:near(:text("Document type"))', "KHASRA");
     await page.getByRole("combobox", { name: "Village" }).selectOption({ label: "रामपुर" });
     await page.getByRole("button", { name: /upload and check quality/i }).click();
@@ -194,7 +201,10 @@ test.describe("re-running extraction (§29)", () => {
   }) => {
     await signIn(page, "deo@mrittika.demo");
     await page.goto("/deo/upload");
-    await page.setInputFiles('input[type="file"]', fixture("datasets/generated/degraded/DOC-00016.jpg"));
+    await page.setInputFiles(
+      'input[type="file"]',
+      freshScan("datasets/generated/degraded/DOC-00016.jpg"),
+    );
     await page.selectOption('select:near(:text("Document type"))', "KHASRA");
     await page.getByRole("combobox", { name: "Village" }).selectOption({ label: "रामपुर" });
     await page.getByRole("button", { name: /upload and check quality/i }).click();
