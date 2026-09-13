@@ -18,6 +18,7 @@ import json
 import sys
 import unicodedata
 from collections import defaultdict
+from dataclasses import replace as dc_replace
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -96,6 +97,10 @@ def main() -> int:
                         help="text detection model (default: the pipeline's DETECTION_MODEL)")
     parser.add_argument("--no-preprocess", action="store_true",
                         help="skip OpenCV enhancement, to measure its effect")
+    parser.add_argument("--layout", action="store_true",
+                        help="scope extraction with the YOLOv8 region detector")
+    parser.add_argument("--tag", default=None,
+                        help="suffix for the report filename, to keep runs apart")
     args = parser.parse_args()
 
     docs = load_split(args.split, args.profile)
@@ -106,6 +111,19 @@ def main() -> int:
         build_default_engine(detection_model=args.det_model)
         if args.det_model else build_default_engine()
     )
+
+    # Built once: loading the weights per page would dominate the run.
+    detector = None
+    if args.layout:
+        from layout import build_default_detector
+
+        detector = build_default_detector()
+        if not detector.available:
+            raise SystemExit(
+                f"--layout requested but the detector is unavailable: "
+                f"{detector.unavailable_reason}"
+            )
+        print("layout scoping: ON")
 
     per_field = defaultdict(lambda: {"tp": 0, "fp": 0, "fn": 0})
     per_tier = defaultdict(lambda: {"tp": 0, "fp": 0, "fn": 0})
@@ -125,7 +143,21 @@ def main() -> int:
         ocr_conf_total += sum(b.confidence for b in result.blocks)
         ocr_blocks += len(result.blocks)
 
-        predicted_all = extract(result.blocks, prepared.shape[1])
+        # Detection runs on the ORIGINAL page (what the detector was trained
+        # on), then the boxes are scaled into prepared coordinates so they
+        # share a frame with the OCR blocks.
+        regions = []
+        if detector is not None:
+            sx = prepared.shape[1] / image.shape[1]
+            sy = prepared.shape[0] / image.shape[0]
+            for region in detector.detect(image):
+                x1, y1, x2, y2 = region.bbox
+                regions.append(dc_replace(region, bbox=(
+                    round(x1 * sx), round(y1 * sy),
+                    round(x2 * sx), round(y2 * sy),
+                )))
+
+        predicted_all = extract(result.blocks, prepared.shape[1], regions=regions)
         truth_scalars, truth_multi = truth_for(doc)
         tier = doc["difficulty"]
 
@@ -209,9 +241,13 @@ def main() -> int:
     print(f"\nfield-level CER      {cer:.3f}")
     print(f"mean OCR confidence  {mean_conf:.3f}")
 
-    report = DATASETS / "reports" / f"extraction_eval.{args.split}.{args.profile}.json"
+    suffix = f".{args.tag}" if args.tag else ""
+    report = (
+        DATASETS / "reports" / f"extraction_eval.{args.split}.{args.profile}{suffix}.json"
+    )
     report.write_text(json.dumps({
         "split": args.split,
+        "layout_scoping": bool(args.layout),
         "documents": len(docs),
         "per_field": {k: dict(v) for k, v in per_field.items()},
         "per_difficulty": {k: dict(v) for k, v in per_tier.items()},

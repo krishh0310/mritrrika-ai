@@ -83,6 +83,53 @@ said they were "wired as optional assists", and no code ever referenced them.
 The deterministic path carries the whole load, and every field records the
 model version that produced it (§64).
 
+## Region detection: accurate, and it did not help
+
+`layout/detector.py` is a YOLOv8n fine-tuned on the generator's own structural
+ground truth — the `layout` boxes every annotation already carried. Two
+classes, header and table, 350 training pages, measured on the same grouped
+val split the extractor is measured on:
+
+| | precision | recall | mAP50 | mAP50-95 |
+|---|---|---|---|---|
+| all | 0.999 | 1.000 | 0.995 | 0.958 |
+| header | — | — | 0.995 | 0.970 |
+| table | — | — | 0.995 | 0.945 |
+
+On the 75 val pages it finds a region on every page and returns exactly the
+ground-truth instance counts: 75 headers, 100 tables.
+
+**It does not improve extraction, and that is reported rather than buried.**
+Scoping extraction with those regions moves overall F1 from 0.592 to 0.593 —
+one false VILLAGE removed across 75 pages:
+
+| | precision | recall | F1 |
+|---|---|---|---|
+| control | 0.747 | 0.491 | 0.592 |
+| with region scoping | 0.748 | 0.491 | 0.593 |
+
+The reason is not a detection failure. Extraction is bottlenecked by OCR
+recall — 0.49, against precision of 0.75 — so the dominant error is a value the
+pipeline never read at all, which no amount of knowing where the table is can
+fix. Reaching across a region boundary for the wrong value turned out to be
+rare.
+
+So the detector is **opt-in**: `extraction_pipeline.run()` takes
+`layout_detector=None` and nothing passes one in production. It costs roughly
+0.8s per page on first load and around 3ms per page thereafter, which is not
+worth paying for +0.001 F1. It is kept because it is a real, measured
+capability with an honest number attached, and because the scoping rule it
+enables is the correct one to apply once OCR recall improves enough for
+mis-anchoring to become the limiting error.
+
+One detail that would have made the number a lie: the scoping rule only drops
+the eight fields that never appear as a table cell anywhere in the corpus.
+KHASRA, AREA and LAND_CLASS each appear 333 times as page metadata and 167
+times as a table column, so the obvious "drop page metadata found inside a
+table" rule would have discarded a third of their true values and shown up as
+a large, confident-looking accuracy gain in precision with a collapse in
+recall.
+
 ## Normalization never destroys the raw value
 
 `normalization/normalizers.py` handles:
@@ -223,7 +270,7 @@ Named here so nothing above reads as a claim (§69):
 | | status |
 |---|---|
 | Handwriting recognition (TrOCR or any other) | not implemented, and no handwriting detection either — nothing sets `ocr_blocks.is_handwritten` |
-| Layout models (PP-Structure, LayoutLMv3) | not integrated — layout is deterministic geometry inside the extractor |
+| PP-Structure / LayoutLMv3 | not integrated — table structure is deterministic geometry inside the extractor. A YOLOv8 *region* detector is trained and available (see above), but is opt-in and off by default because it did not improve extraction |
 | IndicBERT extraction assist | not integrated |
 | Embeddings / pgvector retrieval | not implemented — the `embeddings` table exists, nothing writes or queries it |
 | Confidence calibration (ECE, reliability diagrams) | planned, not measured |

@@ -21,7 +21,7 @@ caller marks the document NEEDS_REVIEW and records the failure.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import cv2
 import numpy as np
@@ -69,6 +69,11 @@ class PipelineResult:
     #: ORIGINAL page. Without this the Verifier highlights the wrong region.
     scale_x: float = 1.0
     scale_y: float = 1.0
+    #: Structural regions the layout detector found, in PREPARED-image
+    #: coordinates. Empty whenever the detector is unavailable (§82), which is
+    #: indistinguishable downstream from a page with no detectable structure --
+    #: both mean "no scoping information", and both extract identically.
+    layout_regions: list = field(default_factory=list)
 
     def lowest_confidence(self) -> float:
         return min((f.final_confidence for f in self.fields), default=0.0)
@@ -89,6 +94,7 @@ def run(
     declared_khasra: str | None = None,
     previous_area: float | None = None,
     progress=None,
+    layout_detector=None,
 ) -> PipelineResult:
     """Run every stage over one page."""
 
@@ -123,8 +129,24 @@ def run(
     report("layout", 55, "Detecting table rows from text positions")
     table_rows = extract_table_rows(ocr.blocks)
 
+    # The region detector runs on the ORIGINAL image, not the preprocessed one:
+    # it was fine-tuned on the generator's degraded pages, and enhancement
+    # changes both the appearance and the size of the page. Its boxes are then
+    # scaled into prepared coordinates so they share a frame with the OCR
+    # blocks they are used to scope.
+    regions = []
+    if layout_detector is not None:
+        for region in layout_detector.detect(image):
+            x1, y1, x2, y2 = region.bbox
+            regions.append(replace(region, bbox=(
+                round(x1 * scale_x), round(y1 * scale_y),
+                round(x2 * scale_x), round(y2 * scale_y),
+            )))
+
     report("extraction", 65, "Extracting record fields")
-    extraction = extract(ocr.blocks, prepared.shape[1], table_rows=table_rows)
+    extraction = extract(
+        ocr.blocks, prepared.shape[1], table_rows=table_rows, regions=regions
+    )
 
     report("normalization", 78, "Normalising values")
     normalized: dict[str, str | None] = {}
@@ -184,6 +206,7 @@ def run(
         preprocessing_applied=enhancement.applied,
         scale_x=scale_x,
         scale_y=scale_y,
+        layout_regions=regions,
     )
 
 

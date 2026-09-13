@@ -33,6 +33,8 @@ datasets/metadata/*.json
 
 # Model weights — never commit large binaries (§78 "models")
 models/checkpoints/
+# Ultralytics writes here when a run does not name a project directory.
+runs/
 *.pdparams
 *.pdmodel
 *.onnx
