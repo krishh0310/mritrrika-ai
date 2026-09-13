@@ -122,6 +122,7 @@ Why each directory exists is documented in
 | [security.md](docs/security.md) | authorization before retrieval, and known limitations |
 | [demo.md](docs/demo.md) | the walkthrough, step by step |
 | [gis-integration.md](docs/gis-integration.md) | WMS/WFS publication, and why GeoServer never sees ownership |
+| [deployment.md](docs/deployment.md) | the intended production target, and the distance from it |
 
 ## Tests
 

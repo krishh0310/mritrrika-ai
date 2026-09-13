@@ -19,12 +19,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import (
+    CitizenProfile,
     Document,
     DocumentPage,
     Extraction,
     FieldCorrection,
     LandRecord,
     OcrBlock,
+    OwnershipRecord,
     ValidationFinding,
     VerificationAction,
     VerificationTask,
@@ -34,6 +36,7 @@ from app.services import (
     cross_reference_service,
     document_service,
     feedback_service,
+    notification_service,
 )
 from app.services.auth_service import (
     Principal,
@@ -313,8 +316,39 @@ def approve(session: Session, document: Document, *, principal: Principal,
         if record:
             record.status = "APPROVED"
 
+    for user_id in _citizens_for_parcel(session, document.parcel_id):
+        notification_service.notify(
+            session,
+            user_id=user_id,
+            template_key="record_approved",
+            values={"reference": document.external_id},
+            link=f"/citizen/records/{document.external_id}",
+        )
+
     session.commit()
     return document
+
+
+def _citizens_for_parcel(session: Session, parcel_id: str | None) -> list[str]:
+    """User ids of citizens who currently hold a share in this parcel.
+
+    CURRENT holders only -- `valid_to IS NULL`, which is how §39 spells "still
+    holds it". Notifying a previous owner that a record they no longer hold has
+    changed tells them something about land that is not theirs: a disclosure
+    rather than a courtesy.
+    """
+    if not parcel_id:
+        return []
+    rows = session.execute(
+        select(CitizenProfile.user_id)
+        .join(OwnershipRecord, OwnershipRecord.owner_id == CitizenProfile.owner_id)
+        .where(
+            OwnershipRecord.parcel_id == parcel_id,
+            OwnershipRecord.valid_to.is_(None),
+        )
+        .distinct()
+    ).scalars().all()
+    return list(rows)
 
 
 def return_to_verifier(session: Session, document: Document, *,

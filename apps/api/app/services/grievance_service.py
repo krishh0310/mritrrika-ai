@@ -19,7 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import Grievance, Parcel, User
-from app.services import audit_service, storage_service
+from app.services import audit_service, notification_service, storage_service
 from app.services.auth_service import Principal, grievance_jurisdiction_clause
 from app.services.citizen_service import assert_can_access_parcel
 
@@ -246,6 +246,20 @@ def update_status(
                      "resolution_note": grievance.resolution_note},
         reason=note,
     )
+
+    # Tell the citizen who raised it (§19). Best-effort by construction: the
+    # in-app record is written inside this transaction, and a gateway failure
+    # returns a Delivery marked undelivered rather than raising -- a grievance
+    # must not fail to progress because an SMS provider is down.
+    if grievance.raised_by_id:
+        notification_service.notify(
+            session,
+            user_id=grievance.raised_by_id,
+            template_key="grievance_update",
+            values={"reference": grievance.external_id, "status": new_status},
+            link=f"/citizen/grievances/{grievance.external_id}",
+        )
+
     session.commit()
     session.refresh(grievance)
     return grievance

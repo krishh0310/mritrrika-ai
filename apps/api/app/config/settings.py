@@ -68,6 +68,17 @@ class Settings(BaseSettings):
     ocr_detection_model: str | None = None
 
     # ── providers (§81) ───────────────────────────────────────────────────
+    # Notifications (§19). Absent credentials are not an error: the dispatcher
+    # falls back to recording the attempt and the in-app notification is still
+    # written. See app/services/notification_service.py.
+    whatsapp_access_token: str | None = None
+    whatsapp_phone_number_id: str | None = None
+    #: TRAI's DLT regime: transactional SMS in India needs a registered
+    #: template ID and principal-entity ID, or the operator drops it.
+    msg91_auth_key: str | None = None
+    msg91_sender_id: str | None = None
+    msg91_pe_id: str | None = None
+
     llm_provider: str = "gemini"
     gemini_api_key: str | None = None
     gemini_llm_model: str = "gemini-3.6-flash"
