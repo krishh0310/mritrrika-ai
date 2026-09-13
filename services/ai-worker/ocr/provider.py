@@ -17,6 +17,7 @@ from __future__ import annotations
 import base64
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -333,7 +334,25 @@ class OcrEngine:
 
 #: The recogniser PaddleOCR selects for each `lang`, stated explicitly because
 #: naming a detector disables PaddleOCR's own lang-based selection.
-RECOGNITION_MODELS = {"hi": "devanagari_PP-OCRv5_mobile_rec"}
+#:
+#: One entry per SCRIPT, not per language: PP-OCRv5 maps every Devanagari
+#: language -- hi, mr, ne, sa, mai, bho and the rest -- onto a single
+#: `devanagari` recogniser, because the distinction between them is linguistic
+#: and the recogniser only sees shapes. Telugu, Tamil and Kannada each have
+#: their own; Urdu shares the Arabic recogniser.
+RECOGNITION_MODELS = {
+    "hi": "devanagari_PP-OCRv5_mobile_rec",
+    "te": "te_PP-OCRv5_mobile_rec",
+    "ta": "ta_PP-OCRv5_mobile_rec",
+    "ka": "ka_PP-OCRv5_mobile_rec",
+    "en": "en_PP-OCRv5_mobile_rec",
+    "ur": "arabic_PP-OCRv5_mobile_rec",
+}
+
+#: Languages this pipeline will construct an engine for. Anything else is
+#: refused at construction rather than quietly handed to the Devanagari
+#: recogniser, which would return fluent nonsense at plausible confidence.
+SUPPORTED_LANGS = frozenset(RECOGNITION_MODELS)
 
 #: Text detector. None keeps PaddleOCR's default, PP-OCRv5_server_det.
 #:
@@ -348,6 +367,99 @@ RECOGNITION_MODELS = {"hi": "devanagari_PP-OCRv5_mobile_rec"}
 #: the memory instead (one process, recycled after heavy tasks). Set
 #: OCR_DETECTION_MODEL=PP-OCRv5_mobile_det on a machine that cannot afford it.
 DETECTION_MODEL: str | None = None
+
+
+@dataclass
+class RoutingDecision:
+    """Which language was chosen for a page, and what it beat."""
+
+    lang: str
+    script: str | None
+    score: float
+    result: OcrResult
+    considered: dict           # lang -> score, for the audit trail
+
+    def to_dict(self) -> dict:
+        return {
+            "lang": self.lang,
+            "script": self.script,
+            "score": round(self.score, 4),
+            "considered": {k: round(v, 4) for k, v in self.considered.items()},
+        }
+
+
+def _routing_score(result: OcrResult, expected_script: str) -> float:
+    """How well a recogniser's output looks like the script it was asked for.
+
+    Mean confidence alone is not enough. A Devanagari recogniser handed a
+    Telugu page returns Latin-ish rubbish -- '008 28s' -- at a confidence that
+    is low but not zero, and a page with little text can push that above a
+    correct reading. So confidence is multiplied by the fraction of recognised
+    characters that actually belong to the expected script, which for a wrong
+    recogniser is close to zero regardless of how sure it claims to be.
+    """
+    from .scripts import profile
+
+    if not result.blocks:
+        return 0.0
+    seen = profile(result.text)
+    return result.mean_confidence() * seen.fraction(expected_script)
+
+
+def route(
+    image: np.ndarray,
+    candidates: Sequence[str] = ("hi", "te", "ta", "ka"),
+    *,
+    detection_model: str | None = None,
+) -> RoutingDecision:
+    """Identify a page's script by recognising it with each candidate (§6).
+
+    There is no script-identification model here, and this is deliberate: the
+    script of an IMAGE cannot be read off Unicode blocks, and adding a
+    classifier would add a second thing that can be wrong. Recognising with
+    each candidate and comparing is slower but has no failure mode of its own
+    -- the answer is judged on the output it actually produced.
+
+    It is correspondingly expensive: one engine load and one pass per
+    candidate. Callers that know the language should say so and skip this
+    entirely; this is for the page that arrives without provenance.
+    """
+    from .scripts import SCRIPT_TO_LANG, UnsupportedScript, profile
+
+    lang_to_script = {v: k for k, v in SCRIPT_TO_LANG.items()}
+    usable = [c for c in candidates if c in RECOGNITION_MODELS]
+    if not usable:
+        raise UnsupportedScript(f"no supported language among {list(candidates)}")
+
+    best: RoutingDecision | None = None
+    considered: dict[str, float] = {}
+
+    for lang in usable:
+        provider = PaddleOcrProvider(lang=lang, detection_model=detection_model)
+        try:
+            result = provider.recognize(image)
+        except OcrUnavailable as exc:
+            logger.info("routing: %s unavailable (%s)", lang, exc)
+            considered[lang] = 0.0
+            continue
+
+        score = _routing_score(result, lang_to_script.get(lang, ""))
+        considered[lang] = score
+        if best is None or score > best.score:
+            best = RoutingDecision(
+                lang=lang,
+                script=profile(result.text).dominant,
+                score=score,
+                result=result,
+                considered=considered,
+            )
+
+    if best is None:
+        raise OcrUnavailable("no candidate recogniser could run")
+
+    best.considered.update(considered)
+    logger.info("routing: chose %s (%s)", best.lang, considered)
+    return best
 
 
 def build_default_engine(

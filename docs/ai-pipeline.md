@@ -46,7 +46,7 @@ the lighting.
 
 `ocr/provider.py` defines an `OcrProvider` interface with two implementations:
 
-* `PaddleOcrProvider` — PP-OCRv5, Devanagari + Latin. The primary.
+* `PaddleOcrProvider` — PP-OCRv5. The primary. Six scripts, see below.
 * `GeminiOcrProvider` — the §82 fallback when Paddle cannot load.
 
 If neither is available the provider raises `OcrUnavailable`, the pipeline
@@ -58,6 +58,60 @@ not a reviewer staring at a blank field list.
 Every block stores text, confidence, bbox, script and reading order. §6 forbids
 storing plain text alone, because the verification workspace cannot exist
 without bounding boxes.
+
+### Six scripts, and the ones it refuses
+
+A land record is not always Devanagari. The same Khasra is Telugu in
+Telangana, Tamil in Tamil Nadu, Kannada in Karnataka. A pipeline hard-wired to
+one recogniser does not degrade gracefully on the others — it returns
+fluent-looking rubbish at a confidence that is low but not zero, and every
+stage downstream treats it as a reading.
+
+`RECOGNITION_MODELS` has one entry per SCRIPT, not per language: PP-OCRv5 maps
+hi, mr, ne, sa, mai, bho and the rest onto a single `devanagari` recogniser,
+because the difference between them is linguistic and the model only sees
+shapes.
+
+| script | lang | recogniser |
+|---|---|---|
+| Devanagari (hi, mr, ne, sa, mai, bho…) | `hi` | `devanagari_PP-OCRv5_mobile_rec` |
+| Telugu | `te` | `te_PP-OCRv5_mobile_rec` |
+| Tamil | `ta` | `ta_PP-OCRv5_mobile_rec` |
+| Kannada | `ka` | `ka_PP-OCRv5_mobile_rec` |
+| Latin | `en` | `en_PP-OCRv5_mobile_rec` |
+| Urdu | `ur` | `arabic_PP-OCRv5_mobile_rec` |
+
+`ocr/scripts.py` also identifies **Bengali, Gujarati, Gurmukhi, Odia and
+Malayalam** — and refuses them by name. PP-OCRv5 ships no recogniser for those,
+and `language_for_script` raises `UnsupportedScript` rather than defaulting to
+Devanagari. Identified and refused is a page an operator can be told to key in
+by hand; unidentified and guessed is a record that looks real and is not.
+
+### Routing recognises first and decides after
+
+`provider.route()` picks the language by running each candidate recogniser and
+comparing what came back. There is no script-identification model, deliberately:
+the script of an *image* cannot be read off Unicode blocks, and a classifier
+would add a second thing that can be wrong.
+
+Confidence alone does not decide it. A Devanagari recogniser handed a Telugu
+page returns `'008 28s'` at 0.62 — low, but high enough to win on a sparse
+page. So the score is mean confidence **multiplied by** the fraction of
+recognised characters that actually belong to the script that recogniser reads,
+which collapses a wrong reading to near zero however sure it claims to be.
+
+Measured on rendered single-line pages, candidates `hi`/`te`/`ta`:
+
+| page | chosen | hi | te | ta |
+|---|---|---|---|---|
+| Telugu | **te** | 0.000 | 0.796 | 0.000 |
+| Hindi | **hi** | 0.982 | 0.000 | 0.000 |
+| Tamil | **ta** | 0.434 | 0.000 | 0.931 |
+
+The cost is one engine load and one pass per candidate, so a caller that knows
+the language should pass it and skip routing entirely. This is for the page
+that arrives without provenance. Every decision records the scores it beat, so
+a routing choice is auditable rather than asserted (§64).
 
 ### Bounding boxes are stored in ORIGINAL page coordinates
 
