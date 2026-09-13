@@ -121,6 +121,7 @@ Why each directory exists is documented in
 | [ai-pipeline.md](docs/ai-pipeline.md) | each stage, its fallback, and what it may claim |
 | [security.md](docs/security.md) | authorization before retrieval, and known limitations |
 | [demo.md](docs/demo.md) | the walkthrough, step by step |
+| [gis-integration.md](docs/gis-integration.md) | WMS/WFS publication, and why GeoServer never sees ownership |
 
 ## Tests
 
