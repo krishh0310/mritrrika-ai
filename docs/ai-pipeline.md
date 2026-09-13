@@ -184,6 +184,94 @@ table" rule would have discarded a third of their true values and shown up as
 a large, confident-looking accuracy gain in precision with a collapse in
 recall.
 
+## A trained extractor was built, and it does not work
+
+Phase 3 asked for LayoutLMv3 fine-tuned on the labelled split, with the rules
+kept as a low-confidence fallback. All of it was built. The model does not
+learn, the rules remain the shipped path, and this section says so rather than
+quietly omitting the attempt.
+
+### LayoutLMv3 is the wrong model for Devanagari, measurably
+
+Its tokenizer is a byte-level BPE trained on English:
+
+| model | `ग्राम रामपुर खसरा १४२/२ क्षेत्रफल` (33 chars) |
+|---|---|
+| `layoutlmv3-base` | **55 tokens** — 1.67 per *character* — `['Ġà¤', 'Ĺ', 'à¥', 'į', 'à¤', '°', ...]` |
+| `muril-base-cased` | **8 tokens** — `['ग्राम', 'रामपुर', 'खस', '##रा', '१४२', '/', '२', 'क्षेत्रफल']` |
+
+The LayoutLMv3 pieces are mojibake fragments carrying no pretrained meaning.
+LayoutXLM fixes the tokenizer and needs detectron2, which does not build here.
+So the model is MuRIL — Devanagari-native — with LayoutLM's actual
+contribution, learned 2D position embeddings, summed into the token
+embeddings.
+
+### What was fixed along the way, and is worth keeping
+
+Two real defects in the dataset tooling, both found by the model failing:
+
+**Ground truth was in the wrong coordinate frame.** `enhance_for_quality`
+*deskews* — a `warpAffine` rotation — and **70% of pages are rotated**. Mapping
+annotation boxes into OCR space with the scale factors alone put them wherever
+the page was before it was straightened. The village `रामपुर` came out labelled
+`B-DISTRICT`. Ground truth is now mapped through the same rotation.
+
+**OCR returns lines, not words.** PaddleOCR gives `तहसील डेमो तहसील` as one
+block — the printed label followed by its value. Labelling at block level tags
+the label as the value, and made 43.6% of supervised tokens contradictory.
+Splitting blocks into words with apportioned boxes brought that to 35.7%; the
+rest is intrinsic, because the district's value *is* `डेमो जिला`, so `जिला`
+appears both as printed chrome and inside a value and only position separates
+them.
+
+### The result: it collapses to the majority class
+
+After both fixes, on 340 training pages with correct, verified labels:
+
+| | outcome |
+|---|---|
+| training loss | falls 3.24 → ~1.53 and stops, which is the label marginal entropy |
+| val token F1 | **0.000** at every epoch |
+| single-batch overfit (8 pages, 400 steps) | train accuracy 65.5% = exactly the O fraction; **0 non-O predictions out of 371** |
+
+It cannot memorise eight pages it has seen four hundred times. Things ruled
+out, each by measurement rather than reasoning:
+
+* **not the architecture** — a plain `AutoModelForTokenClassification` on the
+  same tensors fails identically (loss 1.621, 0 non-O predictions);
+* **not the device** — identical on CPU and MPS;
+* **not the learning rate** — 2e-5, 5e-5, 1e-4, 3e-4 and 5e-4 all collapse;
+* **not label alignment** — the tokenised tensors carry 16 non-O labels on
+  exactly the 16 words the dataset labels, each on the right first sub-token.
+
+The remaining suspect is supervision density: roughly 16 labelled words per
+page against ~70 unlabelled, with heavy token collision between fields whose
+values share a prefix. That is a hypothesis, not a finding, and it is not
+written down as one.
+
+### What ships
+
+**The rule-based extractor, unchanged.** `model_extractor.py` falls back to it
+per *field*, and with no checkpoint present that fallback is the whole
+behaviour — tested, and the checkpoint directory is deliberately empty. Nothing
+in the pipeline depends on the model existing.
+
+The measured baseline is unchanged by any of this work: **P 0.747 / R 0.491 /
+F1 0.592**.
+
+### What was gained anyway
+
+* AI4Bharat's Indic NLP normaliser now canonicalises Devanagari before
+  comparison, so `क़` compares equal to itself whichever of its two encodings
+  OCR emitted.
+* The deskew-frame bug is fixed in the dataset tooling, where it would have
+  corrupted any future training run the same way.
+* `cache_ocr.py` makes a real-OCR corpus reusable, so the next attempt costs
+  minutes rather than an hour.
+* The recall ceiling is now measured: **OCR never reaches 26.7% of
+  ground-truth fields**, so no extraction model can exceed ~73% recall on this
+  corpus however good it is.
+
 ## Normalization never destroys the raw value
 
 `normalization/normalizers.py` handles:
@@ -325,7 +413,8 @@ Named here so nothing above reads as a claim (§69):
 |---|---|
 | Handwriting recognition (TrOCR or any other) | not implemented, and no handwriting detection either — nothing sets `ocr_blocks.is_handwritten` |
 | PP-Structure / LayoutLMv3 | not integrated — table structure is deterministic geometry inside the extractor. A YOLOv8 *region* detector is trained and available (see above), but is opt-in and off by default because it did not improve extraction |
-| IndicBERT extraction assist | not integrated |
+| IndicBERT extraction assist | not integrated — AI4Bharat's repo is gated; MuRIL was used instead |
+| Trained field extraction (MuRIL + layout) | **built and does not work** — see above. The rules ship. |
 | Embeddings / pgvector retrieval | not implemented — the `embeddings` table exists, nothing writes or queries it |
 | Confidence calibration (ECE, reliability diagrams) | planned, not measured |
 | Federated learning, GNN ownership analysis, MAML | research direction only |

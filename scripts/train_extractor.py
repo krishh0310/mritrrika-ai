@@ -40,6 +40,10 @@ from torch.utils.data import DataLoader, Dataset  # noqa: E402
 
 MAX_LENGTH = 512
 
+#: Pages average ~60 tokens. Padding every one to 512 spent roughly eight times
+#: the compute on [PAD], which is why the first run underfitted: it could
+#: afford only 20 epochs in the time dynamic padding buys 100+.
+
 
 class PageDataset(Dataset):
     def __init__(self, path: Path, tokenizer):
@@ -58,7 +62,6 @@ class PageDataset(Dataset):
             is_split_into_words=True,
             truncation=True,
             max_length=MAX_LENGTH,
-            padding="max_length",
             return_tensors="pt",
         )
         word_ids = encoding.word_ids(0)
@@ -86,6 +89,24 @@ class PageDataset(Dataset):
             "boxes": torch.tensor(boxes, dtype=torch.long),
             "labels": torch.tensor(labels, dtype=torch.long),
         }
+
+
+def collate(batch: list[dict]) -> dict:
+    """Pad to the longest page in the BATCH, not to the model maximum."""
+    longest = max(item["input_ids"].shape[0] for item in batch)
+    out: dict[str, list] = {k: [] for k in batch[0]}
+    for item in batch:
+        pad = longest - item["input_ids"].shape[0]
+        out["input_ids"].append(
+            torch.nn.functional.pad(item["input_ids"], (0, pad), value=0))
+        out["attention_mask"].append(
+            torch.nn.functional.pad(item["attention_mask"], (0, pad), value=0))
+        # -100 so padding is never supervised.
+        out["labels"].append(
+            torch.nn.functional.pad(item["labels"], (0, pad), value=-100))
+        out["boxes"].append(
+            torch.nn.functional.pad(item["boxes"], (0, 0, 0, pad), value=0))
+    return {k: torch.stack(v) for k, v in out.items()}
 
 
 def evaluate(model, loader, device) -> dict:
@@ -118,9 +139,9 @@ def evaluate(model, loader, device) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data", default=str(DATASETS / "extraction-dataset"))
-    parser.add_argument("--epochs", type=int, default=20)
-    parser.add_argument("--batch", type=int, default=4)
-    parser.add_argument("--lr", type=float, default=3e-5)
+    parser.add_argument("--epochs", type=int, default=80)
+    parser.add_argument("--batch", type=int, default=8)
+    parser.add_argument("--lr", type=float, default=3e-4)
     parser.add_argument("--device", default=None)
     parser.add_argument("--name", default="extractor-v1")
     parser.add_argument("--seed", type=int, default=42)
@@ -148,8 +169,9 @@ def main() -> None:
     val = PageDataset(data / "val.jsonl", tokenizer)
     print(f"train {len(train)} pages, val {len(val)} pages")
 
-    train_loader = DataLoader(train, batch_size=args.batch, shuffle=True)
-    val_loader = DataLoader(val, batch_size=args.batch)
+    train_loader = DataLoader(
+        train, batch_size=args.batch, shuffle=True, collate_fn=collate)
+    val_loader = DataLoader(val, batch_size=args.batch, collate_fn=collate)
 
     model = LayoutAwareTokenClassifier().to(device)
     optimiser = torch.optim.AdamW(model.parameters(), lr=args.lr)
@@ -175,13 +197,15 @@ def main() -> None:
             optimiser.step()
             scheduler.step()
             optimiser.zero_grad()
-            running += float(out["loss"])
+            running += out["loss"].item()
 
         metrics = evaluate(model, val_loader, device)
         history.append({"epoch": epoch, "loss": running / len(train_loader), **metrics})
+        # flush: redirected stdout is block-buffered, so without this a run
+        # that is progressing normally looks hung for its whole duration.
         print(f"  epoch {epoch:3d}  loss {running / len(train_loader):.4f}  "
               f"val P {metrics['precision']:.3f} R {metrics['recall']:.3f} "
-              f"F1 {metrics['f1']:.3f}")
+              f"F1 {metrics['f1']:.3f}", flush=True)
 
         if metrics["f1"] > best_f1:
             best_f1 = metrics["f1"]

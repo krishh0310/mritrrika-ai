@@ -78,7 +78,9 @@ def main() -> None:
             failed += 1
             continue
 
-        prepared = enhance_for_quality(image, assess(image)).image
+        report = assess(image)
+        enhancement = enhance_for_quality(image, report)
+        prepared = enhancement.image
         try:
             result = engine.recognize(prepared)
         except Exception as exc:  # a page the engine refuses is recorded, not dropped
@@ -96,6 +98,9 @@ def main() -> None:
             # is what makes label alignment possible at all.
             "prepared_size": [prepared.shape[1], prepared.shape[0]],
             "original_size": [image.shape[1], image.shape[0]],
+            # The deskew angle, because preprocessing ROTATES as well as
+            # scales and a box cannot be mapped into this frame without it.
+            "skew_angle": float(enhancement.skew_corrected or 0.0),
             "scale_x": prepared.shape[1] / image.shape[1],
             "scale_y": prepared.shape[0] / image.shape[0],
             "provider": result.provider,
