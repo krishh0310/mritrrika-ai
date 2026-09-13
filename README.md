@@ -125,6 +125,7 @@ Why each directory exists is documented in
 | [deployment.md](docs/deployment.md) | the intended production target, and the distance from it |
 | [i18n.md](docs/i18n.md) | Hindi and English, and why record values are never translated |
 | [monitoring.md](docs/monitoring.md) | Prometheus and Grafana over the pipeline |
+| [dossier.html](docs/dossier.html) | the full technical report — every model and why, all measured results, including the two that failed |
 
 ## Tests
 
