@@ -6,6 +6,12 @@ The TypeScript mirror in packages/shared-types is GENERATED from this package
 (scripts/generate_shared_types.py) and must not be hand-edited.
 """
 
+from .area import (
+    SQM_PER_UNIT,
+    UnknownAreaUnit,
+    relative_difference,
+    to_square_metres,
+)
 from .confidence import (
     DEFAULT_WEIGHTS,
     HIGH_THRESHOLD,
@@ -67,6 +73,10 @@ __all__ = [
     "AnomalyType",
     "Area",
     "AreaUnit",
+    "SQM_PER_UNIT",
+    "UnknownAreaUnit",
+    "relative_difference",
+    "to_square_metres",
     "BoundingBox",
     "CanonicalLandRecord",
     "ConfidenceBand",

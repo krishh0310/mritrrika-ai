@@ -18,13 +18,12 @@ import random
 import zlib
 from dataclasses import dataclass, replace
 
+# SQM_PER_BIGHA comes from the domain package, which is the single source of
+# truth for these factors (§11). The API cross-references a document's stated
+# area against its parcel using the same table; two copies of the constant
+# could drift while each half still looked self-consistent.
+from mrittika_domain.area import SQM_PER_BIGHA
 from shapely.geometry import Polygon
-
-#: UP pucca bigha. Regional definitions vary; this is the value the prototype
-#: uses everywhere, and it is recorded alongside the figure so it is auditable.
-SQM_PER_BIGHA = 2529.285
-SQM_PER_HECTARE = 10_000.0
-SQM_PER_ACRE = 4046.86
 
 #: Mean metres per degree of latitude. Longitude is scaled by cos(lat).
 METRES_PER_DEGREE_LAT = 111_320.0

@@ -15,25 +15,15 @@ import random
 from dataclasses import dataclass
 
 from boundaries.village_boundaries import (
-    SQM_PER_ACRE,
-    SQM_PER_BIGHA,
-    SQM_PER_HECTARE,
     VillageSite,
     build_boundary,
     metres_to_wgs84,
 )
+from mrittika_domain.area import SQM_PER_UNIT
 from shapely import voronoi_polygons
 from shapely.affinity import scale as affine_scale
 from shapely.geometry import MultiPoint, Point, Polygon
 from shapely.geometry.base import BaseGeometry
-
-SQM_PER_UNIT = {
-    "BIGHA": SQM_PER_BIGHA,
-    "HECTARE": SQM_PER_HECTARE,
-    "ACRE": SQM_PER_ACRE,
-    "BISWA": SQM_PER_BIGHA / 20.0,
-    "SQUARE_METRE": 1.0,
-}
 
 
 @dataclass

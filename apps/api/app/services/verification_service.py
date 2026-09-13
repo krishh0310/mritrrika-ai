@@ -29,7 +29,12 @@ from app.models import (
     VerificationAction,
     VerificationTask,
 )
-from app.services import audit_service, document_service, feedback_service
+from app.services import (
+    audit_service,
+    cross_reference_service,
+    document_service,
+    feedback_service,
+)
 from app.services.auth_service import (
     Principal,
     document_in_jurisdiction,
@@ -155,6 +160,14 @@ def workspace(session: Session, document: Document) -> dict:
             {"rule": f.rule, "severity": f.severity, "message": f.message,
              "field": f.field}
             for f in findings
+        ],
+        # Kept separate from `findings` rather than merged into it. A format
+        # rule is about the page alone and the verifier can settle it from the
+        # scan; a cross-reference finding is a disagreement between the page
+        # and the cadastre, where the page is often the correct side (§33).
+        # Merging them would invite fixing the document to match the reference.
+        "cross_reference": [
+            f.to_dict() for f in cross_reference_service.cross_reference(session, document)
         ],
         "is_synthetic": document.is_synthetic,
     }
