@@ -179,6 +179,17 @@ class TestStep3Verification:
         assert body["raw_value"] == target["raw_value"], "raw OCR was overwritten!"
         assert body["status"] == "VERIFIER_CORRECTED"
 
+    def test_a_correction_enters_the_retraining_pool(self, client, auth, uploaded):
+        """§67 -- and enters it UNREVIEWED, so nothing trains on it by itself.
+
+        Runs after the correction above, which is the only thing in this module
+        that produces one.
+        """
+        body = client.get("/api/v1/ai/feedback", headers=auth(TEHSILDAR)).json()
+        assert body["pool"], "a verifier correction left the retraining pool empty"
+        assert all(row["selection_reason"] for row in body["pool"])
+        assert body["readiness"]["pending_review"] >= 1
+
     def test_cannot_submit_while_fields_need_review(self, client, auth, uploaded):
         """Guard: submitting with unreviewed fields defeats the queue."""
         workspace = client.get(

@@ -29,7 +29,7 @@ from app.models import (
     VerificationAction,
     VerificationTask,
 )
-from app.services import audit_service, document_service
+from app.services import audit_service, document_service, feedback_service
 from app.services.auth_service import (
     Principal,
     document_in_jurisdiction,
@@ -200,19 +200,23 @@ def correct_field(
     extraction.corrected_value = new_value
     extraction.status = FieldStatus.VERIFIER_CORRECTED
 
-    session.add(
-        FieldCorrection(
-            extraction_id=extraction.id,
-            document_id=document.id,
-            field=extraction.field,
-            model_prediction=extraction.normalized_value,
-            corrected_value=new_value,
-            confidence_at_correction=extraction.final_confidence,
-            model_version=extraction.model_version,
-            corrected_by_id=principal.id,
-            reason=reason,
-        )
+    correction = FieldCorrection(
+        extraction_id=extraction.id,
+        document_id=document.id,
+        field=extraction.field,
+        model_prediction=extraction.normalized_value,
+        corrected_value=new_value,
+        confidence_at_correction=extraction.final_confidence,
+        model_version=extraction.model_version,
+        corrected_by_id=principal.id,
+        reason=reason,
     )
+    session.add(correction)
+    session.flush()  # the feedback row references this correction by id
+
+    # Every correction joins the retraining pool, unreviewed (§67). Nothing
+    # here retrains anything -- a human decides what is worth learning from.
+    feedback_service.record_correction(session, correction)
     audit_service.record(
         session, action=audit_service.EXTRACTION_CORRECTED,
         entity_type="document", entity_id=document.external_id,
