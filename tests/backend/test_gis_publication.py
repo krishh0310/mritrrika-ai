@@ -37,7 +37,7 @@ PUBLISHED_COLUMNS = {
 
 
 @pytest.fixture(scope="module")
-def session():
+def session(require_postgres):
     with SessionLocal() as s:
         yield s
 

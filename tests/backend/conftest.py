@@ -5,6 +5,7 @@ under test (RBAC, citizen isolation) are properties of the SQL and the session
 wiring, and a mocked session would not exercise them.
 """
 
+import functools
 import io
 import itertools
 import os
@@ -23,8 +24,13 @@ sys.path.insert(0, str(Path(__file__).parent))
 from demo_users import DEMO_PASSWORD  # noqa: E402
 
 
-@pytest.fixture(scope="session")
-def client():
+@functools.cache
+def _why_postgres_is_unreachable() -> str | None:
+    """A skip reason, or None when the database is up.
+
+    Cached because every integration test asks the same question and a refused
+    connection costs the full timeout each time it is asked.
+    """
     import psycopg
     from dotenv import load_dotenv
 
@@ -32,14 +38,40 @@ def client():
 
     from app.config.settings import get_settings
 
-    settings = get_settings()
     try:
         psycopg.connect(
-            settings.sqlalchemy_url.replace("postgresql+psycopg", "postgresql"),
+            get_settings().sqlalchemy_url.replace("postgresql+psycopg", "postgresql"),
             connect_timeout=3,
         ).close()
     except Exception as exc:  # pragma: no cover - environment dependent
-        pytest.skip(f"postgres unavailable ({exc}); run: docker compose up -d")
+        return f"postgres unavailable ({exc}); run: docker compose up -d"
+    return None
+
+
+@pytest.fixture(scope="session")
+def require_postgres():
+    """Skip, rather than fail, when the database this test needs is not up.
+
+    Tests that take `client` are already guarded by it. Tests that open
+    `SessionLocal()` themselves -- the GIS publication boundary and the job
+    recovery sweep -- were not, so on a machine with no container running they
+    reported hard failures while their neighbours correctly reported themselves
+    skipped for the identical reason.
+
+    Depend on this from the fixture that opens the session, not from the
+    `integration` marker. The marker sits at module scope in both files, but
+    most of the tests under it are pure -- hashing, phone normalisation,
+    template wording -- and skipping those on a missing database would hide 79
+    assertions that need nothing but Python.
+    """
+    if reason := _why_postgres_is_unreachable():
+        pytest.skip(reason)
+
+
+@pytest.fixture(scope="session")
+def client():
+    if reason := _why_postgres_is_unreachable():
+        pytest.skip(reason)
 
     from app.main import app
     from fastapi.testclient import TestClient

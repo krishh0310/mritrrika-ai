@@ -14,7 +14,7 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.fixture
-def processing_document():
+def processing_document(require_postgres):
     from app.db import SessionLocal
     from app.models import Document, ProcessingJob
 
