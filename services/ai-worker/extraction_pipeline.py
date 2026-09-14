@@ -27,6 +27,7 @@ import cv2
 import numpy as np
 from extraction.field_extractor import ExtractedValue, extract, extract_table_rows
 from normalization.normalizers import normalize_field
+from ocr.handwriting import flag_blocks
 from ocr.provider import OcrEngine, OcrResult
 from preprocessing.enhance import enhance_for_quality
 from quality.assessment import QualityReport, assess
@@ -75,11 +76,29 @@ class PipelineResult:
     #: both mean "no scoping information", and both extract identically.
     layout_regions: list = field(default_factory=list)
 
+    prepared_to_original: np.ndarray | None = field(default=None, repr=False)
+
+    def original_bbox(self, bbox) -> tuple[int, int, int, int]:
+        matrix = self.prepared_to_original
+        if matrix is None:
+            matrix = np.array([[1 / self.scale_x, 0, 0], [0, 1 / self.scale_y, 0]])
+        return transform_bbox(bbox, matrix)
+
     def lowest_confidence(self) -> float:
         return min((f.final_confidence for f in self.fields), default=0.0)
 
     def needs_review_count(self) -> int:
         return sum(1 for f in self.fields if f.status == "NEEDS_REVIEW")
+
+
+def transform_bbox(bbox, matrix) -> tuple[int, int, int, int]:
+    """Enclose all four transformed corners; boxes remain axis aligned."""
+    x1, y1, x2, y2 = bbox
+    corners = np.array([[[x1, y1], [x2, y1], [x2, y2], [x1, y2]]], dtype=float)
+    points = cv2.transform(corners, matrix)[0]
+    low = np.floor(points.min(axis=0) + 1e-8).astype(int)
+    high = np.ceil(points.max(axis=0) - 1e-8).astype(int)
+    return int(low[0]), int(low[1]), int(high[0]), int(high[1])
 
 
 def _status_for(confidence: float) -> str:
@@ -119,8 +138,17 @@ def run(
     scale_x = prepared.shape[1] / image.shape[1]
     scale_y = prepared.shape[0] / image.shape[0]
 
-    report("ocr", 35, "Recognising Devanagari text")
+    original_to_prepared = cv2.getRotationMatrix2D(
+        (image.shape[1] / 2, image.shape[0] / 2), -enhancement.skew_corrected, 1.0
+    )
+    original_to_prepared[0] *= scale_x
+    original_to_prepared[1] *= scale_y
+    prepared_to_original = cv2.invertAffineTransform(original_to_prepared)
+
+    report("ocr", 35, "Recognising text")
     ocr = engine.recognize(prepared)
+    flag_blocks(prepared, ocr.blocks)
+    suspected_handwriting = any(b.is_handwritten for b in ocr.blocks)
 
     # This stage used to report "Parsing document structure" and then do
     # nothing before the next stage began. Table structure is the layout work
@@ -137,11 +165,9 @@ def run(
     regions = []
     if layout_detector is not None:
         for region in layout_detector.detect(image):
-            x1, y1, x2, y2 = region.bbox
-            regions.append(replace(region, bbox=(
-                round(x1 * scale_x), round(y1 * scale_y),
-                round(x2 * scale_x), round(y2 * scale_y),
-            )))
+            regions.append(replace(
+                region, bbox=transform_bbox(region.bbox, original_to_prepared)
+            ))
 
     report("extraction", 65, "Extracting record fields")
     extraction = extract(
@@ -166,6 +192,13 @@ def run(
         previous_area=previous_area,
     )
 
+    if suspected_handwriting:
+        findings.append(Finding(
+            rule="SUSPECTED_HANDWRITING", severity="warning",
+            message="Possible handwriting detected by a geometry heuristic. "
+                    "Check the scan and transcription; handwriting reading is not validated.",
+        ))
+
     report("confidence", 93, "Scoring confidence")
     outcomes: list[FieldOutcome] = []
     for value in extraction.values:
@@ -173,11 +206,7 @@ def run(
         signals = _signals_for(value, ocr, findings)
         fused = _fuse(signals)
         # Map the bbox back to ORIGINAL page coordinates.
-        x1, y1, x2, y2 = value.bbox
-        original_bbox = (
-            int(x1 / scale_x), int(y1 / scale_y),
-            int(x2 / scale_x), int(y2 / scale_y),
-        )
+        original_bbox = transform_bbox(value.bbox, prepared_to_original)
         outcomes.append(
             FieldOutcome(
                 field=value.field,
@@ -192,7 +221,7 @@ def run(
                 confidence_breakdown=fused["contributions"],
                 row_index=value.row_index,
                 strategy=value.strategy,
-                status=_status_for(fused["score"]),
+                status=("NEEDS_REVIEW" if suspected_handwriting else _status_for(fused["score"])),
             )
         )
 
@@ -207,6 +236,7 @@ def run(
         scale_x=scale_x,
         scale_y=scale_y,
         layout_regions=regions,
+        prepared_to_original=prepared_to_original,
     )
 
 

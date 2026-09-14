@@ -185,7 +185,7 @@ class PaddleOcrProvider(OcrProvider):
     def recognize(self, image: np.ndarray) -> OcrResult:
         engine = self._get_engine()
         try:
-            pages = engine.predict(image)
+            pages = list(engine.predict(image))
         except Exception as exc:
             raise OcrUnavailable(f"PaddleOCR failed: {exc}") from exc
 

@@ -71,6 +71,8 @@ class IsolationForestDetector:
 
     def fit(self, corpus: Sequence[RecordFeatures]) -> bool:
         """Learn the corpus. Returns whether a usable model resulted."""
+        self._model = None
+        self._corpus_size = 0
         if not SKLEARN_AVAILABLE:
             logger.info("anomaly: scikit-learn unavailable, rules only (§82)")
             return False

@@ -59,6 +59,10 @@ def record(
     transaction as the change it describes, so a rolled-back action cannot
     leave an audit entry claiming it happened.
     """
+    # One global chain has one append position. A transaction-scoped lock
+    # covers even an empty chain and is released on commit or rollback.
+    # Locking the last row alone would still let waiters read a stale head.
+    session.execute(select(func.pg_advisory_xact_lock(0x4D524954)))
     previous = _last_event(session)
     sequence = (previous.sequence + 1) if previous else 1
     previous_hash = previous.event_hash if previous else GENESIS_HASH

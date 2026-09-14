@@ -137,3 +137,42 @@ def test_devanagari_survives_canonicalisation(session):
     from app.services.audit_hash import canonicalize
 
     assert "रामपुर" in canonicalize({"village": "रामपुर"})
+
+
+def test_concurrent_appends_keep_one_chain(session, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+    from time import sleep
+    from uuid import uuid4
+
+    from app.db import SessionLocal
+    from app.services import audit_service
+
+    original = audit_service._last_event
+    ready = Barrier(2)
+    entity_id = f"synthetic-concurrency-{uuid4()}"
+
+    def delayed_head(s):
+        head = original(s)
+        # Widen the read/append race that previously produced duplicate sequences.
+        sleep(0.1)
+        return head
+
+    monkeypatch.setattr(audit_service, "_last_event", delayed_head)
+
+    def append(index):
+        with SessionLocal() as s:
+            ready.wait(timeout=5)
+            event = audit_service.record(
+                s, action="test.concurrent", entity_type="synthetic-test",
+                entity_id=entity_id, after_state={"writer": index},
+            )
+            result = (event.sequence, event.previous_hash, event.event_hash)
+            s.commit()
+            return result
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        events = sorted(pool.map(append, range(2)))
+    assert events[1][0] == events[0][0] + 1
+    assert events[1][1] == events[0][2]
+    assert audit_service.verify_chain(session)["valid"]

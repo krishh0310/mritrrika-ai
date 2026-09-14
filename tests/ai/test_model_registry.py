@@ -24,6 +24,7 @@ REGISTRY = json.loads((REPO_ROOT / "models" / "registry" / "model_versions.json"
 #: provider -> the code that implements it. A provider missing from this map,
 #: or naming a symbol that does not import, fails the test.
 IMPLEMENTATIONS = {
+    "baseline-irregularity": [("ocr.handwriting", "is_handwritten")],
     "paddleocr": [("ocr.provider", "PaddleOcrProvider")],
     "geometry-rules": [("extraction.field_extractor", "extract_table_rows")],
     "rules": [("extraction.field_extractor", "extract")],

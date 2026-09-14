@@ -191,16 +191,17 @@ def process_document(
 
     for page, result in results:
         for block in result.ocr.blocks:
-            x1, y1, x2, y2 = block.bbox
+            x1, y1, x2, y2 = result.original_bbox(block.bbox)
             session.add(
                 OcrBlock(
                     page_id=page.id,
                     text=block.text,
                     confidence=block.confidence,
-                    bbox_x1=int(x1 / result.scale_x), bbox_y1=int(y1 / result.scale_y),
-                    bbox_x2=int(x2 / result.scale_x), bbox_y2=int(y2 / result.scale_y),
+                    bbox_x1=x1, bbox_y1=y1,
+                    bbox_x2=x2, bbox_y2=y2,
                     script=block.script,
                     reading_order=block.reading_order,
+                    is_handwritten=block.is_handwritten,
                     model_version=result.ocr.model_version,
                 )
             )

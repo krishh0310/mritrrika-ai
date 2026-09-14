@@ -155,6 +155,7 @@ def workspace(session: Session, document: Document) -> dict:
                 "confidence": b.confidence,
                 "bbox": [b.bbox_x1, b.bbox_y1, b.bbox_x2, b.bbox_y2],
                 "reading_order": b.reading_order,
+                "is_handwritten": b.is_handwritten,
                 "page_number": page_number_by_id[b.page_id],
             }
             for b in blocks

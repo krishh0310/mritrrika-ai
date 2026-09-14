@@ -120,13 +120,14 @@ class ModelExtractor:
             return []
 
         torch = self._torch
-        words, boxes = [], []
-        for block in blocks:
+        words, boxes, block_indices = [], [], []
+        for block_index, block in enumerate(blocks):
             text = (block.text or "").strip()
             if not text:
                 continue
             x1, y1, x2, y2 = block.bbox
             words.append(text)
+            block_indices.append(block_index)
             boxes.append([
                 max(0, min(1000, int(1000 * x1 / max(page_width, 1)))),
                 max(0, min(1000, int(1000 * y1 / max(page_height, 1)))),
@@ -176,7 +177,7 @@ class ModelExtractor:
         spans = decode_spans(words, boxes, word_labels, word_scores)
         rescaled = []
         for span in spans:
-            indices = span.word_indices
+            indices = [block_indices[i] for i in span.word_indices]
             xs1 = [blocks[i].bbox[0] for i in indices]
             ys1 = [blocks[i].bbox[1] for i in indices]
             xs2 = [blocks[i].bbox[2] for i in indices]
@@ -225,9 +226,12 @@ def extract(
     if extractor is None or not extractor.available:
         return rule_result
 
+    from normalization.normalizers import normalize_field
+
     spans = [
         s for s in extractor.predict(blocks, page_width, page_height)
-        if s.confidence >= extractor.min_confidence and s.text.strip()
+        if s.confidence >= extractor.min_confidence
+        and normalize_field(s.field, s.text) is not None
     ]
     if not spans:
         return rule_result
@@ -254,8 +258,6 @@ def extract(
 
     # Normalisation still decides what is keepable -- an unparseable value is
     # dropped whichever path produced it (§82).
-    from normalization.normalizers import normalize_field
-
     final = [v for v in kept if normalize_field(v.field, v.raw_value) is not None]
 
     expected = {"DISTRICT", "TEHSIL", "VILLAGE", "KHASRA", "AREA", "OWNER"}

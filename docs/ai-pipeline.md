@@ -411,7 +411,7 @@ Named here so nothing above reads as a claim (§69):
 
 | | status |
 |---|---|
-| Handwriting recognition (TrOCR or any other) | not implemented, and no handwriting detection either — nothing sets `ocr_blocks.is_handwritten` |
+| Handwriting | experimental geometry detection sets `ocr_blocks.is_handwritten` and requires review; low synthetic recall, no dedicated reader — see [measurements](handwriting-audit.md) |
 | PP-Structure / LayoutLMv3 | not integrated — table structure is deterministic geometry inside the extractor. A YOLOv8 *region* detector is trained and available (see above), but is opt-in and off by default because it did not improve extraction |
 | IndicBERT extraction assist | not integrated — AI4Bharat's repo is gated; MuRIL was used instead |
 | Trained field extraction (MuRIL + layout) | **built and does not work** — see above. The rules ship. |

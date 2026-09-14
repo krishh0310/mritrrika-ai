@@ -15,40 +15,48 @@
       "kind": "ocr",
       "provider": "paddleocr",
       "description": "PaddleOCR PP-OCRv5 with lang='hi' (the Devanagari recognition model, which also reads Latin letters and digits). Gemini vision is registered as a fallback and marks its output degraded.",
-      "trained": false,
-      "notes": "Pretrained, not fine-tuned. §66: measure before training."
+      "notes": "Pretrained, not fine-tuned. §66: measure before training.",
+      "training_status": "pretrained_not_fine_tuned"
     },
     {
       "name": "layout-v1",
       "kind": "layout",
       "provider": "geometry-rules",
       "description": "Deterministic geometry, not a model: table rows are detected from OCR box positions, and each extracted field gets a fixed layout-evidence score for how its value was located (value right of label 0.90, table column 0.85, beside the area 0.80, below the label 0.78, inline 0.62).",
-      "trained": false,
-      "notes": "No layout model runs. PP-Structure and LayoutLMv3 are not integrated; they are candidates only if §66 failure analysis shows layout is the bottleneck."
+      "notes": "Deterministic table geometry runs in production. Optional region-model experiments are documented separately in docs/ai-pipeline.md.",
+      "training_status": "not_applicable_rules"
     },
     {
       "name": "extractor-v1",
       "kind": "extraction",
       "provider": "rules",
       "description": "Deterministic rules over OCR blocks: fuzzy label matching, then value-right, inline and value-below strategies, plus table-column extraction. Values that cannot be normalised are dropped and reported missing.",
-      "trained": false,
-      "notes": "No ML model. IndicBERT is not integrated. Rules first (§7): each value records which strategy found it."
+      "notes": "Rules first: each value records which strategy found it. Unsuccessful model experiments are documented separately in docs/ai-pipeline.md.",
+      "training_status": "not_applicable_rules"
     },
     {
       "name": "confidence-v1",
       "kind": "confidence",
       "provider": "weighted-fusion",
       "description": "Weighted fusion of OCR 0.40, extraction 0.25, layout 0.15, validation 0.15 and language 0.05, renormalised over the signals present.",
-      "trained": false,
-      "notes": "Not calibrated. ECE and reliability diagrams are §65 work not yet done."
+      "notes": "Not calibrated. ECE and reliability diagrams are §65 work not yet done.",
+      "training_status": "not_applicable_uncalibrated_formula"
     },
     {
       "name": "anomaly-v1",
       "kind": "anomaly",
       "provider": "rules+isolation-forest",
       "description": "Deterministic history rules, plus a scikit-learn Isolation Forest over 10 parcel features.",
-      "trained": true,
-      "notes": "The forest is fitted on the corpus at analysis time, not shipped as a checkpoint. With fewer than 30 parcels, or without scikit-learn, only the rules run."
+      "notes": "The forest is fitted on the corpus at analysis time, not shipped as a checkpoint. With fewer than 30 parcels, or without scikit-learn, only the rules run.",
+      "training_status": "fit_on_corpus"
+    },
+    {
+      "name": "handwriting-v1",
+      "kind": "handwriting",
+      "provider": "baseline-irregularity",
+      "description": "Untrained geometry heuristic on OCR line crops flags suspected handwriting and requires review. False means not detected, not confirmed printed.",
+      "training_status": "not_applicable_heuristic",
+      "notes": "Synthetic-font development measurements only; low recall, no real-handwriting accuracy claim. No dedicated handwriting reader. See docs/handwriting-audit.md."
     }
   ]
 }

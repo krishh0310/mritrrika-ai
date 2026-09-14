@@ -66,7 +66,7 @@ class FieldSpan:
     word_indices: list[int]
 
 
-class LayoutAwareTokenClassifier(nn.Module):
+class LayoutAwareTokenClassifier(nn.Module if TORCH_AVAILABLE else object):
     """MuRIL plus LayoutLM-style 2D position embeddings."""
 
     def __init__(self, base_model: str = BASE_MODEL, num_labels: int = len(LABELS)):

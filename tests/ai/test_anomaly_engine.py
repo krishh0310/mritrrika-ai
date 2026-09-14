@@ -356,3 +356,12 @@ class TestEvaluableTypes:
             for signal in run_all(record)
         }
         assert produced <= ALL_ANOMALY_TYPES
+
+
+@pytest.mark.skipif(not SKLEARN_AVAILABLE, reason="scikit-learn not installed")
+def test_failed_refit_does_not_reuse_previous_corpus():
+    detector = IsolationForestDetector()
+    assert detector.fit([a_record(area_value=2.5 + i * 0.01) for i in range(40)])
+    assert not detector.fit([a_record()])
+    assert not detector.available
+    assert detector.score(a_record()) is None

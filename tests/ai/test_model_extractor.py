@@ -182,3 +182,59 @@ class TestSpanShape:
     def test_a_span_carries_its_words_for_provenance(self):
         span = FieldSpan("VILLAGE", "रामपुर", (0, 0, 10, 10), 0.9, [3])
         assert span.word_indices == [3]
+
+
+def test_invalid_model_value_preserves_valid_rule_value():
+    class InvalidModel:
+        available = True
+        min_confidence = 0.7
+        model_version = "test"
+
+        def predict(self, *args):
+            return [FieldSpan("KHASRA", "unreadable", (0, 0, 10, 10), 0.99, [0])]
+
+    result = extract_hybrid(blocks(*SAMPLE), extractor=InvalidModel())
+    assert any(v.field == "KHASRA" and v.raw_value == "१४०" for v in result.values)
+
+
+def test_optional_model_imports_without_torch():
+    import subprocess
+
+    source = (
+        "import sys; sys.modules['torch'] = None; "
+        "from extraction.model_extractor import ModelExtractor; "
+        "assert not ModelExtractor('/nonexistent.pt').available"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", source],
+        cwd=REPO_ROOT / "services" / "ai-worker", capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_blank_blocks_do_not_shift_model_provenance():
+    torch = pytest.importorskip("torch")
+
+    class Encoding(dict):
+        def word_ids(self, batch):
+            return [0]
+
+    class Model:
+        def __call__(self, *args):
+            logits = torch.full((1, 1, len(LABELS)), -10.0)
+            logits[0, 0, LABEL_TO_ID["B-VILLAGE"]] = 10
+            return {"logits": logits}
+
+    extractor = ModelExtractor()
+    extractor._loaded = True
+    extractor._torch = torch
+    extractor._device = "cpu"
+    extractor._model = Model()
+    extractor._tokenizer = lambda *args, **kwargs: Encoding(
+        input_ids=torch.zeros((1, 1), dtype=torch.long),
+        attention_mask=torch.ones((1, 1), dtype=torch.long),
+    )
+    page = blocks((" ", (0, 0, 1, 1)), ("रामपुर", (100, 80, 200, 110)))
+    span = extractor.predict(page, 1240, 1754)[0]
+    assert span.word_indices == [1]
+    assert span.bbox == page[1].bbox

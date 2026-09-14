@@ -183,7 +183,7 @@ It drives the real stack, so it needs the servers up.
 §69, worth having in front of you:
 
 - Not connected to DILRMP, BhuNaksha, or any government system.
-- No handwriting recognition, and no handwriting detection. TrOCR is not integrated.
+- Experimental handwriting suspicion now sets and persists `is_handwritten` and requires review. Recall is poor; no dedicated handwriting reader is integrated. See [the measured limitations](handwriting-audit.md).
 - No layout or language model in extraction. PP-Structure, LayoutLMv3 and
   IndicBERT are not integrated; extraction is deterministic rules.
 - No blockchain. A SHA-256 hash chain.

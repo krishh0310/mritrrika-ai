@@ -306,6 +306,11 @@ def extract_scalar_fields(
             if score < LABEL_SIMILARITY:
                 break  # scored list -- nothing later can qualify
 
+            # A fuzzy match must not claim a value belonging to a stronger
+            # label match (e.g. KHATA used to steal an exact KHASRA label).
+            if score < max(_label_score(label_block.text, v) for v in LABELS.values()):
+                continue
+
             # 1. value to the right
             found = _value_to_the_right(label_block, blocks, max_right_gap)
             if found is not None and found[1] not in claimed:

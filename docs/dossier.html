@@ -1439,7 +1439,7 @@ Scrape-token auth:   correct <span class="hl">200</span> · wrong <span class="h
         <table>
           <thead><tr><th>Capability</th><th>Status</th></tr></thead>
           <tbody>
-            <tr><td>Handwriting recognition (TrOCR or otherwise)</td><td><span class="chip n">Not built</span> No handwriting detection either &mdash; nothing sets <code>is_handwritten</code>.</td></tr>
+            <tr><td>Handwriting recognition (TrOCR or otherwise)</td><td><span class="chip n">Not built</span> Dedicated reading remains unbuilt. An experimental geometry detector now sets <code>is_handwritten</code>; <a href="handwriting-audit.md">synthetic measurements show low recall</a>.</td></tr>
             <tr><td>PP-Structure / LayoutLMv3 integration</td><td><span class="chip n">Not built</span> A YOLOv8 region detector exists but is opt-in and off by default, because it did not improve extraction.</td></tr>
             <tr><td>Trained field extraction</td><td><span class="chip n">Not built</span> Built and measured; collapses to the majority class. See <a href="#s12">&sect;12</a>.</td></tr>
             <tr><td>IndicBERT assist</td><td><span class="chip n">Not built</span> The AI4Bharat repository is gated; MuRIL was used instead.</td></tr>
@@ -1548,7 +1548,7 @@ Scrape-token auth:   correct <span class="hl">200</span> · wrong <span class="h
 
       <ol>
         <li><strong>OCR recall, not extraction.</strong> 26.7% of fields are never read. Two extraction models were built and neither helped, because the bottleneck is upstream of them. Fine-tuning the Devanagari recogniser on degraded register pages is the single highest-value piece of work available.</li>
-        <li><strong>Handwriting.</strong> Nothing currently detects it, let alone reads it. Older registers are substantially handwritten, so this is a correctness gap before it is a feature gap.</li>
+        <li><strong>Handwriting.</strong> An experimental geometry detector now flags some suspected handwriting, with low synthetic recall; dedicated reading remains unbuilt. Older registers are substantially handwritten, so this is a correctness gap before it is a feature gap.</li>
         <li><strong>Confidence calibration.</strong> The banding decides what a human sees. Until ECE is measured, that threshold is a reasoned guess.</li>
         <li><strong>Per-state configuration.</strong> The bigha constant and the template vocabulary both need to become configuration before a second state is possible.</li>
         <li><strong>Then, and only then, the extraction model.</strong> Once OCR recall rises, mis-anchoring becomes the limiting error &mdash; and the region detector and scoping rule already built become worth switching on.</li>
