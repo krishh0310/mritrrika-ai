@@ -20,10 +20,17 @@ import os
 import sys
 
 if sys.platform == "darwin":
-    # macOS forbids most work after fork() in a process that has initialised
-    # Objective-C or extra threads, and kills the child with SIGSEGV. Celery's
-    # prefork pool plus PaddlePaddle's threads hit exactly that, losing OCR
-    # processes mid-document. Set before Celery or Paddle is imported.
+    # Necessary but NOT sufficient -- see DEFAULT_POOL below.
+    #
+    # This only lifts the Objective-C runtime's own post-fork guard. It does
+    # nothing about a C++ library's threads, which is the failure actually
+    # observed here: a crash report whose triggered thread is
+    #
+    #     libpaddle.so  paddle::framework::ThreadPoolTempl<...>
+    #     libpaddle.so  paddle::framework::EventCount::Park(...)
+    #     libsystem_c   "crashed on child side of fork pre-exec"
+    #
+    # Set before Celery or Paddle is imported.
     os.environ.setdefault("OBJC_DISABLE_INITIALIZE_FORK_SAFETY", "YES")
 
 from celery import Celery
@@ -36,6 +43,26 @@ from app.services import document_service, pipeline_service
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
+
+#: Which Celery pool to run.
+#:
+#: `solo` on macOS, because `fork()` clones only the calling thread. By the
+#: time the prefork pool forks, PaddlePaddle has already started its own C++
+#: thread pool; in the child those threads do not exist but the mutexes and
+#: condition variables they held are still locked, so the child segfaults
+#: before it can exec. The crash report says so exactly: "crashed on child
+#: side of fork pre-exec", triggered inside paddle::framework::EventCount.
+#:
+#: OBJC_DISABLE_INITIALIZE_FORK_SAFETY does not help -- that guard is the
+#: Objective-C runtime's, and this is a C++ thread pool.
+#:
+#: solo costs nothing here: worker_concurrency is already 1, because two
+#: PaddleOCR models in one process exhausts memory. It runs the task in the
+#: main process and never forks.
+#:
+#: Linux keeps prefork, which is what the worker image runs and where
+#: worker_max_memory_per_child can recycle a child after a heavy page.
+DEFAULT_POOL = settings.worker_pool or ("solo" if sys.platform == "darwin" else "prefork")
 
 celery_app = Celery(
     "mrittika",
@@ -52,6 +79,7 @@ celery_app.conf.update(
     task_time_limit=600,
     task_soft_time_limit=540,
     worker_prefetch_multiplier=1,
+    worker_pool=DEFAULT_POOL,
     worker_concurrency=settings.worker_concurrency,
     worker_max_memory_per_child=settings.worker_max_memory_mb * 1024,  # Celery takes KB
     # Acknowledge a task only once it finishes, and put it back if its worker
@@ -101,6 +129,9 @@ def fresh_connections_after_fork(**_kwargs) -> None:
     socket interleave their statements: "prepared statement _pg3_3 does not
     exist", results never saved, documents left in PROCESSING. close=False
     drops the inherited connections without closing the parent's socket.
+
+    Not called under the solo pool, which is correct rather than a gap: solo
+    never forks, so there is no inherited connection to drop.
     """
     engine.dispose(close=False)
 

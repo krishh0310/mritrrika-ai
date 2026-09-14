@@ -58,6 +58,10 @@ class Settings(BaseSettings):
     #: swap filled to 18.8 of 20.5 GB. PaddlePaddle already uses several threads
     #: per inference, so more processes do not finish work sooner.
     worker_concurrency: int = 1
+    #: Celery pool. None picks per platform in app/worker.py -- "solo" on
+    #: macOS, where forking a process that has already started PaddlePaddle's
+    #: thread pool segfaults the child. Set explicitly to override.
+    worker_pool: str | None = None
     #: Replace a worker process after any task that leaves it above this RSS.
     #: The server text detector grows a process to 11-19 GB and never gives it
     #: back; recycling returns it to the OS between documents. A mobile-detector
