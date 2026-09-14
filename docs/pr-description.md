@@ -1,8 +1,6 @@
 # Close the audited gaps, and say honestly which ones were not real
 
-> Ready to paste once a remote exists. `git remote -v` is empty in this
-> workspace, so the branch could not be pushed and no PR could be opened from
-> here. 13 commits on `fix/cadastre-extraction-rag-e2e`.
+> 22 commits on `fix/cadastre-extraction-rag-e2e`, against a baseline `main`.
 
 ## What this is
 
