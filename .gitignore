@@ -36,6 +36,7 @@ datasets/metadata/*.json
 models/checkpoints/
 # Ultralytics writes here when a run does not name a project directory.
 runs/
+*.pt
 *.pdparams
 *.pdmodel
 *.onnx
