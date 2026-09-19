@@ -187,6 +187,15 @@ export type QueueTask = {
   lowest_confidence: number | null;
   anomaly_count: number;
   quality_score: number | null;
+  /** Present on the verification queue; null when no handwriting was flagged. */
+  handwriting_meta?: HandwritingMeta | null;
+};
+
+export type HandwritingMeta = {
+  coverage_pct: number;
+  affected_fields: string[];
+  /** Scan-quality average (blur, skew, contrast), not recognition confidence. */
+  confidence: number | null;
 };
 
 export type Grievance = {
@@ -351,11 +360,13 @@ export function useProcessingStatus(documentId: string, active: boolean) {
 
 // ── Officer queues and workspaces ───────────────────────────────────────────
 
-export function useVerificationQueue() {
+export function useVerificationQueue(handwrittenOnly = false) {
   return useQuery({
-    queryKey: ["verifications"],
+    queryKey: ["verifications", { handwrittenOnly }],
     queryFn: () =>
-      api.get<{ count: number; tasks: QueueTask[] }>("/api/v1/verifications"),
+      api.get<{ count: number; tasks: QueueTask[] }>(
+        `/api/v1/verifications${handwrittenOnly ? "?handwritten=true" : ""}`,
+      ),
   });
 }
 

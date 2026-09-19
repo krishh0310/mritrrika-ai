@@ -106,3 +106,17 @@ def research_export(
         out.getvalue(), media_type="text/csv",
         headers={"Content-Disposition": 'attachment; filename="mrittika-parcels-anonymised.csv"'},
     )
+
+
+# Last: a path parameter here would capture /records/semantic-search.
+@router.get("/records/{document_id}")
+def record(
+    document_id: str,
+    principal: Principal = Depends(require("ocr:view")),
+    session: Session = Depends(get_session),
+) -> dict:
+    """One record under digitization, for officers: the document summary,
+    including translated_from and handwriting_meta. Out of jurisdiction is 404."""
+    from app.routers.documents import _document_or_404, _summary
+
+    return _summary(_document_or_404(session, document_id, principal))

@@ -25,6 +25,7 @@ from sqlalchemy import (
     String,
     Text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base, SyntheticMixin, TimestampMixin, new_uuid
@@ -77,6 +78,10 @@ class Document(Base, TimestampMixin, SyntheticMixin):
     #: "ben", "guj", "pan", "ori" or "mal" when fields came from the IndicTrans2
     #: translate-to-Hindi fallback: values are renderings, verify carefully.
     translated_from: Mapped[str | None] = mapped_column(String(8))
+    #: Routing detail for pages with suspected handwriting (ocr/handwriting.py
+    #: routing_meta): coverage, affected review slots, scan confidence. NULL
+    #: when nothing was flagged.
+    handwriting_meta: Mapped[dict | None] = mapped_column(JSONB)
 
     pages: Mapped[list[DocumentPage]] = relationship(
         back_populates="document", cascade="all, delete-orphan"

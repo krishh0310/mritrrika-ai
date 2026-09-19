@@ -58,8 +58,10 @@ def queue(
     *,
     limit: int = 50,
     only_pending: bool = True,
+    handwritten: bool = False,
 ) -> list[dict]:
-    """The verifier's work queue, hardest first (§27)."""
+    """The verifier's work queue, hardest first (§27). `handwritten` keeps only
+    documents with suspected handwriting."""
     stmt = (
         select(VerificationTask, Document)
         .join(Document, Document.id == VerificationTask.document_id)
@@ -67,6 +69,8 @@ def queue(
     if only_pending:
         stmt = stmt.where(VerificationTask.status.in_(("PENDING", "IN_PROGRESS")))
     stmt = stmt.where(document_jurisdiction_clause(session, principal))
+    if handwritten:
+        stmt = stmt.where(Document.handwriting_meta.is_not(None))
     stmt = stmt.order_by(
         VerificationTask.priority,
         VerificationTask.lowest_confidence.nulls_last(),
@@ -83,6 +87,7 @@ def queue(
             "lowest_confidence": task.lowest_confidence,
             "anomaly_count": task.anomaly_count,
             "quality_score": document.quality_score,
+            "handwriting_meta": document.handwriting_meta,
         }
         for task, document in session.execute(stmt).all()
     ]
@@ -124,6 +129,7 @@ def workspace(session: Session, document: Document) -> dict:
         "document_type": document.document_type,
         "quality": document.quality_report,
         "translated_from": document.translated_from,
+        "handwriting_meta": document.handwriting_meta,
         # First page, kept for single-page clients.
         "page": {
             "width": page.width if page else None,

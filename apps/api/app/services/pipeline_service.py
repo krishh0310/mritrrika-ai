@@ -98,6 +98,20 @@ def active_extractor(session: Session) -> tuple[object | None, str]:
     return _field_models[row.model_path], f"extractor-trained-{row.id[:8]}"
 
 
+def handwriting_meta_for(results, quality: dict | None) -> dict | None:
+    """Routing metadata across every page. OCR boxes are in each page's
+    prepared frame and field boxes in original page coordinates, so blocks are
+    mapped back first; otherwise nothing would overlap correctly."""
+    from ocr.handwriting import routing_meta
+
+    return routing_meta(
+        [(result.original_bbox(block.bbox), block.is_handwritten)
+         for result in results for block in result.ocr.blocks],
+        [(outcome.field, outcome.bbox) for result in results for outcome in result.fields],
+        quality,
+    )
+
+
 def _update_job(session: Session, job: ProcessingJob, stage: str, progress: int,
                 message: str) -> None:
     job.stage = stage
@@ -289,6 +303,9 @@ def process_document(
         {"page_count": total} if total > 1 else {}
     )
     document.quality_recommendation = weakest.quality.recommended_action
+    document.handwriting_meta = handwriting_meta_for(
+        [result for _, result in results], weakest.quality.to_dict()
+    )
     document.translated_from = next(
         (result.translated_from for _, result in results if result.translated_from), None
     )

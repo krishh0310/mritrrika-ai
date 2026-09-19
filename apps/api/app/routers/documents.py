@@ -46,6 +46,7 @@ def _summary(document) -> dict:
         "record_year": document.record_year,
         "declared_khasra": document.declared_khasra,
         "translated_from": document.translated_from,
+        "handwriting_meta": document.handwriting_meta,
         "is_synthetic": document.is_synthetic,
     }
 

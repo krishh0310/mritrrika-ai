@@ -29,10 +29,12 @@ def _document_or_404(session: Session, document_id: str, principal: Principal):
 
 @verification_router.get("")
 def list_queue(
+    handwritten: bool = False,
     principal: Principal = Depends(require("document:verify")),
     session: Session = Depends(get_session),
 ) -> dict:
-    tasks = verification_service.queue(session, principal)
+    """The review queue; `?handwritten=true` keeps suspected handwriting only."""
+    tasks = verification_service.queue(session, principal, handwritten=handwritten)
     return {"count": len(tasks), "tasks": tasks}
 
 

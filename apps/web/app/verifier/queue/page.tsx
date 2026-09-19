@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { AlertTriangle, Inbox } from "lucide-react";
 
 import { QueryBoundary } from "@/components/shared/query-boundary";
+import { HandwritingCell } from "@/components/verifier/handwriting-cell";
 import { PageHeader } from "@/components/shell/app-shell";
 import { useVerificationQueue } from "@/lib/queries";
 import {
@@ -20,7 +21,8 @@ import {
  * at the top of whatever subset the verifier chooses to look at.
  */
 export default function VerifierQueuePage() {
-  const queue = useVerificationQueue();
+  const [handwrittenOnly, setHandwrittenOnly] = useState(false);
+  const queue = useVerificationQueue(handwrittenOnly);
   const [type, setType] = useState("");
   const [band, setBand] = useState("");
   const [flagged, setFlagged] = useState("");
@@ -48,7 +50,16 @@ export default function VerifierQueuePage() {
         title="Verification queue"
         description="Hardest first: lowest confidence and flagged records come to the top."
         actions={
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="inline-flex items-center gap-2 text-sm text-navy-900">
+              <input
+                type="checkbox"
+                checked={handwrittenOnly}
+                onChange={(e) => setHandwrittenOnly(e.target.checked)}
+                className="size-4 accent-navy-800"
+              />
+              Handwritten only
+            </label>
             <Select
               value={type}
               onChange={(e) => setType(e.target.value)}
@@ -115,6 +126,7 @@ export default function VerifierQueuePage() {
                       setType("");
                       setBand("");
                       setFlagged("");
+                      setHandwrittenOnly(false);
                     }}
                   >
                     Clear filters
@@ -132,6 +144,7 @@ export default function VerifierQueuePage() {
                     <Th>Lowest field confidence</Th>
                     <Th>Scan quality</Th>
                     <Th>Flags</Th>
+                    <Th>Handwriting</Th>
                     <Th className="text-right">Action</Th>
                   </tr>
                 </thead>
@@ -168,6 +181,9 @@ export default function VerifierQueuePage() {
                         ) : (
                           <span className="text-xs text-sand-300">none</span>
                         )}
+                      </Td>
+                      <Td>
+                        <HandwritingCell meta={task.handwriting_meta} />
                       </Td>
                       <Td className="text-right">
                         <Button asChild size="sm">

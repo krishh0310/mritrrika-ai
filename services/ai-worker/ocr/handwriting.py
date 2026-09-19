@@ -51,3 +51,47 @@ def flag_blocks(image, blocks) -> None:
         crop = image[max(0, y1):min(height, max(0, y2)),
                      max(0, x1):min(width, max(0, x2))]
         block.is_handwritten = block.is_handwritten or is_handwritten(crop)
+
+
+#: Field -> the review slot named on the verifier's card.
+REVIEW_SLOTS = {
+    "OWNER": "owner",
+    "AREA": "area",
+    "KHASRA": "survey_number",
+    "MUTATION": "mutation_number",
+    "DATE": "date",
+}
+
+
+def _overlaps(a, b) -> bool:
+    return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
+
+
+def routing_meta(blocks, fields, quality: dict | None) -> dict | None:
+    """What a reviewer needs to know about a page with suspected handwriting.
+
+    `blocks` are (bbox, is_handwritten) and `fields` are (field, bbox), all in
+    the same page coordinates. None when nothing was flagged -- the caller
+    stores that as JSON null, so "no handwriting" and "not computed" differ.
+
+      coverage_pct    share of OCR text regions flagged as handwritten
+      affected_fields review slots whose value box overlaps a flagged region
+      confidence      the scan-quality average (blur, skew, contrast): how far
+                      the page itself can be trusted. It is NOT a measure of
+                      handwriting recognition, which does not exist here.
+    """
+    flagged = [box for box, handwritten in blocks if handwritten]
+    if not flagged:
+        return None
+    affected = sorted({
+        REVIEW_SLOTS.get(field, field.lower())
+        for field, box in fields
+        if box and any(_overlaps(box, region) for region in flagged)
+    })
+    scores = [float(quality[k]) for k in ("blur_score", "skew_score", "contrast_score")
+              if quality and quality.get(k) is not None]
+    return {
+        "coverage_pct": round(len(flagged) / len(blocks), 4),
+        "affected_fields": affected,
+        "confidence": round(sum(scores) / len(scores), 4) if scores else None,
+    }
