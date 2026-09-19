@@ -64,16 +64,17 @@ PERMISSIONS: dict[str, list[str]] = {
         "document:approve", "document:reject", "document:return",
         "anomaly:view", "gis:view", "ai:query", "audit:view_full",
         "grievance:review", "analytics:view", "integration:sync", "gis:features",
+        "integration:status",
     ],
     # Read-only stakeholders. Nothing here changes a record; each sees only
     # its own jurisdiction (the state, the whole country, or a district).
     "STATE_OFFICER": [
         "record:search_public", "gis:view", "analytics:view", "anomaly:view",
-        "audit:view_full", "gis:features",
+        "audit:view_full", "gis:features", "integration:status",
     ],
     "CENTRAL_OFFICER": [
         "record:search_public", "gis:view", "analytics:view", "anomaly:view",
-        "gis:features",
+        "gis:features", "integration:status",
     ],
     # The survey department's concern is the cadastre: the map, and where the
     # records and the geometry disagree.

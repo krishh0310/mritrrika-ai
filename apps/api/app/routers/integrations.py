@@ -15,14 +15,16 @@ record from another district by naming it.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Body, Depends, HTTPException, status
+from pathlib import Path
+
+from fastapi import APIRouter, Body, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import require
 from app.config.settings import get_settings
 from app.db import get_session
 from app.integrations.lrms import build_adapter
-from app.services import lrms_service
+from app.services import integration_service, lrms_service
 from app.services.auth_service import Principal, document_in_jurisdiction
 from app.services.certificate_service import hash_of
 from app.services.document_service import DocumentNotFound, get_by_external_id
@@ -76,3 +78,26 @@ def record_of_rights(
     except lrms_service.LrmsError as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from None
     return {"payload": payload, "payload_sha256": hash_of(payload)}
+
+
+ASYNCAPI = Path(__file__).resolve().parents[4] / "docs" / "asyncapi.yaml"
+status_router = APIRouter(prefix="/api/v1/integrations", tags=["integrations"])
+
+
+@status_router.get("/status")
+def integrations_status(
+    principal: Principal = Depends(require("integration:status")),
+    session: Session = Depends(get_session),
+) -> dict:
+    """DILRMP and LRMS connector health, recent attempts, and the event spec.
+
+    Tehsildar, State Officer and Central Ministry only.
+    """
+    return {**integration_service.status(session),
+            "asyncapi_url": "/api/v1/integrations/asyncapi.yaml"}
+
+
+@status_router.get("/asyncapi.yaml", include_in_schema=False)
+def asyncapi() -> Response:
+    """The AsyncAPI 2.6 event contract. Public, like the OpenAPI schema."""
+    return Response(ASYNCAPI.read_text(), media_type="application/yaml")

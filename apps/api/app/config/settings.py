@@ -102,6 +102,11 @@ class Settings(BaseSettings):
     lrms_endpoint: str | None = None
     lrms_api_token: str | None = None
     lrms_timeout_seconds: float = 15.0
+    #: DILRMP / LRMS connectors (app/integrations/*_connector.py). Unset
+    #: endpoint = mock mode: nothing leaves the system, and the log says so.
+    dilrmp_endpoint: str | None = None
+    dilrmp_api_key: str | None = None
+    lrms_api_key: str | None = None
 
     # Notifications (§19). Absent credentials are not an error: the dispatcher
     # falls back to recording the attempt and the in-app notification is still

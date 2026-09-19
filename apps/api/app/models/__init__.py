@@ -23,7 +23,7 @@ from .identity import (
     User,
     UserRole,
 )
-from .integration import LrmsSyncRecord
+from .integration import IntegrationLog, LrmsSyncRecord
 from .land import LandRecord, Mutation, Owner, OwnershipRecord
 from .workflow import (
     AnomalyFlag,
@@ -37,7 +37,7 @@ from .workflow import (
 __all__ = [
     "AiFeedback", "AnomalyFlag", "ApiKey", "ApprovalAction", "AuditEvent", "Base",
     "CitizenProfile", "Document", "DocumentPage", "Embedding", "Extraction",
-    "FieldCorrection", "Grievance", "LandRecord", "Location", "LrmsSyncRecord",
+    "FieldCorrection", "Grievance", "IntegrationLog", "LandRecord", "Location", "LrmsSyncRecord",
     "ModelRegistryEntry", "ModelVersion",
     "Mutation", "Notification", "OcrBlock", "Owner", "OwnershipRecord",
     "Parcel", "Permission", "ProcessingJob", "Role", "RolePermission", "User",

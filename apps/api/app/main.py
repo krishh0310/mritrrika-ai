@@ -148,6 +148,7 @@ app.include_router(audit.router)
 app.include_router(records.router)
 app.include_router(ai.router)
 app.include_router(integrations.router)
+app.include_router(integrations.status_router)
 app.include_router(geo.router)
 
 

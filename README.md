@@ -135,6 +135,7 @@ Why each directory exists is documented in
 | [demo.md](docs/demo.md) | the walkthrough, step by step |
 | [gis-integration.md](docs/gis-integration.md) | WMS/WFS publication, and why GeoServer never sees ownership |
 | [lrms-integration.md](docs/lrms-integration.md) | delivering approved Records of Rights to the state LRMS / DILRMP |
+| [dilrmp-integration.md](docs/dilrmp-integration.md) | DILRMP / LRMS connectors, field mapping, and why they run in mock mode |
 | [asyncapi.yaml](docs/asyncapi.yaml) | AsyncAPI 2.6 contract for `record.approved` and `record.flagged` events |
 | [deployment.md](docs/deployment.md) | the intended production target, and the distance from it |
 | [i18n.md](docs/i18n.md) | Hindi and English, and why record values are never translated |

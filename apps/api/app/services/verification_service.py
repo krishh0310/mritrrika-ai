@@ -353,6 +353,10 @@ def approve(session: Session, document: Document, *, principal: Principal,
         )
 
     session.commit()
+    # After the commit, deliberately: see integration_service.push_on_approval.
+    from app.services import integration_service
+
+    integration_service.push_on_approval(document.external_id)
     return document
 
 
