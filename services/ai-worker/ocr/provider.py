@@ -15,9 +15,12 @@ matras and the anusvara inflate box heights -- see group_lines().
 from __future__ import annotations
 
 import base64
+import ctypes
 import logging
+import signal
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -121,6 +124,26 @@ class OcrProvider(ABC):
         return True
 
 
+@contextmanager
+def _keeping_sigterm():
+    """Put the process's SIGTERM handler back after Paddle loads.
+
+    Importing paddle installs glog's failure handler for SIGTERM, replacing the
+    one uvicorn and celery rely on to shut down. A plain stop then hangs in
+    that handler and ends in a segfault (a macOS "Python quit unexpectedly"
+    report). Saved and restored with sigaction itself, not signal.signal, so it
+    works from the threadpool the API runs OCR in; the handler is process-wide.
+    """
+    libc = ctypes.CDLL(None)
+    saved = ctypes.create_string_buffer(256)  # >= sizeof(struct sigaction)
+    kept = libc.sigaction(signal.SIGTERM, None, saved) == 0
+    try:
+        yield
+    finally:
+        if kept:
+            libc.sigaction(signal.SIGTERM, saved, None)
+
+
 class PaddleOcrProvider(OcrProvider):
     """PaddleOCR PP-OCRv5 (§6 primary).
 
@@ -147,35 +170,39 @@ class PaddleOcrProvider(OcrProvider):
 
     def _get_engine(self):
         if self._engine is None:
-            try:
-                from paddleocr import PaddleOCR
-            except ImportError as exc:
-                raise OcrUnavailable(f"paddleocr is not installed: {exc}") from exc
-            try:
-                options = dict(
-                    lang=self.lang,
-                    use_doc_orientation_classify=False,
-                    use_doc_unwarping=False,
-                    use_textline_orientation=False,
-                )
-                if self.detection_model:
-                    # Naming ANY model makes PaddleOCR ignore `lang` -- it says
-                    # so only in a warning -- and fall back to a recogniser that
-                    # cannot read Devanagari. Every field then scores zero. So a
-                    # named detector always travels with the language's
-                    # recogniser, named explicitly.
-                    recogniser = RECOGNITION_MODELS.get(self.lang)
-                    if recogniser is None:
-                        raise OcrUnavailable(
-                            f"no recognition model mapped for lang {self.lang!r}; "
-                            "add it to RECOGNITION_MODELS before naming a detector"
-                        )
-                    options["text_detection_model_name"] = self.detection_model
-                    options["text_recognition_model_name"] = recogniser
-                self._engine = PaddleOCR(**options)
-            except Exception as exc:
-                raise OcrUnavailable(f"could not initialise PaddleOCR: {exc}") from exc
+            with _keeping_sigterm():  # both import and construction replace it
+                self._load_engine()
         return self._engine
+
+    def _load_engine(self) -> None:
+        try:
+            from paddleocr import PaddleOCR
+        except ImportError as exc:
+            raise OcrUnavailable(f"paddleocr is not installed: {exc}") from exc
+        try:
+            options = dict(
+                lang=self.lang,
+                use_doc_orientation_classify=False,
+                use_doc_unwarping=False,
+                use_textline_orientation=False,
+            )
+            if self.detection_model:
+                # Naming ANY model makes PaddleOCR ignore `lang` -- it says
+                # so only in a warning -- and fall back to a recogniser that
+                # cannot read Devanagari. Every field then scores zero. So a
+                # named detector always travels with the language's
+                # recogniser, named explicitly.
+                recogniser = RECOGNITION_MODELS.get(self.lang)
+                if recogniser is None:
+                    raise OcrUnavailable(
+                        f"no recognition model mapped for lang {self.lang!r}; "
+                        "add it to RECOGNITION_MODELS before naming a detector"
+                    )
+                options["text_detection_model_name"] = self.detection_model
+                options["text_recognition_model_name"] = recogniser
+            self._engine = PaddleOCR(**options)
+        except Exception as exc:
+            raise OcrUnavailable(f"could not initialise PaddleOCR: {exc}") from exc
 
     def available(self) -> bool:
         try:
