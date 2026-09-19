@@ -162,6 +162,8 @@ export type DocumentSummary = {
   size_bytes: number | null;
   record_year: string | null;
   declared_khasra: string | null;
+  /** Set when fields came from the IndicTrans2 translate-to-Hindi fallback. */
+  translated_from: string | null;
   is_synthetic: boolean;
 };
 

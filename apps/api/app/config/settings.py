@@ -74,6 +74,11 @@ class Settings(BaseSettings):
     #: None = PaddleOCR's default detector (PP-OCRv5_server_det). See
     #: DETECTION_MODEL in services/ai-worker/ocr/provider.py for the trade-off.
     ocr_detection_model: str | None = None
+    #: Scope extraction with the YOLO layout detector. Off: it measured +0.001
+    #: F1 (docs/ai-pipeline.md), and costs a model load per worker.
+    use_yolo: bool = False
+    #: pg_featureserv, reached only through /api/v1/geo/features.
+    pg_featureserv_url: str = "http://localhost:9000"
 
     # ── providers (§81) ───────────────────────────────────────────────────
     # Monitoring (§74). A scrape token, because Prometheus cannot hold a JWT:

@@ -77,6 +77,9 @@ class PipelineResult:
     layout_regions: list = field(default_factory=list)
 
     prepared_to_original: np.ndarray | None = field(default=None, repr=False)
+    #: Set ("ben", "guj", ...) when fields came from the IndicTrans2 fallback;
+    #: their values are Hindi renderings, not what the page says.
+    translated_from: str | None = None
 
     def original_bbox(self, bbox) -> tuple[int, int, int, int]:
         matrix = self.prepared_to_original
@@ -173,6 +176,11 @@ def run(
     extraction = extract(
         ocr.blocks, prepared.shape[1], table_rows=table_rows, regions=regions
     )
+    translated_from = None
+    if not extraction.values:
+        translated_from, extraction = _translated_fallback(
+            ocr.blocks, prepared.shape[1], regions, extraction
+        )
 
     report("normalization", 78, "Normalising values")
     normalized: dict[str, str | None] = {}
@@ -221,7 +229,8 @@ def run(
                 confidence_breakdown=fused["contributions"],
                 row_index=value.row_index,
                 strategy=value.strategy,
-                status=("NEEDS_REVIEW" if suspected_handwriting else _status_for(fused["score"])),
+                status=("NEEDS_REVIEW" if suspected_handwriting or translated_from
+                        else _status_for(fused["score"])),
             )
         )
 
@@ -237,7 +246,28 @@ def run(
         scale_y=scale_y,
         layout_regions=regions,
         prepared_to_original=prepared_to_original,
+        translated_from=translated_from,
     )
+
+
+def _translated_fallback(blocks, page_width, regions, extraction):
+    """Translate a page with no extracted field to Hindi and try again.
+
+    Only for the five scripts PaddleOCR cannot read, and only when their native
+    labels found nothing. Returns (source code or None, extraction).
+    """
+    from ocr.indic_translator import SCRIPT_TO_SOURCE, translate_lines
+    from ocr.scripts import profile
+
+    source = SCRIPT_TO_SOURCE.get(profile(" ".join(b.text for b in blocks)).dominant)
+    if source is None:
+        return None, extraction
+    lines = translate_lines([b.text for b in blocks], source)
+    if not lines:
+        return None, extraction
+    hindi = [replace(block, text=line) for block, line in zip(blocks, lines, strict=True)]
+    retried = extract(hindi, page_width, table_rows=extract_table_rows(hindi), regions=regions)
+    return (source, retried) if retried.values else (None, extraction)
 
 
 def _signals_for(value: ExtractedValue, ocr: OcrResult, findings: list[Finding]) -> dict:

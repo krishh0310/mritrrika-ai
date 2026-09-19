@@ -238,3 +238,10 @@ def test_blank_blocks_do_not_shift_model_provenance():
     span = extractor.predict(page, 1240, 1754)[0]
     assert span.word_indices == [1]
     assert span.bbox == page[1].bbox
+
+
+def test_the_base_encoder_is_indicbert_v2():
+    """`ai4bharat/indic-bert` is the ALBERT v1; v2 is a different repository."""
+    from extraction.layout_model import BASE_MODEL
+
+    assert BASE_MODEL == "ai4bharat/IndicBERTv2-MLM-only"

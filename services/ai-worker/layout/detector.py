@@ -1,4 +1,6 @@
-"""YOLOv8 region detection over a record page (§6, §82).
+"""YOLO region detection over a record page (§6, §82).
+
+Base model and checkpoint name live in config/cv_config.py.
 
 The extractor is label-anchored: it finds a printed label and takes the nearest
 plausible value in the direction the layout implies. That works until two
@@ -29,13 +31,15 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from config.cv_config import LAYOUT_CHECKPOINT
+
 logger = logging.getLogger(__name__)
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
 #: Where scripts/train_layout_detector.py leaves its best checkpoint.
 DEFAULT_WEIGHTS = (
-    REPO_ROOT / "models" / "checkpoints" / "layout" / "layout-v1" / "weights" / "best.pt"
+    REPO_ROOT / "models" / "checkpoints" / "layout" / LAYOUT_CHECKPOINT / "weights" / "best.pt"
 )
 
 #: Must match CLASSES in scripts/export_layout_dataset.py. A training run and

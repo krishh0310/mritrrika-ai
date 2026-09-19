@@ -85,6 +85,26 @@ services:
       "
     restart: "no"
 
+  # Vector features for authorised officers, behind the API's JWT check
+  # (/api/v1/geo/features). Connects as geoserver_reader, which can read the
+  # published parcel view and nothing else -- create it first with
+  # infrastructure/geoserver/reader-role.sql. Opt-in:
+  #   docker compose --profile gis up -d pg_featureserv
+  # Bound to loopback only: the API (run natively in dev) is its one client.
+  # In the all-Docker stack drop `ports` and use http://pg_featureserv:9000.
+  pg_featureserv:
+    image: pramsey/pg_featureserv:latest
+    container_name: mrittika-featureserv
+    profiles: ["gis"]
+    environment:
+      DATABASE_URL: postgresql://geoserver_reader:${GEOSERVER_READER_PASSWORD:-change_me_locally}@postgres:5432/${POSTGRES_DB:-mrittika}
+    ports:
+      - "127.0.0.1:9000:9000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   pgdata:
   redisdata:

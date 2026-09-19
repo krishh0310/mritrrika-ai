@@ -74,6 +74,9 @@ class Document(Base, TimestampMixin, SyntheticMixin):
     quality_score: Mapped[float | None] = mapped_column(Float)
     quality_report: Mapped[dict | None] = mapped_column(JSON)
     quality_recommendation: Mapped[str | None] = mapped_column(String(32))
+    #: "ben", "guj", "pan", "ori" or "mal" when fields came from the IndicTrans2
+    #: translate-to-Hindi fallback: values are renderings, verify carefully.
+    translated_from: Mapped[str | None] = mapped_column(String(8))
 
     pages: Mapped[list[DocumentPage]] = relationship(
         back_populates="document", cascade="all, delete-orphan"

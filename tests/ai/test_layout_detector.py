@@ -138,3 +138,35 @@ class TestExtractIsUnchangedWithoutRegions:
         assert "VILLAGE" not in after
         # KHASRA is a legitimate table column, so it survives the same region.
         assert ("KHASRA" in before) == ("KHASRA" in after)
+
+
+class TestModelConfig:
+    """The base model is named in one place and inference stays opt-in."""
+
+    def test_the_base_model_is_yolo11n(self):
+        from config.cv_config import YOLO_MODEL
+
+        assert YOLO_MODEL == "yolo11n.pt"
+
+    def test_training_defaults_to_the_configured_base(self):
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location(
+            "train_layout_detector", REPO_ROOT / "scripts" / "train_layout_detector.py")
+        source = spec.loader.get_source("train_layout_detector")
+        assert 'default=YOLO_MODEL' in source
+        assert "yolov8n.pt" not in source
+
+    def test_inference_loads_the_configured_checkpoint(self):
+        from config.cv_config import LAYOUT_CHECKPOINT
+        from layout.detector import DEFAULT_WEIGHTS
+
+        assert LAYOUT_CHECKPOINT in DEFAULT_WEIGHTS.parts
+
+    def test_the_detector_is_off_unless_use_yolo_is_set(self, monkeypatch):
+        sys.path.insert(0, str(REPO_ROOT / "apps" / "api"))
+        from app.config.settings import get_settings
+        from app.services import pipeline_service
+
+        monkeypatch.setattr(get_settings(), "use_yolo", False)
+        assert pipeline_service.get_layout_detector() is None

@@ -4,9 +4,10 @@ Why not LayoutLMv3, which is what one would reach for first: its tokenizer
 cannot represent Devanagari. It is a byte-level BPE trained on English, so
 `ग्राम रामपुर खसरा १४२/२ क्षेत्रफल` becomes 55 tokens for 33 characters --
 1.67 tokens per CHARACTER -- and the pieces are mojibake fragments
-(`['Ġà¤', 'Ĺ', 'à¥', 'į', ...]`) carrying no pretrained meaning. MuRIL, trained
-on Indian languages, tokenises the same string in 8 tokens, one per word, with
-`ग्राम` and `क्षेत्रफल` each a single learned unit.
+(`['Ġà¤', 'Ĺ', 'à¥', 'į', ...]`) carrying no pretrained meaning. An
+Indian-language encoder tokenises the same string in 8-9 tokens, roughly one
+per word, with `ग्राम` and `क्षेत्रफल` each a single learned unit (MuRIL: 8;
+IndicBERT v2, the current base: 9).
 
 LayoutXLM would solve the tokenizer and reintroduces a different problem: its
 visual backbone requires detectron2, which does not install cleanly on this
@@ -49,7 +50,15 @@ FIELDS = [
 LABELS = ["O"] + [f"{p}-{f}" for f in FIELDS for p in ("B", "I")]
 LABEL_TO_ID = {label: i for i, label in enumerate(LABELS)}
 
-BASE_MODEL = "google/muril-base-cased"
+# IndicBERT v2 (IndicBERTv2-MLM-only): a BERT-base encoder pretrained on
+# IndicCorp v2, covering 24 Indian languages -- including all nine scripts the
+# extractor reads; MuRIL covered 16 plus English. Replaces google/muril-base-cased,
+# which was pretrained on Wikipedia and Common Crawl text plus translated and
+# transliterated pairs. Note `ai4bharat/indic-bert` is the older ALBERT v1 (12
+# languages), not v2. The swap is for the next training run: the MuRIL run did
+# not learn (docs/ai-pipeline.md), and the rules extractor stays in production
+# until a trained model measurably beats it.
+BASE_MODEL = "ai4bharat/IndicBERTv2-MLM-only"
 
 #: Boxes arrive on a 0-1000 grid, so 1001 positions per coordinate.
 COORD_BINS = 1001
@@ -67,7 +76,7 @@ class FieldSpan:
 
 
 class LayoutAwareTokenClassifier(nn.Module if TORCH_AVAILABLE else object):
-    """MuRIL plus LayoutLM-style 2D position embeddings."""
+    """An Indic BERT encoder (BASE_MODEL) plus LayoutLM-style 2D position embeddings."""
 
     def __init__(self, base_model: str = BASE_MODEL, num_labels: int = len(LABELS)):
         if not TORCH_AVAILABLE:
@@ -92,7 +101,7 @@ class LayoutAwareTokenClassifier(nn.Module if TORCH_AVAILABLE else object):
         self.classifier = nn.Linear(hidden, num_labels)
         self.num_labels = num_labels
 
-        # Zero-initialised so an untrained model starts as plain MuRIL and the
+        # Zero-initialised so an untrained model starts as the plain encoder and the
         # layout signal is learned rather than injected as noise.
         for embedding in (self.x_position, self.y_position,
                           self.width_embedding, self.height_embedding):

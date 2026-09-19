@@ -152,3 +152,9 @@ class TestObservability:
             if line.startswith("mrittika_http_request_duration_seconds_bucket")
         ]
         assert counts == sorted(counts), "bucket counts must be non-decreasing"
+
+
+def test_the_deo_queue_reports_translation(client, auth):
+    body = client.get("/api/v1/dashboard/deo", headers=auth(DEO)).json()
+    for document in body["recent_documents"]:
+        assert "translated_from" in document

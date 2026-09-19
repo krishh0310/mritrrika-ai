@@ -63,21 +63,22 @@ PERMISSIONS: dict[str, list[str]] = {
         "record:search_public", "ocr:view", "confidence:view",
         "document:approve", "document:reject", "document:return",
         "anomaly:view", "gis:view", "ai:query", "audit:view_full",
-        "grievance:review", "analytics:view", "integration:sync",
+        "grievance:review", "analytics:view", "integration:sync", "gis:features",
     ],
     # Read-only stakeholders. Nothing here changes a record; each sees only
     # its own jurisdiction (the state, the whole country, or a district).
     "STATE_OFFICER": [
         "record:search_public", "gis:view", "analytics:view", "anomaly:view",
-        "audit:view_full",
+        "audit:view_full", "gis:features",
     ],
     "CENTRAL_OFFICER": [
         "record:search_public", "gis:view", "analytics:view", "anomaly:view",
+        "gis:features",
     ],
     # The survey department's concern is the cadastre: the map, and where the
     # records and the geometry disagree.
     "SURVEYOR": [
-        "record:search_public", "gis:view", "anomaly:view",
+        "record:search_public", "gis:view", "anomaly:view", "gis:features",
     ],
     # Aggregates and an anonymised export -- never names, never a parcel id.
     "RESEARCHER": [

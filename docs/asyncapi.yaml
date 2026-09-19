@@ -1,0 +1,119 @@
+asyncapi: 2.6.0
+info:
+  title: Mrittika AI land-record events
+  version: 1.0.0
+  description: |
+    Events a state LRMS or DILRMP integration can subscribe to, alongside the
+    request/response API documented at /docs (OpenAPI).
+
+    Status, stated plainly: no message broker publishes these yet. Today an
+    approved record reaches a state system through the LRMS delivery outbox
+    (docs/lrms-integration.md) by file drop or HTTP push, and the DILRMP
+    connector (docs/dilrmp-integration.md). This document is the contract a
+    broker-based integration would implement; field names match what the
+    system already stores.
+
+    Neither message carries an owner's name or record content beyond ids:
+    a subscriber fetches the record through the authenticated API.
+  license:
+    name: MIT
+defaultContentType: application/json
+
+servers:
+  state-broker:
+    url: broker.example.gov.in:5672
+    protocol: amqp
+    description: Placeholder. Deployment-specific; agreed per state.
+
+channels:
+  record.approved:
+    description: A tehsildar approved a record; it is now the record of rights.
+    subscribe:
+      operationId: onRecordApproved
+      message:
+        $ref: '#/components/messages/RecordApproved'
+  record.flagged:
+    description: |
+      A record was routed to human review: low confidence, suspected
+      handwriting, a validation finding, or a potential inconsistency.
+    subscribe:
+      operationId: onRecordFlagged
+      message:
+        $ref: '#/components/messages/RecordFlagged'
+
+components:
+  messages:
+    RecordApproved:
+      name: record.approved
+      payload:
+        type: object
+        required: [record_id, parcel_id, approved_by, timestamp]
+        properties:
+          record_id:
+            type: string
+            description: The document's external id.
+            example: DOC-00181
+          parcel_id:
+            type: string
+            example: PARCEL-UP-DEMO-0181
+          approved_by:
+            type: string
+            description: Role of the approver, never a personal identifier.
+            example: TEHSILDAR
+          timestamp:
+            type: string
+            format: date-time
+            example: '2026-09-19T10:42:07Z'
+          approval_audit_hash:
+            type: string
+            description: SHA-256 of the approval event in the audit hash chain.
+      examples:
+        - name: approved
+          payload:
+            record_id: DOC-00181
+            parcel_id: PARCEL-UP-DEMO-0181
+            approved_by: TEHSILDAR
+            timestamp: '2026-09-19T10:42:07Z'
+            approval_audit_hash: 9f2c1e...
+    RecordFlagged:
+      name: record.flagged
+      payload:
+        type: object
+        required: [record_id, flag_reason]
+        properties:
+          record_id:
+            type: string
+            example: DOC-00212
+          flag_reason:
+            type: string
+            enum: [LOW_CONFIDENCE, SUSPECTED_HANDWRITING, VALIDATION_FINDING,
+                   POTENTIAL_INCONSISTENCY, TRANSLATED]
+          handwriting_meta:
+            type: [object, 'null']
+            description: Present when the page has suspected handwriting.
+            properties:
+              coverage_pct:
+                type: number
+                minimum: 0
+                maximum: 1
+              affected_fields:
+                type: array
+                items:
+                  type: string
+              confidence:
+                type: number
+                minimum: 0
+                maximum: 1
+          timestamp:
+            type: string
+            format: date-time
+      examples:
+        - name: handwritten
+          payload:
+            record_id: DOC-00212
+            flag_reason: SUSPECTED_HANDWRITING
+            handwriting_meta:
+              coverage_pct: 0.25
+              affected_fields: [owner, area]
+              confidence: 0.71
+            timestamp: '2026-09-19T11:05:00Z'

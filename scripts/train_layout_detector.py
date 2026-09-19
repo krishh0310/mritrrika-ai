@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Fine-tune YOLOv8 to localise structural regions on a record page (§6).
+"""Fine-tune YOLO11 to localise structural regions on a record page (§6).
 
     python scripts/export_layout_dataset.py --profile v1
     python scripts/train_layout_detector.py --epochs 60
@@ -28,10 +28,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO_ROOT / "services" / "ai-worker"))
+
+from config.cv_config import LAYOUT_CHECKPOINT, YOLO_MODEL  # noqa: E402
+
 DATASETS = REPO_ROOT / "datasets"
 CHECKPOINTS = REPO_ROOT / "models" / "checkpoints"
 
@@ -39,7 +44,7 @@ CHECKPOINTS = REPO_ROOT / "models" / "checkpoints"
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data", default=str(DATASETS / "yolo-layout" / "data.yaml"))
-    parser.add_argument("--model", default="yolov8n.pt",
+    parser.add_argument("--model", default=YOLO_MODEL,
                         help="pretrained weights to fine-tune from")
     parser.add_argument("--epochs", type=int, default=60)
     parser.add_argument("--imgsz", type=int, default=960,
@@ -47,7 +52,7 @@ def main() -> None:
     parser.add_argument("--batch", type=int, default=8)
     parser.add_argument("--device", default=None,
                         help="'mps' on Apple Silicon, 'cpu', or a CUDA index")
-    parser.add_argument("--name", default="layout-v1")
+    parser.add_argument("--name", default=LAYOUT_CHECKPOINT)
     args = parser.parse_args()
 
     data_path = Path(args.data)

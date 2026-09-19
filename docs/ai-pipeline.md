@@ -189,8 +189,12 @@ number in the evaluation section remains a Hindi number.
 
 ## Region detection: accurate, and it did not help
 
-`layout/detector.py` is a YOLOv8n fine-tuned on the generator's own structural
-ground truth — the `layout` boxes every annotation already carried. Two
+`layout/detector.py` is a YOLO model fine-tuned on the generator's own structural
+ground truth. The base is now **YOLO11n** (`config/cv_config.py`); the numbers
+in the table below are the shipped `layout-v1` checkpoint, fine-tuned from
+**YOLOv8n**, and a YOLO11n run is reported separately rather than assumed to
+match. The detector is enabled with `USE_YOLO=true`. It is trained on the
+generator's own structural ground truth — the `layout` boxes every annotation already carried. Two
 classes, header and table, 350 training pages, measured on the same grouped
 val split the extractor is measured on:
 
@@ -501,7 +505,7 @@ Named here so nothing above reads as a claim (§69):
 | | status |
 |---|---|
 | Handwriting | experimental geometry detection sets `ocr_blocks.is_handwritten` and requires review; low synthetic recall, no dedicated reader — see [measurements](handwriting-audit.md) |
-| PP-Structure / LayoutLMv3 | not integrated — table structure is deterministic geometry inside the extractor. A YOLOv8 *region* detector is trained and available (see above), but is opt-in and off by default because it did not improve extraction |
+| PP-Structure / LayoutLMv3 | not integrated — table structure is deterministic geometry inside the extractor. A YOLO *region* detector (YOLOv8n checkpoint; YOLO11n base for retraining) is trained and available (see above), but is opt-in (`USE_YOLO`) and off by default because it did not improve extraction |
 | IndicBERT extraction assist | not integrated — AI4Bharat's repo is gated; MuRIL was used instead |
 | Trained field extraction (MuRIL + layout) | **built and does not work** — see above. The rules ship. |
 | Embeddings / pgvector retrieval | `/api/v1/records/semantic-search` over approved parcels. Default vectors are character n-grams (offline, lexical, not semantic); `EMBEDDING_PROVIDER=gemini` gives real semantic vectors. Owner names are never indexed. The assistant still answers from SQL, not from this index |

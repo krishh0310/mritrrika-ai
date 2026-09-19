@@ -45,6 +45,7 @@ def _summary(document) -> dict:
         "size_bytes": document.size_bytes,
         "record_year": document.record_year,
         "declared_khasra": document.declared_khasra,
+        "translated_from": document.translated_from,
         "is_synthetic": document.is_synthetic,
     }
 

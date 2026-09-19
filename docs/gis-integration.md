@@ -117,12 +117,51 @@ deployment:
 * Keep the `geoserver_reader` password out of version control. It is passed by
   environment variable for exactly this reason.
 
+## pg_featureserv: authenticated vector features
+
+GeoServer answers anyone who can reach it, which is why it is bound to
+localhost. Officers who need features as data -- not map tiles -- go through
+the API instead:
+
+| | serves | who can reach it |
+|---|---|---|
+| GeoServer | WMS map tiles (and WFS) for map clients | localhost only; no auth of its own |
+| pg_featureserv | GeoJSON features (OGC API - Features) | only the API, behind a JWT or API key |
+
+```
+ client --(Bearer JWT / X-API-Key)--> FastAPI /api/v1/geo/features/{collection}
+                                        |  1. require("gis:features")
+                                        |     Tehsildar, State Officer, Central
+                                        |     Ministry, Survey -- not Citizen/DEO
+                                        |  2. jurisdiction -> village ids
+                                        |  3. filter=village_id IN (...)  (CQL)
+                                        v
+                               pg_featureserv :9000 (loopback only)
+                                        |  connects as geoserver_reader:
+                                        |  SELECT on gis_published_parcels only
+                                        v
+                                     PostGIS
+ FastAPI re-filters the returned features by village before answering.
+```
+
+Only `gis_published_parcels` is proxied; any other collection name is a 404
+without reaching pg_featureserv. A single item outside the caller's
+jurisdiction is also a 404.
+
+Start it after creating the reader role:
+`docker compose --profile gis up -d pg_featureserv`.
+
+| env var | default | |
+|---|---|---|
+| `PG_FEATURESERV_URL` | `http://localhost:9000` | `http://pg_featureserv:9000` when the API runs in Docker |
+| `GEOSERVER_READER_PASSWORD` | `change_me_locally` | the reader role's password, used by the container |
+
 ## What is NOT done
 
 | | status |
 |---|---|
-| Reverse proxy / authentication in front of GeoServer | not configured — localhost binding only |
-| Jurisdiction-scoped layers (one per tehsil) | not implemented; the view is state-wide |
+| Reverse proxy / authentication in front of GeoServer | not configured — localhost binding only; authenticated access is via pg_featureserv (above) |
+| Jurisdiction-scoped layers | GeoServer's view is state-wide; the pg_featureserv route is jurisdiction-scoped |
 | WFS-T (transactional writes back into PostGIS) | deliberately absent — this is a read-only publication |
 | Styling beyond GeoServer's default polygon renderer | not done |
 | DILRMP / BhuNaksha / NIC-specific schema mapping | not done — the view is this system's shape, not a national standard |

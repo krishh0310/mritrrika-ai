@@ -123,6 +123,7 @@ def workspace(session: Session, document: Document) -> dict:
         "state": document.state,
         "document_type": document.document_type,
         "quality": document.quality_report,
+        "translated_from": document.translated_from,
         # First page, kept for single-page clients.
         "page": {
             "width": page.width if page else None,

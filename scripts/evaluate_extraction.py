@@ -98,7 +98,7 @@ def main() -> int:
     parser.add_argument("--no-preprocess", action="store_true",
                         help="skip OpenCV enhancement, to measure its effect")
     parser.add_argument("--layout", action="store_true",
-                        help="scope extraction with the YOLOv8 region detector")
+                        help="scope extraction with the YOLO region detector")
     parser.add_argument("--tag", default=None,
                         help="suffix for the report filename, to keep runs apart")
     parser.add_argument("--extractor", default="rules", choices=["rules", "model"],

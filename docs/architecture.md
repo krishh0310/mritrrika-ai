@@ -140,9 +140,9 @@ listed so the table cannot be read as a claim (§69):
 |---|---|---|
 | OCR — `OcrProvider` (abstract base) | `PaddleOcrProvider` (`lang='hi'`) | `GeminiVisionOcrProvider`, output marked degraded |
 | LLM phrasing of answers | Gemini, via `rag_service` | Groq; if neither responds, the structured database answer is returned flagged `degraded` |
-| Layout | no provider — deterministic geometry in the extractor | — |
-| Handwriting | not implemented | — |
-| Embeddings | not implemented — the `embeddings` table (768-d) exists but is never written | — |
+| Layout | deterministic geometry in the extractor; optional YOLO region detector behind `USE_YOLO` (off) | runs without it |
+| Handwriting | geometry heuristic flags blocks and routes pages to review; no reader | — |
+| Embeddings | n-gram vectors (default) or Gemini `text-embedding-004`, in pgvector | keyword search |
 
 No `ANTHROPIC_API_KEY` exists on this machine; `GEMINI_API_KEY` and
 `GROQ_API_KEY` do. The embedding dimension (768) fixes the `pgvector` column
@@ -153,6 +153,18 @@ state, and the failure is recorded against the document.
 
 Every prediction persists its `model_version` (§64), so no stored value is ever
 ambiguous about which model produced it.
+
+### Computer vision
+
+OpenCV does all image cleanup: deskew, denoise, contrast, and the quality
+gate's blur/skew/contrast scores. The layout detector fine-tunes **YOLO11n**
+(`services/ai-worker/config/cv_config.py`, one line to change). YOLO11 over
+YOLOv10: its C3k2 blocks and C2PSA spatial-attention layer are what Ultralytics
+credits for better small-object accuracy at the same model size, and document
+regions (thin header strips, table rules) are small. That is the vendor's
+claim; the measured result on this corpus is in
+[ai-pipeline.md](ai-pipeline.md). The detector stays off by default
+(`USE_YOLO=false`) because it did not improve extraction.
 
 ---
 

@@ -7,6 +7,7 @@ import { ArrowLeft, Play } from "lucide-react";
 
 import { PipelineProgress } from "@/components/deo/pipeline-progress";
 import { QueryBoundary } from "@/components/shared/query-boundary";
+import { TranslatedBadge } from "@/components/shared/translated-badge";
 import { PageHeader } from "@/components/shell/app-shell";
 import { ApiError, api } from "@/lib/api-client";
 import { useDocument, useProcessingStatus, type Quality } from "@/lib/queries";
@@ -78,6 +79,7 @@ export default function DeoDocumentPage({
               }
               actions={
                 <>
+                  <TranslatedBadge from={data.translated_from} />
                   <DocumentStatus state={data.state} className="self-center" />
                   {canStart ? (
                     <Button busy={start.isPending} onClick={() => start.mutate()}>

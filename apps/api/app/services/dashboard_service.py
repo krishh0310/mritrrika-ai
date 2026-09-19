@@ -141,6 +141,7 @@ def deo_dashboard(session: Session, principal: Principal) -> dict:
                 "quality_score": d.quality_score,
                 "quality_recommendation": d.quality_recommendation,
                 "record_year": d.record_year,
+                "translated_from": d.translated_from,
                 "created_at": d.created_at.isoformat() if d.created_at else None,
             }
             for d in recent

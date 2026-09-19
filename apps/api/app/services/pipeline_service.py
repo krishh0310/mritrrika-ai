@@ -59,6 +59,22 @@ def get_engine():
     return _engine
 
 
+_detector = None
+
+
+def get_layout_detector():
+    """The YOLO layout detector when USE_YOLO is on, else None. Cached per
+    process like the OCR engine; an unavailable detector detects nothing."""
+    global _detector
+    if not get_settings().use_yolo:
+        return None
+    if _detector is None:
+        from layout import build_default_detector
+
+        _detector = build_default_detector()
+    return _detector
+
+
 def _update_job(session: Session, job: ProcessingJob, stage: str, progress: int,
                 message: str) -> None:
     job.stage = stage
@@ -137,6 +153,7 @@ def process_document(
                 get_engine(),
                 declared_khasra=document.declared_khasra,
                 progress=progress,
+                layout_detector=get_layout_detector(),
             )))
     except (OcrUnavailable, ValueError) as exc:
         detail = str(exc) if total == 1 else f"page {current.page_number} of {total}: {exc}"
@@ -248,6 +265,9 @@ def process_document(
         {"page_count": total} if total > 1 else {}
     )
     document.quality_recommendation = weakest.quality.recommended_action
+    document.translated_from = next(
+        (result.translated_from for _, result in results if result.translated_from), None
+    )
     session.flush()
 
     document_service.transition(session, document, DocumentState.AI_EXTRACTED,
