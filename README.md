@@ -135,6 +135,7 @@ Why each directory exists is documented in
 | [demo.md](docs/demo.md) | the walkthrough, step by step |
 | [gis-integration.md](docs/gis-integration.md) | WMS/WFS publication, and why GeoServer never sees ownership |
 | [lrms-integration.md](docs/lrms-integration.md) | delivering approved Records of Rights to the state LRMS / DILRMP |
+| [existing-system-study.md](docs/existing-system-study.md) | the manual process today, its pain points, and what Mrittika can claim to improve |
 | [dilrmp-integration.md](docs/dilrmp-integration.md) | DILRMP / LRMS connectors, field mapping, and why they run in mock mode |
 | [asyncapi.yaml](docs/asyncapi.yaml) | AsyncAPI 2.6 contract for `record.approved` and `record.flagged` events |
 | [deployment.md](docs/deployment.md) | the intended production target, and the distance from it |
@@ -145,7 +146,7 @@ Why each directory exists is documented in
 ## Tests
 
 ```bash
-.venv/bin/python -m pytest tests                  # 772 collected; 1 data-dependent skip
+.venv/bin/python -m pytest tests                  # 816 collected; 1 data-dependent skip
 npm test                                          # 38 web/mobile unit tests
 npm run lint && npm run typecheck                 # web + mobile
 npm run build && npm run build:mobile             # production web + mobile export
