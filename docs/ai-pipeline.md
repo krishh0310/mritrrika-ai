@@ -523,7 +523,7 @@ Named here so nothing above reads as a claim (§69):
 
 | | status |
 |---|---|
-| Handwriting | experimental geometry detection sets `ocr_blocks.is_handwritten` and requires review; low synthetic recall, no dedicated reader — see [measurements](handwriting-audit.md) |
+| Handwriting | trained detector (CNN) flags lines, trained reader (CRNN + CTC) re-reads them, optional Gemini second opinion; every field on the page requires review — see [handwriting.md](handwriting.md). The geometry heuristic of [the earlier audit](handwriting-audit.md) is the fallback without weights |
 | PP-Structure / LayoutLMv3 | not integrated — table structure is deterministic geometry inside the extractor. A YOLO *region* detector (YOLOv8n checkpoint; YOLO11n base for retraining) is trained and available (see above), but is opt-in (`USE_YOLO`) and off by default because it did not improve extraction |
 | IndicBERT extraction assist | not integrated — AI4Bharat's repo is gated; MuRIL was used instead |
 | Trained field extraction (MuRIL + layout) | **built and does not work** — see above. The rules ship. |

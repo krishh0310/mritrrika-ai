@@ -183,7 +183,7 @@ It drives the real stack, so it needs the servers up.
 §69, worth having in front of you:
 
 - Not connected to DILRMP, BhuNaksha, or any government system.
-- Experimental handwriting suspicion now sets and persists `is_handwritten` and requires review. Recall is poor; no dedicated handwriting reader is integrated. See [the measured limitations](handwriting-audit.md).
+- Handwritten lines are detected and read by models trained on public handwriting datasets, not land records, and every field on the page requires review. The queue's Handwriting column shows which reader read them and, if enabled, whether Gemini agreed. See [docs/handwriting.md](handwriting.md).
 - No layout or language model in extraction. PP-Structure, LayoutLMv3 and
   IndicBERT are not integrated; extraction is deterministic rules.
 - No blockchain. A SHA-256 hash chain.

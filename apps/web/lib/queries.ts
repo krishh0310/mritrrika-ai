@@ -196,6 +196,15 @@ export type HandwritingMeta = {
   affected_fields: string[];
   /** Scan-quality average (blur, skew, contrast), not recognition confidence. */
   confidence: number | null;
+  /** Handwriting reader version that re-read the flagged lines; absent/null if none did. */
+  read_by?: string | null;
+  /** Gemini's re-reading of the same lines, when GEMINI_HANDWRITING_ENABLED is on. */
+  second_opinion?: {
+    model: string;
+    agreed: number;
+    disagreed: number;
+    disagreements: { read: string; second: string }[];
+  } | null;
 };
 
 export type Grievance = {

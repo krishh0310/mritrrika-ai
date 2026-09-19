@@ -77,6 +77,9 @@ class Settings(BaseSettings):
     #: Scope extraction with the YOLO layout detector. Off: it measured +0.001
     #: F1 (docs/ai-pipeline.md), and costs a model load per worker.
     use_yolo: bool = False
+    #: Gemini re-reads each handwritten line as a second opinion on the local
+    #: reader (docs/handwriting.md). Off: it sends line crops to Google.
+    gemini_handwriting_enabled: bool = False
     #: Nightly retrain check (app/tasks/retrain_scheduler.py).
     retrain_scheduler_enabled: bool = True
     #: ACCEPTED corrections since the last run needed before retraining.

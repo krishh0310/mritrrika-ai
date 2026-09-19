@@ -191,7 +191,10 @@ Stated plainly, because a prototype that overclaims is worse than one that says
 where it stops:
 
 - Not connected to DILRMP, BhuNaksha, or any government system.
-- No handwriting recognition, and no handwriting detection. TrOCR is not integrated.
+- Handwriting is detected and read by two small models trained on public
+  handwriting data (IIIT-HW-Dev, DHCD, MNIST), not on land records. Every
+  field on such a page goes to a verifier. Gemini can re-read the lines as an
+  opt-in second opinion. See [docs/handwriting.md](docs/handwriting.md).
 - No layout or language model in extraction. PP-Structure, LayoutLMv3 and
   IndicBERT are not integrated; extraction is deterministic rules.
 - No blockchain. The audit trail is a SHA-256 hash chain, and the code says so.

@@ -65,6 +65,10 @@ indic-nlp-library>=0.92
 # Region detection (§6). Opt-in; see docs/ai-pipeline.md for why it is off.
 ultralytics>=8.3
 
+# Handwriting training only: IIIT-HW-Dev is published as Parquet
+# (scripts/download_handwriting_dataset.py). The worker never imports it.
+pyarrow>=17
+
 # Providers (§81)
 google-genai>=1.0       # LLM + embeddings + OCR fallback
 httpx>=0.28             # Gemini authorization-key REST calls

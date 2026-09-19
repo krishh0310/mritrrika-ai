@@ -30,6 +30,7 @@ datasets/reports/
 datasets/gis/*.geojson
 datasets/yolo-layout/
 datasets/ocr-cache/
+datasets/handwriting/
 datasets/metadata/*.json
 
 # Runtime output -- the LRMS file-drop outbox and similar

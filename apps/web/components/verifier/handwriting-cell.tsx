@@ -2,8 +2,8 @@ import type { HandwritingMeta } from "@/lib/queries";
 
 /**
  * Suspected handwriting, as the reviewer needs it: how much of the page, which
- * fields sit in it, and how trustworthy the scan is. No handwriting is READ —
- * this only says where to look hardest.
+ * fields sit in it, how trustworthy the scan is, and whether the handwriting
+ * reader (trained on handwritten Hindi words, not land records) re-read it.
  */
 export function HandwritingCell({ meta }: { meta: HandwritingMeta | null | undefined }) {
   if (!meta) return <span className="text-xs text-sand-300">none</span>;
@@ -24,6 +24,26 @@ export function HandwritingCell({ meta }: { meta: HandwritingMeta | null | undef
             </li>
           ))}
         </ul>
+      ) : null}
+      <p className="text-[11px] text-sand-500">
+        {meta.read_by ? (
+          <>
+            Read by <span className="id">{meta.read_by}</span>. Check against the scan
+          </>
+        ) : (
+          "Not re-read: OCR trained on print"
+        )}
+      </p>
+      {meta.second_opinion ? (
+        <p
+          className="text-[11px] text-sand-500"
+          title={meta.second_opinion.disagreements
+            .map((d) => `${d.read}  ≠  ${d.second}`)
+            .join("\n")}
+        >
+          Gemini agreed on {meta.second_opinion.agreed} of{" "}
+          {meta.second_opinion.agreed + meta.second_opinion.disagreed} lines
+        </p>
       ) : null}
       <div>
         <div className="flex justify-between text-[11px] text-sand-500">

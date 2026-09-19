@@ -27,7 +27,7 @@ import cv2
 import numpy as np
 from extraction.field_extractor import ExtractedValue, extract, extract_table_rows
 from normalization.normalizers import normalize_field
-from ocr.handwriting import flag_blocks
+from ocr.handwriting import flag_blocks, read_blocks
 from ocr.provider import OcrEngine, OcrResult
 from preprocessing.enhance import enhance_for_quality
 from quality.assessment import QualityReport, assess
@@ -80,6 +80,10 @@ class PipelineResult:
     #: Set ("ben", "guj", ...) when fields came from the IndicTrans2 fallback;
     #: their values are Hindi renderings, not what the page says.
     translated_from: str | None = None
+    #: The handwriting reader version when it re-read flagged lines, else None.
+    handwriting_read_by: str | None = None
+    #: Gemini's agreement with that reading (opt-in); see read_blocks.
+    handwriting_second_opinion: dict | None = None
 
     def original_bbox(self, bbox) -> tuple[int, int, int, int]:
         matrix = self.prepared_to_original
@@ -118,6 +122,9 @@ def run(
     progress=None,
     layout_detector=None,
     field_model=None,
+    handwriting_detector=None,
+    handwriting_reader=None,
+    handwriting_second_reader=None,
 ) -> PipelineResult:
     """Run every stage over one page."""
 
@@ -151,8 +158,19 @@ def run(
 
     report("ocr", 35, "Recognising text")
     ocr = engine.recognize(prepared)
-    flag_blocks(prepared, ocr.blocks)
+    flag_blocks(prepared, ocr.blocks, handwriting_detector)
     suspected_handwriting = any(b.is_handwritten for b in ocr.blocks)
+    handwriting_read_by, second_opinion = None, None
+    # The local reader reads; Gemini, when enabled, checks it -- or reads
+    # alone if there is no local reader.
+    primary = handwriting_reader or handwriting_second_reader
+    second = handwriting_second_reader if handwriting_reader is not None else None
+    if suspected_handwriting and primary is not None:
+        report("ocr", 45, "Reading handwritten lines")
+        outcome = read_blocks(prepared, ocr.blocks, primary, second)
+        if outcome["read"]:
+            handwriting_read_by = primary.version
+            second_opinion = outcome["second_opinion"]
 
     # This stage used to report "Parsing document structure" and then do
     # nothing before the next stage began. Table structure is the layout work
@@ -211,10 +229,20 @@ def run(
     )
 
     if suspected_handwriting:
+        detected_by = ("the handwriting detector" if handwriting_detector is not None
+                       else "a geometry heuristic")
+        checked = ""
+        if second_opinion:
+            checked = (f" {second_opinion['model']} agreed on {second_opinion['agreed']} "
+                       f"line(s) and disagreed on {second_opinion['disagreed']}.")
+        read = (f"Handwritten lines were read by {handwriting_read_by}, not validated "
+                f"on land records: check every value against the scan.{checked}"
+                if handwriting_read_by else
+                "Check the scan and transcription; the text was read by an OCR "
+                "model trained on print.")
         findings.append(Finding(
             rule="SUSPECTED_HANDWRITING", severity="warning",
-            message="Possible handwriting detected by a geometry heuristic. "
-                    "Check the scan and transcription; handwriting reading is not validated.",
+            message=f"Handwriting detected by {detected_by}. {read}",
         ))
 
     report("confidence", 93, "Scoring confidence")
@@ -257,6 +285,8 @@ def run(
         layout_regions=regions,
         prepared_to_original=prepared_to_original,
         translated_from=translated_from,
+        handwriting_read_by=handwriting_read_by,
+        handwriting_second_opinion=second_opinion,
     )
 
 

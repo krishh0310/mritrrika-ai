@@ -1,9 +1,11 @@
-"""Conservative handwriting suspicion from a single text-line image.
+"""Handwriting on a page: which lines, and what they say.
 
-This is an untrained geometry heuristic, not a handwriting classifier with
-validated accuracy. False means "not detected", never "proved printed".
-Connected scripts, short words and neat handwriting are common blind spots.
+is_handwritten() is an untrained geometry heuristic, used only when the trained
+detector (handwriting_model.py) has no weights. False means "not detected",
+never "proved printed".
 """
+
+import unicodedata
 
 import cv2
 import numpy as np
@@ -39,18 +41,76 @@ def is_handwritten(image: np.ndarray) -> bool:
     return bool(irregularity > 0.08)
 
 
-def flag_blocks(image, blocks) -> None:
+def _crop(image, bbox):
+    height, width = image.shape[:2]
+    x1, y1, x2, y2 = bbox
+    return image[max(0, y1):min(height, max(0, y2)), max(0, x1):min(width, max(0, x2))]
+
+
+def flag_blocks(image, blocks, detector=None) -> None:
     """Inspect OCR line crops; retain any provider-supplied positive flag.
 
-    Text the OCR detector entirely misses cannot be inspected by this path.
-    Multi-line/approximate fallback boxes can produce false positives.
+    `detector` is the trained classifier (handwriting_model.load_detector());
+    without it, the geometry heuristic above. Text the OCR detector entirely
+    misses cannot be inspected by this path.
     """
-    height, width = image.shape[:2]
+    check = detector.is_handwritten if detector is not None else is_handwritten
     for block in blocks:
-        x1, y1, x2, y2 = block.bbox
-        crop = image[max(0, y1):min(height, max(0, y2)),
-                     max(0, x1):min(width, max(0, x2))]
-        block.is_handwritten = block.is_handwritten or is_handwritten(crop)
+        crop = _crop(image, block.bbox)
+        block.is_handwritten = block.is_handwritten or (crop.size > 0 and check(crop))
+
+
+def _same(a: str, b: str) -> bool:
+    return unicodedata.normalize("NFC", " ".join(a.split())) == \
+        unicodedata.normalize("NFC", " ".join(b.split()))
+
+
+#: Two independent readers agreeing is evidence; disagreeing is a warning.
+#: Neither makes a field auto-acceptable: the page is still reviewed.
+AGREED_CONFIDENCE = 0.8
+DISAGREED_CONFIDENCE = 0.4
+
+
+def read_blocks(image, blocks, reader, second=None) -> dict:
+    """Re-read flagged lines with the handwriting reader.
+
+    The reader's text replaces PaddleOCR's, which was trained on print, and its
+    confidence replaces the OCR confidence. With `second` (Gemini, opt-in),
+    each line is read again: agreement raises the line's confidence,
+    disagreement lowers it and is listed for the verifier. The first reader's
+    text stands either way -- which is better is for real scans to show
+    (scripts/evaluate_handwriting_real.py), not for this function to guess.
+
+    Returns {"read": lines replaced, "second_opinion": {...} or None}.
+    """
+    read, agreed, disagreed = 0, 0, []
+    for block in blocks:
+        if not block.is_handwritten:
+            continue
+        crop = _crop(image, block.bbox)
+        if crop.size == 0:
+            continue
+        text, confidence = reader.read(crop)
+        if not text.strip():
+            continue
+        block.text, block.confidence = text, confidence
+        read += 1
+        if second is None:
+            continue
+        other, _ = second.read(crop)
+        if not other:
+            continue
+        if _same(text, other):
+            agreed += 1
+            block.confidence = max(confidence, AGREED_CONFIDENCE)
+        else:
+            disagreed.append({"read": text, "second": other})
+            block.confidence = min(confidence, DISAGREED_CONFIDENCE)
+    opinion = None
+    if second is not None:
+        opinion = {"model": second.version, "agreed": agreed,
+                   "disagreed": len(disagreed), "disagreements": disagreed[:20]}
+    return {"read": read, "second_opinion": opinion}
 
 
 #: Field -> the review slot named on the verifier's card.
@@ -67,7 +127,8 @@ def _overlaps(a, b) -> bool:
     return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
 
 
-def routing_meta(blocks, fields, quality: dict | None) -> dict | None:
+def routing_meta(blocks, fields, quality: dict | None, read_by: str | None = None,
+                 second_opinion: dict | None = None) -> dict | None:
     """What a reviewer needs to know about a page with suspected handwriting.
 
     `blocks` are (bbox, is_handwritten) and `fields` are (field, bbox), all in
@@ -77,8 +138,12 @@ def routing_meta(blocks, fields, quality: dict | None) -> dict | None:
       coverage_pct    share of OCR text regions flagged as handwritten
       affected_fields review slots whose value box overlaps a flagged region
       confidence      the scan-quality average (blur, skew, contrast): how far
-                      the page itself can be trusted. It is NOT a measure of
-                      handwriting recognition, which does not exist here.
+                      the page itself can be trusted. It is NOT the
+                      handwriting reader's confidence, which is per line.
+      read_by         the handwriting reader version that re-read the flagged
+                      lines, or None when they kept PaddleOCR's reading.
+      second_opinion  Gemini's agreement with that reading, when enabled:
+                      model, agreed / disagreed line counts, disagreements.
     """
     flagged = [box for box, handwritten in blocks if handwritten]
     if not flagged:
@@ -94,4 +159,6 @@ def routing_meta(blocks, fields, quality: dict | None) -> dict | None:
         "coverage_pct": round(len(flagged) / len(blocks), 4),
         "affected_fields": affected,
         "confidence": round(sum(scores) / len(scores), 4) if scores else None,
+        "read_by": read_by,
+        "second_opinion": second_opinion,
     }

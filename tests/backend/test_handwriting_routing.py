@@ -46,9 +46,14 @@ class TestRoutingMeta:
                 SimpleNamespace(bbox=(600, 800, 1040, 880), is_handwritten=True),
                 SimpleNamespace(bbox=(160, 200, 520, 268), is_handwritten=False)]),
             fields=[SimpleNamespace(field="MUTATION", bbox=(310, 405, 510, 435))],
+            handwriting_read_by="handwriting-reader-v1",
+            handwriting_second_opinion={"model": "gemini-test", "agreed": 1, "disagreed": 0,
+                                        "disagreements": []},
         )
         meta = handwriting_meta_for([result], QUALITY)
         assert meta["affected_fields"] == ["mutation_number"]
+        assert meta["read_by"] == "handwriting-reader-v1"
+        assert meta["second_opinion"]["agreed"] == 1
 
 
 @pytest.fixture

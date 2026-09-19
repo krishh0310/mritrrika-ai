@@ -141,7 +141,7 @@ listed so the table cannot be read as a claim (§69):
 | OCR — `OcrProvider` (abstract base) | `PaddleOcrProvider` (`lang='hi'`) | `GeminiVisionOcrProvider`, output marked degraded |
 | LLM phrasing of answers | Gemini, via `rag_service` | Groq; if neither responds, the structured database answer is returned flagged `degraded` |
 | Layout | deterministic geometry in the extractor; optional YOLO region detector behind `USE_YOLO` (off) | runs without it |
-| Handwriting | geometry heuristic flags blocks; `handwriting_meta` routes the page to review with coverage, affected fields and scan confidence; no reader | — |
+| Handwriting | trained detector + CRNN reader (`ocr/handwriting_model.py`); `handwriting_meta` routes the page to review with coverage, affected fields, scan confidence, reader version and Gemini's agreement | geometry heuristic, flag only |
 | Embeddings | n-gram vectors (default) or Gemini `text-embedding-004`, in pgvector | keyword search |
 
 No `ANTHROPIC_API_KEY` exists on this machine; `GEMINI_API_KEY` and
@@ -156,15 +156,29 @@ ambiguous about which model produced it.
 
 ### Handwriting
 
-Full handwriting recognition is not implemented. Production path is Microsoft
-TrOCR (microsoft/trocr-large-handwritten) fine-tuned on Devanagari, pending a
-labeled dataset. Current design routes enriched metadata to human review:
-`documents.handwriting_meta` records the share of text regions flagged as
-handwritten, which review fields (owner, area, survey number, mutation number,
-date) fall inside them, and a confidence taken from the scan-quality scores
-(blur, skew, contrast) -- a measure of the page, not of any handwriting
-reading. The verification queue shows it and filters on it
-(`?handwritten=true`).
+Two small models trained on public handwriting data (details and measured
+results in [handwriting.md](handwriting.md)):
+
+- A **detector** decides which OCR lines are handwritten.
+- A **reader** (CRNN + CTC) re-reads those lines in place of PaddleOCR, which
+  was trained on print.
+
+With `GEMINI_HANDWRITING_ENABLED`, Gemini reads the same lines again. When
+the two readings agree, the line's confidence goes up; when they disagree,
+it goes down and the difference is shown to the verifier. This is off by
+default because it sends line crops to Google. Without weights, the geometry
+heuristic still flags lines but nothing reads them.
+
+Neither model has seen a land record, so every field on a page with
+handwriting goes to a verifier. `documents.handwriting_meta` records:
+
+- the share of lines flagged as handwritten
+- the review fields inside those lines
+- the scan-quality confidence
+- the reader version
+- Gemini's agreement
+
+The verification queue shows this and can filter on it (`?handwritten=true`).
 
 ### Computer vision
 

@@ -1,5 +1,9 @@
 # Workspace audit and handwriting experiment — 2026-09-14
 
+> Superseded for handwriting: trained detection and reading replaced the
+> heuristic on 2026-09-19. See [handwriting.md](handwriting.md). Kept as the
+> record of the heuristic, which is still the fallback when no weights exist.
+
 The workspace started clean on `fix/cadastre-extraction-rag-e2e` at `6107410`,
 tracking the same remote commit. History and all local/remote branches were
 inspected before edits. No previous report was treated as evidence of runtime

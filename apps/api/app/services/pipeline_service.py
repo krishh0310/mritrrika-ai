@@ -75,6 +75,26 @@ def get_layout_detector():
     return _detector
 
 
+_handwriting = None
+
+
+def get_handwriting_models():
+    """(detector, reader, second reader), each None when unavailable.
+
+    The second reader is Gemini, only with GEMINI_HANDWRITING_ENABLED and a
+    key. Loaded once per process.
+    """
+    global _handwriting
+    if _handwriting is None:
+        from ocr.handwriting_model import GeminiHandwritingReader, load_detector, load_reader
+
+        settings = get_settings()
+        second = (GeminiHandwritingReader(settings.gemini_api_key, settings.gemini_llm_model)
+                  if settings.gemini_handwriting_enabled and settings.gemini_api_key else None)
+        _handwriting = (load_detector(), load_reader(), second)
+    return _handwriting
+
+
 _field_models: dict[str, object] = {}
 
 
@@ -109,7 +129,22 @@ def handwriting_meta_for(results, quality: dict | None) -> dict | None:
          for result in results for block in result.ocr.blocks],
         [(outcome.field, outcome.bbox) for result in results for outcome in result.fields],
         quality,
+        next((r.handwriting_read_by for r in results if r.handwriting_read_by), None),
+        _merged_opinion([r.handwriting_second_opinion for r in results]),
     )
+
+
+def _merged_opinion(opinions: list[dict | None]) -> dict | None:
+    """One second-opinion summary across every page of a document."""
+    opinions = [o for o in opinions if o]
+    if not opinions:
+        return None
+    return {
+        "model": opinions[0]["model"],
+        "agreed": sum(o["agreed"] for o in opinions),
+        "disagreed": sum(o["disagreed"] for o in opinions),
+        "disagreements": [d for o in opinions for d in o["disagreements"]][:20],
+    }
 
 
 def _update_job(session: Session, job: ProcessingJob, stage: str, progress: int,
@@ -192,6 +227,9 @@ def process_document(
                 progress=progress,
                 layout_detector=get_layout_detector(),
                 field_model=field_model,
+                handwriting_detector=get_handwriting_models()[0],
+                handwriting_reader=get_handwriting_models()[1],
+                handwriting_second_reader=get_handwriting_models()[2],
             )))
     except (OcrUnavailable, ValueError) as exc:
         detail = str(exc) if total == 1 else f"page {current.page_number} of {total}: {exc}"
