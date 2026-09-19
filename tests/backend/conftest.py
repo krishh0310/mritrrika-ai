@@ -21,6 +21,11 @@ sys.path.insert(0, str(REPO_ROOT / "packages" / "domain"))
 
 sys.path.insert(0, str(Path(__file__).parent))
 
+# API tests drive the pipeline with stub OCR pages. Trained handwriting weights,
+# when a developer has them on disk, would re-read those stubs and make results
+# depend on the machine (CI has no weights). tests/ai covers the models.
+os.environ["HANDWRITING_MODELS_ENABLED"] = "false"
+
 from demo_users import DEMO_PASSWORD  # noqa: E402
 
 

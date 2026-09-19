@@ -8,7 +8,7 @@ the pipeline has two trained models of its own for it.
 PaddleOCR line boxes
    │
    ├─ detector: handwritten or printed? ──── printed ──► PaddleOCR's text stands
-   │   (a small CNN; threshold 0.8)
+   │   (a small CNN; threshold calibrated in training)
    │
    └─ handwritten ──► reader (CRNN + CTC) re-reads the line
                         │
@@ -77,24 +77,30 @@ overlap, so expect worse on real records.
 
 Reading one line takes about 5 ms on the CPU.
 
-**Detector** (`handwriting-detector-v2`, threshold 0.8): handwritten test
-lines against printed lines from our test-split record pages.
+**Detector** (`handwriting-detector-v3`): handwritten test lines against
+printed lines. The threshold (0.78) is not fixed. Training sets it on
+validation so that at most 0.5% of printed lines are flagged, and it is saved
+with the weights.
 
-| Crops | Handwritten caught | Printed wrongly flagged |
-|---|---|---|
-| Clean | 99.2% (of 3,000) | 0 of 2,513 |
-| Scan damage added | 97.8% | 1 of 2,513 |
+| Printed side | Crops | Handwritten caught | Printed wrongly flagged |
+|---|---|---|---|
+| Our test pages + fonts seen in training | clean | 99.3% | 0.47% |
+| | scan damage added | 97.7% | 1.6% |
+| **Font families never trained on** (Martel, Tiro, Sangam) | clean | 99.1% | 0.3% |
+| | scan damage added | 97.3% | 3.6% |
 
-On the pipeline's real input, PaddleOCR's own line boxes on our 150
-validation and test pages, all of them printed, the detector wrongly flagged
-9 of 3,964 lines (0.23%) on 7 pages. The heuristic it replaces flagged 52
-(1.31%). The misses were almost all one-character boxes (`2`, `=`, `\`),
-which look the same printed or written.
+**How we got here, and why it matters.** v1 was trained only on scan-damaged
+crops, and caught just 62% of clean handwriting. v2 fixed that, but its only
+printed examples came from our own generator's single font. On a clean khasra
+set in Noto Sans that was uploaded during testing, v2 called **36 of 82**
+printed lines handwritten, and the reader turned them into nonsense.
 
-The first detector (v1) was trained only on damaged crops. It caught just 62%
-of clean handwritten words, because it had learned "looks damaged" as a sign
-of handwriting. v2 trains on clean and damaged crops half and half, and is
-scored on both.
+v3 changes the printed training data. It adds the *same* words and numbers
+typeset in 21 faces of Devanagari fonts, and puts underlines and table rules
+on both classes. On that same page, v3 flags 4 of 82 lines ("5 Rs", "5", "/"
+and a green date), and extraction gives **the same fields with and without
+the handwriting models**. That page was never used in training; it is kept as
+a regression check.
 
 **What these numbers do not say.** Every handwritten sample above comes from
 the datasets' own writers and paper, and every printed sample from our own

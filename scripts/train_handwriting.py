@@ -58,6 +58,9 @@ SPLIT_FILES = {"train": "train", "val": "validation", "test": "test"}
 MAX_LINE_WIDTH = 1024
 #: Batches drawn together and sorted by width (see train_reader).
 BUCKET = 20
+#: Share of printed validation lines the detector may flag. A printed line
+#: sent to the handwriting reader loses PaddleOCR's better reading of it.
+TARGET_FPR = 0.005
 
 
 # --------------------------------------------------------------------------- data
@@ -110,6 +113,68 @@ def _printed_crops(split: str, limit: int, seed: int) -> list[np.ndarray]:
                 crops.append(page[max(0, y1):y2, max(0, x1):x2])
     rng.shuffle(crops)
     return crops[:limit]
+
+
+FONTS = REPO_ROOT / "datasets" / "handwriting" / "fonts"
+SYSTEM_FONTS = Path("/System/Library/Fonts")
+#: (file, face indices, split). Whole families are held out, so the test
+#: split measures print in a typeface the detector has never seen.
+DEVANAGARI_FONTS = [
+    (FONTS / "NotoSansDevanagari[wdth,wght].ttf", [0], "train"),
+    (FONTS / "NotoSerifDevanagari[wdth,wght].ttf", [0], "train"),
+    (FONTS / "Hind-Regular.ttf", [0], "train"), (FONTS / "Hind-Bold.ttf", [0], "train"),
+    (FONTS / "Mukta-Regular.ttf", [0], "train"), (FONTS / "Mukta-Bold.ttf", [0], "train"),
+    (FONTS / "Poppins-Regular.ttf", [0], "train"),
+    (SYSTEM_FONTS / "Supplemental" / "DevanagariMT.ttc", [0, 1], "train"),
+    (SYSTEM_FONTS / "Supplemental" / "ITFDevanagari.ttc", [0, 1, 2, 3, 4], "train"),
+    (SYSTEM_FONTS / "Kohinoor.ttc", [0, 1, 2, 3, 4], "train"),
+    (SYSTEM_FONTS / "Supplemental" / "Shree714.ttc", [0, 1], "train"),
+    (FONTS / "Yantramanav-Regular.ttf", [0], "val"),
+    (FONTS / "Martel-Regular.ttf", [0], "test"),
+    (FONTS / "TiroDevanagariHindi-Regular.ttf", [0], "test"),
+    (SYSTEM_FONTS / "Supplemental" / "Devanagari Sangam MN.ttc", [0, 1], "test"),
+]
+
+
+def _fonts(split: str) -> list[tuple[str, int]]:
+    return [(str(path), face) for path, faces, font_split in DEVANAGARI_FONTS
+            if font_split == split and path.exists() for face in faces]
+
+
+def _render_printed(text: str, font: tuple[str, int], rng: random.Random) -> np.ndarray:
+    """`text` typeset in `font`, dark on paper, cropped like an OCR box."""
+    from PIL import Image, ImageDraw, ImageFont
+
+    face = ImageFont.truetype(font[0], rng.randint(22, 46), index=font[1],
+                              layout_engine=ImageFont.Layout.RAQM)
+    try:                                   # variable fonts: vary the weight too
+        face.set_variation_by_axes([rng.choice([400, 500, 700])] +
+                                   [100] * (len(face.get_variation_axes()) - 1))
+    except Exception:
+        pass
+    left, top, right, bottom = face.getbbox(text)
+    margin = rng.randint(2, 10)
+    image = Image.new("L", (right - left + 2 * margin, bottom - top + 2 * margin),
+                      rng.randint(200, 255))
+    ImageDraw.Draw(image).text((margin - left, margin - top), text, font=face,
+                               fill=rng.randint(0, 90))
+    return np.array(image)
+
+
+def _decorate(gray: np.ndarray, rng: random.Random) -> np.ndarray:
+    """Underlines and ruled lines, which record forms put under printed and
+    handwritten entries alike -- applied to both, so they are not a cue."""
+    image = gray.copy()
+    h, w = image.shape
+    tone = rng.randint(60, 170)
+    if rng.random() < 0.35:                                   # an underline
+        y = min(h - 1, int(h * rng.uniform(0.8, 0.98)))
+        cv2.line(image, (rng.randint(0, w // 8), y), (w - 1 - rng.randint(0, w // 8), y),
+                 tone, rng.randint(1, 2))
+    if rng.random() < 0.2:                                    # a table rule
+        y = rng.choice([rng.randint(0, 2), h - 1 - rng.randint(0, 2)])
+        cv2.line(image, (0, y), (w - 1, y), tone, 1)
+    return image
 
 
 DEVANAGARI_DIGITS = "०१२३४५६७८९"
@@ -409,8 +474,21 @@ def _detector_set(split, rng, per_class):
     glyphs = _digit_glyphs(split)
     handwritten = [_compose(images, labels, rng, rng.randrange(len(images)), glyphs)[0]
                    for _ in range(per_class)]
-    printed = _printed_crops(split, per_class, rng.randrange(1 << 30))
+    # Printed: half our generator's pages, half the SAME words and numbers
+    # typeset in this split's fonts -- so style, not content, separates them.
+    printed = _printed_crops(split, per_class // 2, rng.randrange(1 << 30))
+    printed += _typeset(split, labels, per_class - len(printed), rng)
     return handwritten, printed
+
+
+def _typeset(split, labels, count, rng) -> list[np.ndarray]:
+    fonts = _fonts(split)
+    crops = []
+    for _ in range(count):
+        text = (_number_text(rng) if rng.random() < 0.25 else
+                " ".join(rng.choice(labels) for _ in range(rng.randint(1, 3))))
+        crops.append(_render_printed(text, rng.choice(fonts), rng))
+    return crops
 
 
 def _loose(gray, rng):
@@ -423,6 +501,7 @@ def _detector_batch(torch, crops, rng, degraded: float):
     """`degraded` = share of crops given scan damage. Training uses 0.5: with
     every crop damaged (v1) the detector learned "damaged" as a cue for
     handwriting and caught only 62% of clean handwritten words."""
+    crops = [_decorate(c, rng) for c in crops]
     arrays = [to_input(degrade(c, rng) if rng.random() < degraded else _loose(c, rng),
                        width=DETECTOR_WIDTH) for c in crops]
     return torch.from_numpy(np.stack(arrays)[:, None])
@@ -443,13 +522,9 @@ def train_detector(args) -> dict:
     out = CHECKPOINTS / "detector"
     out.mkdir(parents=True, exist_ok=True)
 
-    def evaluate(hand_crops, printed_crops, seed):
-        """Scored twice -- clean crops and scan-damaged crops -- because a
-        detector can pass one and fail the other."""
-        return {"clean": evaluate_as(hand_crops, printed_crops, seed, 0.0),
-                "degraded": evaluate_as(hand_crops, printed_crops, seed, 1.0)}
+    views = {"clean": 0.0, "degraded": 1.0}
 
-    def evaluate_as(hand_crops, printed_crops, seed, degraded):
+    def probabilities(hand_crops, printed_crops, seed, degraded):
         eval_rng = random.Random(seed)
         model.eval()
         probs = []
@@ -461,15 +536,28 @@ def train_detector(args) -> dict:
                                         degraded).to(device)
                     p.extend(torch.sigmoid(model(x)).float().cpu().numpy()[:, 0].tolist())
                 probs.append(np.array(p))
-        from ocr.handwriting_model import HandwritingDetector
+        return probs
 
-        t = HandwritingDetector.THRESHOLD
-        tp, fn = int((probs[0] >= t).sum()), int((probs[0] < t).sum())
-        fp, tn = int((probs[1] >= t).sum()), int((probs[1] < t).sum())
-        return {"threshold": t, "handwritten": len(probs[0]), "printed": len(probs[1]),
-                "recall": round(tp / max(tp + fn, 1), 4),
+    def at(threshold, hand_probs, printed_probs):
+        tp = int((hand_probs >= threshold).sum())
+        fp = int((printed_probs >= threshold).sum())
+        return {"threshold": round(threshold, 4), "handwritten": len(hand_probs),
+                "printed": len(printed_probs),
+                "recall": round(tp / max(len(hand_probs), 1), 4),
                 "precision": round(tp / max(tp + fp, 1), 4),
-                "false_positive_rate": round(fp / max(fp + tn, 1), 4)}
+                "false_positive_rate": round(fp / max(len(printed_probs), 1), 4)}
+
+    def evaluate(hand_crops, printed_crops, seed, threshold=None):
+        """Scored on clean and scan-damaged crops, because a detector can pass
+        one and fail the other. Without `threshold`, it is calibrated here:
+        the lowest that flags at most TARGET_FPR of these printed lines (both
+        views pooled), and never below 0.5."""
+        probs = {name: probabilities(hand_crops, printed_crops, seed, degraded)
+                 for name, degraded in views.items()}
+        if threshold is None:
+            printed = np.concatenate([p[1] for p in probs.values()])
+            threshold = max(0.5, float(np.quantile(printed, 1 - TARGET_FPR)) + 1e-6)
+        return {name: at(threshold, *p) for name, p in probs.items()}
 
     best, history = None, []
     for epoch in range(1, args.epochs + 1):
@@ -486,22 +574,26 @@ def train_detector(args) -> dict:
         metrics = evaluate(val_hand, val_printed, 0)
         history.append({"epoch": epoch, **metrics})
         print(f"epoch {epoch}: {metrics}", flush=True)
-        # False positives are the costlier mistake (a printed line sent to the
-        # reader loses a good reading): any epoch within 0.2% FPR on both views
-        # beats every epoch outside it; among those, the best worst-case recall.
-        fpr = max(m["false_positive_rate"] for m in metrics.values())
-        key = (fpr > 0.002, -min(m["recall"] for m in metrics.values()), fpr)
-        if best is None or key < best[0]:
-            best = (key, {"epoch": epoch, **metrics})
+        # Every epoch is held to the same false-positive budget by its own
+        # threshold; the best is the one that then catches the most handwriting.
+        recall = min(m["recall"] for m in metrics.values())
+        if best is None or recall > best[0]:
+            best = (recall, {"epoch": epoch, **metrics})
             torch.save({"model": model.state_dict(),
+                        "threshold": metrics["clean"]["threshold"],
                         "version": f"handwriting-detector-{args.name}", "val": best[1]},
                        out / "best.pt")
 
-    model.load_state_dict(torch.load(out / "best.pt", map_location="cpu",
-                                     weights_only=False)["model"])
-    test_hand, test_printed = _detector_set("test", random.Random(2), 3000)
+    state = torch.load(out / "best.pt", map_location="cpu", weights_only=False)
+    model.load_state_dict(state["model"])
+    test_rng = random.Random(2)
+    test_hand, test_printed = _detector_set("test", test_rng, 3000)
+    unseen = _typeset("test", _prepared("test")[1], 2000, test_rng)
     return {"task": "detector", "name": args.name, "best_val": best[1],
-            "test": evaluate(test_hand, test_printed, 1), "history": history}
+            "test": evaluate(test_hand, test_printed, 1, state["threshold"]),
+            # Print in font families that were in no training batch.
+            "test_unseen_fonts": evaluate(test_hand[:2000], unseen, 3, state["threshold"]),
+            "history": history}
 
 
 def main() -> None:

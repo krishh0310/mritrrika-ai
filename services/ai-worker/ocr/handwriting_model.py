@@ -145,20 +145,22 @@ class HandwritingReader:
 
 
 class HandwritingDetector:
-    #: Deliberately high. A printed line wrongly sent to the handwriting reader
-    #: loses PaddleOCR's (better) reading of it.
+    #: Used only by checkpoints that predate a calibrated threshold.
     THRESHOLD = 0.8
 
-    def __init__(self, model, version: str):
-        self.model, self.version = model, version
+    def __init__(self, model, version: str, threshold: float = THRESHOLD):
+        self.model, self.version, self.threshold = model, version, threshold
 
     @classmethod
     def load(cls, path: Path = DETECTOR_WEIGHTS) -> HandwritingDetector:
+        """The threshold travels with the weights: training calibrates it on
+        validation so that at most 0.5% of printed lines are flagged."""
         torch, _ = _torch()
         state = torch.load(path, map_location="cpu", weights_only=False)
         model = build_detector()
         model.load_state_dict(state["model"])
-        return cls(model.eval(), state.get("version", "handwriting-detector"))
+        return cls(model.eval(), state.get("version", "handwriting-detector"),
+                   state.get("threshold", cls.THRESHOLD))
 
     def probability(self, crop: np.ndarray) -> float:
         torch, _ = _torch()
@@ -167,7 +169,7 @@ class HandwritingDetector:
             return float(torch.sigmoid(self.model(x))[0, 0])
 
     def is_handwritten(self, crop: np.ndarray) -> bool:
-        return self.probability(crop) >= self.THRESHOLD
+        return self.probability(crop) >= self.threshold
 
 
 class GeminiHandwritingReader:

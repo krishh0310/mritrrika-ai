@@ -190,3 +190,14 @@ def test_gemini_reader_never_raises(monkeypatch):
     reader = handwriting_model.GeminiHandwritingReader("key", "gemini-test")
     assert reader.read(np.full((40, 200, 3), 255, np.uint8)) == ("", 0.0)
     assert reader.version == "gemini-handwriting-gemini-test"
+
+
+def test_detector_uses_the_threshold_calibrated_in_training(tmp_path):
+    import torch
+
+    path = tmp_path / "best.pt"
+    state = {"model": handwriting_model.build_detector().state_dict(), "version": "d"}
+    torch.save({**state, "threshold": 0.63}, path)
+    assert handwriting_model.HandwritingDetector.load(path).threshold == 0.63
+    torch.save(state, path)                            # an older checkpoint
+    assert handwriting_model.HandwritingDetector.load(path).threshold == 0.8

@@ -19,6 +19,11 @@
        2,000 handwritten images of each Devanagari digit.
      * MNIST (LeCun, Cortes, Burges): 70,000 handwritten 0-9, from the PyTorch
        project's mirror.
+
+3. Printed Devanagari FONTS (Google Fonts, SIL Open Font License) for the
+   detector's printed side. Trained only on our generator's one font, the
+   detector called any other print "handwritten" -- 36 of 82 lines of a clean
+   Noto-set khasra. macOS's own Devanagari fonts are used too.
 """
 
 from __future__ import annotations
@@ -36,6 +41,19 @@ DIGITS = ROOT / "digits"
 DHCD_URL = ("https://archive.ics.uci.edu/static/public/389/"
             "devanagari+handwritten+character+dataset.zip")
 MNIST_URL = "https://ossci-datasets.s3.amazonaws.com/mnist/"
+FONTS_URL = "https://raw.githubusercontent.com/google/fonts/main/ofl/"
+#: Book faces only: a handwriting-style font here would teach the detector
+#: that handwriting is print.
+FONT_FILES = [
+    "notosansdevanagari/NotoSansDevanagari%5Bwdth,wght%5D.ttf",
+    "notoserifdevanagari/NotoSerifDevanagari%5Bwdth,wght%5D.ttf",
+    "hind/Hind-Regular.ttf", "hind/Hind-Bold.ttf",
+    "mukta/Mukta-Regular.ttf", "mukta/Mukta-Bold.ttf",
+    "tirodevanagarihindi/TiroDevanagariHindi-Regular.ttf",
+    "martel/Martel-Regular.ttf",
+    "yantramanav/Yantramanav-Regular.ttf",
+    "poppins/Poppins-Regular.ttf",
+]
 MNIST_FILES = ["train-images-idx3-ubyte.gz", "train-labels-idx1-ubyte.gz",
                "t10k-images-idx3-ubyte.gz", "t10k-labels-idx1-ubyte.gz"]
 
@@ -63,6 +81,9 @@ def main() -> None:
                            [n for n in archive.namelist() if "/digit_" in n])
     for name in MNIST_FILES:
         _fetch(MNIST_URL + name, DIGITS / "mnist" / name)
+    for name in FONT_FILES:
+        filename = name.split("/")[-1].replace("%5B", "[").replace("%5D", "]")
+        _fetch(FONTS_URL + name, ROOT / "fonts" / filename)
 
 
 if __name__ == "__main__":

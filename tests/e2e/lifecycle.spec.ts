@@ -78,7 +78,7 @@ test.describe("the land-record lifecycle", () => {
       freshScan("datasets/generated/degraded/DOC-00022.jpg"),
     );
     await page.selectOption('select:near(:text("Document type"))', "KHASRA");
-    await page.getByPlaceholder("1998-99").fill("1998-99");
+    await page.getByText("Optional cross-checks").click();
     await page.getByPlaceholder("PARCEL-UP-DEMO-0142").fill(PARCEL);
 
     await page.getByRole("button", { name: /upload and check quality/i }).click();

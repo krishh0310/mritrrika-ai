@@ -13,7 +13,12 @@ import {
 } from "@mrittika/ui";
 
 /**
- * §21 — capture a scan plus the metadata only a human knows.
+ * §21 — capture a scan plus the little only a human can vouch for.
+ *
+ * Everything on the page (khasra, khata, owner, year...) is extracted by the
+ * pipeline. What is asked here is what must be known BEFORE any AI reading
+ * is trusted: the village, which decides who may see the scan, and optional
+ * cross-checks the extraction is compared against.
  *
  * The accepted types are echoed from the server's own list rather than being
  * enforced here: the API decides by sniffing the bytes (§61), so a check in
@@ -40,10 +45,12 @@ export default function DeoUploadPage() {
   const [dragging, setDragging] = useState(false);
   const [documentType, setDocumentType] = useState("KHASRA");
   const [villageId, setVillageId] = useState("");
-  const [recordYear, setRecordYear] = useState("");
   const [khasra, setKhasra] = useState("");
-  const [khata, setKhata] = useState("");
   const [parcelId, setParcelId] = useState("");
+  const villageOptions = villages.data?.locations ?? [];
+  // An operator who covers one village should not have to pick it.
+  const village =
+    villageId || (villageOptions.length === 1 ? villageOptions[0].location_id : "");
   const [error, setError] = useState<string | null>(null);
 
   const upload = useMutation({
@@ -52,10 +59,8 @@ export default function DeoUploadPage() {
       const form = new FormData();
       form.set("file", file);
       form.set("document_type", documentType);
-      if (villageId) form.set("village_id", villageId);
-      if (recordYear) form.set("record_year", recordYear);
+      if (village) form.set("village_id", village);
       if (khasra) form.set("khasra_number", khasra);
-      if (khata) form.set("khata_number", khata);
       if (parcelId) form.set("parcel_id", parcelId);
       return api.upload<DocumentSummary>("/api/v1/documents", form);
     },
@@ -158,8 +163,8 @@ export default function DeoUploadPage() {
 
         <Card className="self-start">
           <CardHeader
-            title="What is on it"
-            description="Kept separate from anything the AI later reads off the page."
+            title="Where it is from"
+            description="The AI reads khasra, khata, owners and area off the page itself."
           />
           <div className="space-y-4 p-5">
             <Field label="Document type" required>
@@ -176,10 +181,18 @@ export default function DeoUploadPage() {
               </Select>
             </Field>
 
-            <Field label="Village">
-              <Select value={villageId} onChange={(e) => setVillageId(e.target.value)}>
-                <option value="">Not recorded</option>
-                {(villages.data?.locations ?? []).map((location) => (
+            <Field
+              label="Village"
+              required={!parcelId}
+              hint="Decides which offices may see the scan, before anything on it is verified."
+            >
+              <Select
+                value={village}
+                onChange={(e) => setVillageId(e.target.value)}
+                required={!parcelId}
+              >
+                <option value="">Choose a village</option>
+                {villageOptions.map((location) => (
                   <option key={location.location_id} value={location.location_id}>
                     {location.name_devanagari ?? location.name}
                   </option>
@@ -187,45 +200,35 @@ export default function DeoUploadPage() {
               </Select>
             </Field>
 
-            <Field label="Record year" hint="As written on the page, e.g. 1998-99.">
-              <Input
-                className="id"
-                value={recordYear}
-                onChange={(e) => setRecordYear(e.target.value)}
-                placeholder="1998-99"
-              />
-            </Field>
-
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Khasra">
-                <Input
-                  className="id"
-                  value={khasra}
-                  onChange={(e) => setKhasra(e.target.value)}
-                  placeholder="142/2"
-                />
-              </Field>
-              <Field label="Khata">
-                <Input
-                  className="id"
-                  value={khata}
-                  onChange={(e) => setKhata(e.target.value)}
-                  placeholder="87"
-                />
-              </Field>
-            </div>
-
-            <Field
-              label="Link to parcel"
-              hint="Links the record to the cadastre, so history and anomaly checks can run."
-            >
-              <Input
-                className="id"
-                value={parcelId}
-                onChange={(e) => setParcelId(e.target.value)}
-                placeholder="PARCEL-UP-DEMO-0142"
-              />
-            </Field>
+            <details className="group rounded-card border border-sand-200 px-3 py-2">
+              <summary className="cursor-pointer text-sm font-medium text-navy-900">
+                Optional cross-checks
+              </summary>
+              <div className="space-y-4 pt-3">
+                <Field
+                  label="Khasra"
+                  hint="If entered, a different khasra read off the page is flagged."
+                >
+                  <Input
+                    className="id"
+                    value={khasra}
+                    onChange={(e) => setKhasra(e.target.value)}
+                    placeholder="142/2"
+                  />
+                </Field>
+                <Field
+                  label="Link to parcel"
+                  hint="Links the record to the cadastre, so history and anomaly checks can run. A khasra number alone repeats across villages."
+                >
+                  <Input
+                    className="id"
+                    value={parcelId}
+                    onChange={(e) => setParcelId(e.target.value)}
+                    placeholder="PARCEL-UP-DEMO-0142"
+                  />
+                </Field>
+              </div>
+            </details>
 
             <Button
               type="submit"
