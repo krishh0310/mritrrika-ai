@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import {
-  AlertTriangle, CheckCircle2, Clock, Gauge, Hourglass, TrendingUp, Undo2,
+  AlertTriangle, CheckCircle2, Clock, Gauge, Hourglass, ListChecks, TrendingUp, Undo2,
 } from "lucide-react";
 
 import { QueryBoundary } from "@/components/shared/query-boundary";
@@ -72,7 +72,18 @@ export default function TehsildarDashboardPage() {
               />
             </div>
 
-            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <StatCard
+                label="Extraction accuracy"
+                value={
+                  data.cards.extraction_accuracy === null ||
+                  data.cards.extraction_accuracy === undefined
+                    ? "—"
+                    : `${(data.cards.extraction_accuracy * 100).toFixed(1)}%`
+                }
+                hint={`Fields kept unchanged by verifiers, of ${data.totals.accuracy_fields_reviewed ?? 0} reviewed`}
+                icon={<ListChecks className="size-4" />}
+              />
               <StatCard
                 label="Average AI confidence"
                 value={data.cards.average_ai_confidence?.toFixed(2) ?? "—"}

@@ -21,6 +21,7 @@ VERIFIER_CARDS = {
 TEHSILDAR_CARDS = {
     "pending_approval", "approved_today", "returned", "potential_inconsistencies",
     "average_ai_confidence", "average_verification_seconds", "digitization_progress",
+    "extraction_accuracy",
 }
 
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, String, Text
@@ -60,7 +61,8 @@ class AiFeedback(Base, TimestampMixin):
     """Curated retraining candidates (§67).
 
     Populated from verifier corrections but gated behind human review --
-    nothing here is ever fed to automatic nightly retraining.
+    nothing here is ever fed to automatic nightly retraining. Only rows a
+    reviewer ACCEPTED are exported for training (feedback_service).
     """
 
     __tablename__ = "ai_feedback"
@@ -73,6 +75,15 @@ class AiFeedback(Base, TimestampMixin):
     priority_score: Mapped[float | None] = mapped_column()
     selection_reason: Mapped[str | None] = mapped_column(String(64))
     reviewed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    #: ACCEPTED (a real error worth learning from) or REJECTED (the correction
+    #: itself was wrong, or teaches nothing). NULL until reviewed.
+    review_decision: Mapped[str | None] = mapped_column(String(16), index=True)
+    reviewed_by_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    review_note: Mapped[str | None] = mapped_column(Text)
+    #: The export tag of the training set this row first went into.
     included_in_dataset: Mapped[str | None] = mapped_column(String(64))
 
 

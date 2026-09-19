@@ -32,6 +32,9 @@ datasets/yolo-layout/
 datasets/ocr-cache/
 datasets/metadata/*.json
 
+# Runtime output -- the LRMS file-drop outbox and similar
+var/
+
 # Model weights — never commit large binaries (§78 "models")
 models/checkpoints/
 # Ultralytics writes here when a run does not name a project directory.

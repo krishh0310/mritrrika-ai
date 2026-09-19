@@ -10,8 +10,8 @@ from __future__ import annotations
 import re
 import unicodedata
 
-# AI4Bharat's Indic NLP Library, used for one narrow job: canonicalising
-# Devanagari before anything is compared.
+# AI4Bharat's Indic NLP Library, used for one narrow job: canonicalising Indic
+# text before anything is compared.
 #
 # The case that matters is the nukta. 'क़' can arrive from OCR as a single
 # precomposed codepoint or as 'क' followed by U+093C, and the two are visually
@@ -21,49 +21,112 @@ import unicodedata
 #
 # Optional, like every other model dependency here (§82): absent, normalisation
 # behaves exactly as it did before, which is NFC only.
+
+#: Script -> the Indic NLP normaliser's language code. Each script has its own
+#: canonical forms (nukta in Devanagari, the Telugu and Kannada length marks),
+#: so the normaliser is chosen by the script the text is actually written in.
+_NORMALIZER_LANG = {
+    "devanagari": "hi",
+    "telugu": "te",
+    "tamil": "ta",
+    "kannada": "kn",
+}
+
 try:  # pragma: no cover - exercised by whichever environment is installed
     from indicnlp.normalize.indic_normalize import IndicNormalizerFactory
 
-    _INDIC_NORMALIZER = IndicNormalizerFactory().get_normalizer("hi")
+    _factory = IndicNormalizerFactory()
+    _INDIC_NORMALIZERS = {
+        script: _factory.get_normalizer(lang) for script, lang in _NORMALIZER_LANG.items()
+    }
 except Exception:  # the library is optional and its import touches resources
-    _INDIC_NORMALIZER = None
+    _INDIC_NORMALIZERS = {}
 
-INDIC_NLP_AVAILABLE = _INDIC_NORMALIZER is not None
+INDIC_NLP_AVAILABLE = bool(_INDIC_NORMALIZERS)
+
+#: Unicode block ranges for the scripts above. Duplicated from ocr/scripts.py
+#: rather than imported: normalization must stay importable on its own.
+_SCRIPT_RANGES = (
+    (0x0900, 0x097F, "devanagari"),
+    (0x0B80, 0x0BFF, "tamil"),
+    (0x0C00, 0x0C7F, "telugu"),
+    (0x0C80, 0x0CFF, "kannada"),
+)
 
 
-def canonicalise_devanagari(text: str) -> str:
+def _dominant_script(text: str) -> str | None:
+    counts: dict[str, int] = {}
+    for ch in text:
+        point = ord(ch)
+        for first, last, name in _SCRIPT_RANGES:
+            if first <= point <= last:
+                counts[name] = counts.get(name, 0) + 1
+                break
+    return max(counts, key=counts.get) if counts else None
+
+
+def canonicalise_indic(text: str) -> str:
     """One spelling per word, so comparison means what it appears to mean.
 
     NFC first, because the Indic normaliser expects composed input. Then the
-    library's own pass, which is where the nukta variants converge.
+    library's own pass for the text's script, which is where variants such as
+    the Devanagari nukta forms converge.
     """
     if not text:
         return text
     composed = unicodedata.normalize("NFC", text)
-    if _INDIC_NORMALIZER is None:
+    normalizer = _INDIC_NORMALIZERS.get(_dominant_script(composed) or "devanagari")
+    if normalizer is None:
         return composed
     try:
-        return _INDIC_NORMALIZER.normalize(composed)
+        return normalizer.normalize(composed)
     except Exception:  # pragma: no cover - never fail a value over normalising it
         return composed
 
 
+#: The original name, kept because callers and tests use it. It was always
+#: the whole-value canonicaliser; it is simply no longer Devanagari-only.
+canonicalise_devanagari = canonicalise_indic
+
 DEVANAGARI_DIGITS = "०१२३४५६७८९"
-_DIGIT_MAP = {d: str(i) for i, d in enumerate(DEVANAGARI_DIGITS)}
 
 #: Area units as written on records, mapped to the canonical enum value.
+#: South Indian records state land in acres with guntas (te, kn) or cents
+#: (te, ta), so those units are listed alongside the northern bigha and biswa.
 UNIT_ALIASES: dict[str, str] = {
+    # Hindi
     "बीघा": "BIGHA", "बिघा": "BIGHA", "बीधा": "BIGHA",
     "बिस्वा": "BISWA", "विस्वा": "BISWA",
     "हेक्टेयर": "HECTARE", "हेक्टर": "HECTARE",
     "एकड़": "ACRE", "एकड": "ACRE",
     "वर्ग मीटर": "SQUARE_METRE",
+    # Telugu
+    "ఎకరాలు": "ACRE", "ఎకరం": "ACRE", "ఎకరా": "ACRE",
+    "హెక్టార్లు": "HECTARE", "హెక్టారు": "HECTARE", "హెక్టార్": "HECTARE",
+    "గుంటలు": "GUNTHA", "గుంట": "GUNTHA",
+    "సెంట్లు": "CENT", "సెంటు": "CENT",
+    # Tamil
+    "ஏக்கர்": "ACRE",
+    "ஹெக்டேர்": "HECTARE",
+    "சென்ட்": "CENT",
+    # Kannada
+    "ಎಕರೆ": "ACRE",
+    "ಹೆಕ್ಟೇರ್": "HECTARE",
+    "ಗುಂಟೆ": "GUNTHA",
+    "ಸೆಂಟ್ಸ್": "CENT",
 }
 
 
 def to_ascii_digits(text: str) -> str:
-    """'१४२/२' -> '142/2'. Leaves every non-digit character untouched."""
-    return "".join(_DIGIT_MAP.get(ch, ch) for ch in text)
+    """'१४२/२' -> '142/2', and likewise '౧౪౨', '௧௪௨', '೧೪೨'.
+
+    Any Unicode decimal digit is mapped, so every Indian script's numerals are
+    covered without a table per script. Every other character is untouched.
+    """
+    return "".join(
+        str(unicodedata.decimal(ch)) if not ch.isascii() and ch.isdecimal() else ch
+        for ch in text
+    )
 
 
 def normalize_text(text: str | None) -> str | None:
@@ -212,7 +275,7 @@ def normalize_field(field: str, raw: str | None) -> str | None:
     # Canonicalise the script BEFORE any field-specific rule looks at it, so
     # every rule below compares one spelling rather than two.
     if raw is not None:
-        raw = canonicalise_devanagari(raw)
+        raw = canonicalise_indic(raw)
     if field == "AREA":
         value = normalize_number(raw)
         return None if value is None else f"{value:g}"

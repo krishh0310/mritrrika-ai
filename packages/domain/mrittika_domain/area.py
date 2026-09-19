@@ -20,6 +20,10 @@ SQM_PER_BIGHA = 2529.285          # Uttar Pradesh pucca bigha
 SQM_PER_HECTARE = 10_000.0
 SQM_PER_ACRE = 4046.86
 SQM_PER_BISWA = SQM_PER_BIGHA / 20.0
+#: Unlike the bigha, both of these are fixed fractions of the statute acre
+#: everywhere they are used, so one constant each is correct nationally.
+SQM_PER_GUNTHA = SQM_PER_ACRE / 40.0
+SQM_PER_CENT = SQM_PER_ACRE / 100.0
 
 SQM_PER_UNIT: dict[str, float] = {
     AreaUnit.BIGHA: SQM_PER_BIGHA,
@@ -27,6 +31,8 @@ SQM_PER_UNIT: dict[str, float] = {
     AreaUnit.ACRE: SQM_PER_ACRE,
     AreaUnit.HECTARE: SQM_PER_HECTARE,
     AreaUnit.SQUARE_METRE: 1.0,
+    AreaUnit.GUNTHA: SQM_PER_GUNTHA,
+    AreaUnit.CENT: SQM_PER_CENT,
 }
 
 
@@ -57,6 +63,7 @@ def relative_difference(a_sqm: float, b_sqm: float) -> float:
 
 
 __all__ = [
-    "SQM_PER_ACRE", "SQM_PER_BIGHA", "SQM_PER_BISWA", "SQM_PER_HECTARE",
+    "SQM_PER_ACRE", "SQM_PER_BIGHA", "SQM_PER_BISWA", "SQM_PER_CENT",
+    "SQM_PER_GUNTHA", "SQM_PER_HECTARE",
     "SQM_PER_UNIT", "UnknownAreaUnit", "relative_difference", "to_square_metres",
 ]

@@ -63,7 +63,7 @@ PERMISSIONS: dict[str, list[str]] = {
         "record:search_public", "ocr:view", "confidence:view",
         "document:approve", "document:reject", "document:return",
         "anomaly:view", "gis:view", "ai:query", "audit:view_full",
-        "grievance:review", "analytics:view",
+        "grievance:review", "analytics:view", "integration:sync",
     ],
 }
 

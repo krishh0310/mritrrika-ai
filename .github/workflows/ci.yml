@@ -32,6 +32,9 @@ jobs:
 
       - run: npm ci
 
+      - name: Audit production npm dependencies
+        run: npm audit --omit=dev --audit-level=high
+
       - name: Typecheck web and mobile
         # This is also the key-parity check for the message catalogues: hi.ts
         # is typed Record<MessageKey, string>, so a missing key fails here and
@@ -99,7 +102,10 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements-api.txt
-          pip install ruff pytest
+          pip install ruff pytest pip-audit
+
+      - name: Audit installed Python dependencies
+        run: pip-audit -r requirements-api.txt
 
       - name: Lint
         run: ruff check .

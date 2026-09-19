@@ -424,6 +424,45 @@ export function useTehsildarDashboard() {
   });
 }
 
+/** One slice of the accuracy report: a field or a model version. */
+export type AccuracyRow = {
+  reviewed: number;
+  correct: number;
+  accuracy: number | null;
+};
+
+/** How often the AI's value survived human review (§11). */
+export type ExtractionAccuracy = {
+  accuracy: number | null;
+  fields_reviewed: number;
+  fields_correct: number;
+  fields_corrected: number;
+  fields_not_judged: number;
+  documents_reviewed: number;
+  by_field: (AccuracyRow & { field: string })[];
+  by_model_version: (AccuracyRow & { model_version: string })[];
+};
+
+export type ProgressStage =
+  | "approved"
+  | "awaiting_approval"
+  | "in_verification"
+  | "in_processing"
+  | "needs_attention";
+
+export type LocationProgress = Record<ProgressStage, number> & {
+  location_id: string;
+  name: string;
+  name_local: string | null;
+  level: "STATE" | "DISTRICT" | "TEHSIL" | "VILLAGE";
+  parent_id: string | null;
+  documents: number;
+  parcels: number;
+  parcels_digitized: number;
+  progress: number | null;
+  parcel_coverage: number | null;
+};
+
 export type Analytics = {
   documents_by_state: Record<string, number>;
   documents_by_type: Record<string, number>;
@@ -431,12 +470,89 @@ export type Analytics = {
   anomalies_by_type: Record<string, number>;
   confidence_bands: { HIGH: number; MEDIUM: number; LOW: number };
   workload: { role: string; user_id: string; documents: number }[];
+  extraction_accuracy: ExtractionAccuracy;
+  progress_by_location: {
+    levels: LocationProgress["level"][];
+    stages: ProgressStage[];
+    rows: LocationProgress[];
+  };
 };
 
 export function useAnalytics() {
   return useQuery({
     queryKey: ["dashboard", "analytics"],
     queryFn: () => api.get<Analytics>("/api/v1/dashboard/analytics"),
+  });
+}
+
+// ── LRMS / DILRMP delivery (§14) ─────────────────────────────────────────────
+
+export type LrmsStatus = {
+  adapter: string;
+  counts: { PENDING: number; DELIVERED: number; FAILED: number };
+  approved_not_queued: number;
+  max_attempts: number;
+  recent: {
+    document_id: string;
+    status: "PENDING" | "DELIVERED" | "FAILED";
+    attempts: number;
+    payload_sha256: string;
+    remote_reference: string | null;
+    last_error: string | null;
+    delivered_at: string | null;
+  }[];
+};
+
+export type LrmsSyncResult = {
+  adapter: string;
+  queued_now: number;
+  attempted: number;
+  delivered: number;
+  failed: number;
+};
+
+export const lrmsKeys = { status: ["integrations", "lrms"] as const };
+
+export function useLrmsStatus() {
+  return useQuery({
+    queryKey: lrmsKeys.status,
+    queryFn: () => api.get<LrmsStatus>("/api/v1/integrations/lrms/sync"),
+  });
+}
+
+// ── Retraining pool (§67) ────────────────────────────────────────────────────
+
+export type FeedbackRow = {
+  feedback_id: string;
+  field: string | null;
+  priority_score: number | null;
+  selection_reason: string | null;
+  reviewed: boolean;
+  review_decision: "ACCEPTED" | "REJECTED" | null;
+  included_in_dataset: string | null;
+  confidence_at_correction: number | null;
+  model_version: string | null;
+  has_prediction: boolean;
+};
+
+export type RetrainingPool = {
+  readiness: {
+    reviewed: number;
+    accepted: number;
+    pending_review: number;
+    threshold: number;
+    ready_to_retrain: boolean;
+  };
+  pool: FeedbackRow[];
+};
+
+export const feedbackKeys = { pool: ["ai", "feedback"] as const };
+
+export function useRetrainingPool() {
+  return useQuery({
+    queryKey: feedbackKeys.pool,
+    queryFn: () =>
+      api.get<RetrainingPool>("/api/v1/ai/feedback?reviewed=false&limit=8"),
   });
 }
 

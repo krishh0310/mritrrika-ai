@@ -27,33 +27,16 @@ from difflib import SequenceMatcher
 
 from ocr.provider import TextBlock, group_lines
 
-#: Label variants per field. Multiple spellings because the templates use
-#: different wording on purpose (जिला vs जनपद, ग्राम vs मौजा).
-LABELS: dict[str, list[str]] = {
-    "DISTRICT": ["जिला", "जनपद"],
-    "TEHSIL": ["तहसील"],
-    "VILLAGE": ["ग्राम", "मौजा", "ग्राम / मौजा"],
-    "RECORD_YEAR": ["फसली वर्ष", "वर्ष"],
-    "KHATA": ["खाता सं", "खाता संख्या", "खाता"],
-    "KHASRA": ["खसरा सं", "खसरा संख्या", "खसरा"],
-    "AREA": ["क्षेत्रफल"],
-    "LAND_CLASS": ["भूमि श्रेणी", "श्रेणी"],
-    "MUTATION": ["नामांतरण सं", "नामांतरण संख्या"],
-    "DATE": ["दिनांक"],
-    "GUARDIAN": ["पिता / पति", "पिता", "पति"],
-}
-
-#: Column headings that introduce a table of owners.
-OWNER_COLUMN_LABELS = ["खातेदार का नाम", "नाम", "नवीन खातेदार"]
-SHARE_COLUMN_LABELS = ["अंश"]
-GUARDIAN_COLUMN_LABELS = ["पिता / पति"]
-
-#: Blocks that are chrome, never values.
-CHROME = {
-    "उत्तर प्रदेश", "खसरा", "खतौनी", "नामांतरण पंजिका", "भूमि विवरण",
-    "खातेदारों का विवरण", "प्रमाणित किया जाता है", "हस्ताक्षर / लेखपाल",
-    "डेमो", "मुहर", "क्र.", "टिप्पणी", "प्रकार",
-}
+# The printed vocabulary lives in labels.py, one set per language, merged into
+# these lookups. See that module for why merging is safe.
+from .labels import (
+    CHROME,
+    GUARDIAN_COLUMN_LABELS,
+    LABELS,
+    OWNER_COLUMN_LABELS,
+    SHARE_COLUMN_LABELS,
+    TABLE_TERMINATORS,
+)
 
 SYNTHETIC_NOTICE = "SYNTHETIC"
 
@@ -203,8 +186,10 @@ def _plausible_value(text: str) -> bool:
     # positive is worse than a missing field, because nobody reviews it.
     if ":" in cleaned or "\uff1a" in cleaned:
         return False
-    # Must contain a digit or a Devanagari/Latin letter, not only marks.
-    return bool(re.search(r"[0-9\u0966-\u096F\u0904-\u0939A-Za-z]", cleaned))
+    # Must contain a digit or a letter in some script, not only marks. Vowel
+    # signs and viramas are combining marks (category M), so a fragment made
+    # of nothing else -- 'ि', '్' -- is still rejected in every script.
+    return any(ch.isalnum() for ch in cleaned)
 
 
 def _vertical_overlap(a: TextBlock, b: TextBlock) -> float:
@@ -368,10 +353,6 @@ def extract_scalar_fields(
     return values
 
 
-#: Lines that end the owners table.
-TABLE_TERMINATORS = ("टिप्पणी", "प्रमाणित")
-
-
 def _opens_with(block: TextBlock, terms: tuple[str, ...]) -> bool:
     """Whether a block's first word is (a close OCR rendering of) one of `terms`."""
     words = _norm(block.text).replace(":", " ").split()
@@ -446,7 +427,7 @@ def extract_table_rows(blocks: list[TextBlock]) -> list[ExtractedValue]:
         if ":" in owner_block.text or "\uff1a" in owner_block.text:
             continue
         # A serial-number cell is not a name.
-        if re.fullmatch(r"[०-९0-9.]+", _norm(owner_block.text)):
+        if re.fullmatch(r"[\d.]+", _norm(owner_block.text)):
             continue
 
         values.append(
@@ -487,7 +468,9 @@ def extract_table_rows(blocks: list[TextBlock]) -> list[ExtractedValue]:
         if share_header is not None:
             share_block = column_pick(line, share_header)
             if share_block is not None and share_block is not owner_block:
-                if re.search(r"[०-९0-9]", share_block.text):
+                # \d is Unicode-aware: Devanagari, Telugu, Tamil and Kannada
+                # digits all match, not only ASCII.
+                if re.search(r"\d", share_block.text):
                     values.append(
                         ExtractedValue(
                             field="SHARE",
@@ -561,6 +544,9 @@ def extract(
         values = [v for v in values if v.field != "GUARDIAN"]
     values.extend(rows)
 
+    # Imported here, as before: normalization is a sibling top-level package.
+    from normalization.normalizers import normalize_field, normalize_unit
+
     # AREA_UNIT often sits in the same block as AREA ('२.७५ बीघा'); when it
     # does not, it is the block immediately after AREA.
     area = next((v for v in values if v.field == "AREA"), None)
@@ -569,7 +555,9 @@ def extract(
             if block.bbox[0] >= area.bbox[2] and _vertical_overlap(
                 TextBlock(area.raw_value, 1.0, area.bbox), block
             ) > 0.5:
-                if re.search(r"बीघा|बिस्वा|हेक्टेयर|एकड", block.text):
+                # The normaliser's unit table is the one list of unit words, in
+                # every supported language; a second regex here would drift.
+                if normalize_unit(block.text) is not None:
                     values.append(
                         ExtractedValue(
                             field="AREA_UNIT",
@@ -586,8 +574,6 @@ def extract(
     # Drop anything that cannot be normalised into a usable value. Reporting a
     # field as MISSING is honest and reviewable; emitting 'से:' as a khasra
     # number is a fabricated value that looks like a real extraction (§82).
-    from normalization.normalizers import normalize_field
-
     kept: list[ExtractedValue] = []
     for value in values:
         if normalize_field(value.field, value.raw_value) is None:

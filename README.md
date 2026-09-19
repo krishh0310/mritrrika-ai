@@ -117,11 +117,16 @@ Why each directory exists is documented in
 | | |
 |---|---|
 | [architecture.md](docs/architecture.md) | system shape, runtime topology, why each directory exists |
+| [architecture-assessment.md](docs/architecture-assessment.md) | audited current state, prioritized gaps, incremental change plan |
+| [api.md](docs/api.md) | API contracts, route groups, limits, extension rules |
+| [database.md](docs/database.md) | migration workflow and production database requirements |
+| [ai-ml.md](docs/ai-ml.md) | AI operating contract, query protection, model promotion |
 | [data-model.md](docs/data-model.md) | the schema, and why ownership is not a column |
 | [ai-pipeline.md](docs/ai-pipeline.md) | each stage, its fallback, and what it may claim |
 | [security.md](docs/security.md) | authorization before retrieval, and known limitations |
 | [demo.md](docs/demo.md) | the walkthrough, step by step |
 | [gis-integration.md](docs/gis-integration.md) | WMS/WFS publication, and why GeoServer never sees ownership |
+| [lrms-integration.md](docs/lrms-integration.md) | delivering approved Records of Rights to the state LRMS / DILRMP |
 | [deployment.md](docs/deployment.md) | the intended production target, and the distance from it |
 | [i18n.md](docs/i18n.md) | Hindi and English, and why record values are never translated |
 | [monitoring.md](docs/monitoring.md) | Prometheus and Grafana over the pipeline |
@@ -130,7 +135,7 @@ Why each directory exists is documented in
 ## Tests
 
 ```bash
-.venv/bin/python -m pytest tests                  # 388 collected; 1 data-dependent skip
+.venv/bin/python -m pytest tests                  # 701 collected; 1 data-dependent skip
 npm test                                          # 38 web/mobile unit tests
 npm run lint && npm run typecheck                 # web + mobile
 npm run build && npm run build:mobile             # production web + mobile export

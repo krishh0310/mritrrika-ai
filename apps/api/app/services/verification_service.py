@@ -36,6 +36,7 @@ from app.services import (
     cross_reference_service,
     document_service,
     feedback_service,
+    lrms_service,
     notification_service,
 )
 from app.services.auth_service import (
@@ -177,6 +178,37 @@ def workspace(session: Session, document: Document) -> dict:
     }
 
 
+def _begin_verification(session: Session, document: Document, principal: Principal,
+                        *, doing: str) -> None:
+    """Refuse outside verification; otherwise make sure it has started.
+
+    The first action a verifier takes on a document -- correcting a field,
+    approving one, or submitting a page whose fields were all auto-accepted --
+    moves it to UNDER_VERIFICATION and puts the task in their name. This used
+    to happen on a correction only, so a page the AI read perfectly could not
+    be submitted at all: NEEDS_VERIFICATION -> VERIFIED is not a legal step.
+    """
+    if document.state not in (
+        DocumentState.NEEDS_VERIFICATION.value, DocumentState.UNDER_VERIFICATION.value
+    ):
+        raise VerificationError(
+            f"document {document.external_id} is in state {document.state}; "
+            f"{doing} are only accepted during verification"
+        )
+    if document.state != DocumentState.NEEDS_VERIFICATION.value:
+        return
+    document_service.transition(session, document,
+                                DocumentState.UNDER_VERIFICATION,
+                                principal=principal)
+    task = session.execute(
+        select(VerificationTask).where(VerificationTask.document_id == document.id)
+    ).scalar_one_or_none()
+    if task:
+        task.status = "IN_PROGRESS"
+        task.assigned_to_id = principal.id
+        task.started_at = task.started_at or datetime.now(UTC)
+
+
 def correct_field(
     session: Session,
     extraction_id: str,
@@ -193,25 +225,7 @@ def correct_field(
     document = session.get(Document, extraction.document_id)
     if not document_in_jurisdiction(session, principal, document):
         raise VerificationError(f"no extraction {extraction_id}")
-    if document.state not in (
-        DocumentState.NEEDS_VERIFICATION.value, DocumentState.UNDER_VERIFICATION.value
-    ):
-        raise VerificationError(
-            f"document {document.external_id} is in state {document.state}; "
-            f"corrections are only accepted during verification"
-        )
-
-    if document.state == DocumentState.NEEDS_VERIFICATION.value:
-        document_service.transition(session, document,
-                                    DocumentState.UNDER_VERIFICATION,
-                                    principal=principal)
-        task = session.execute(
-            select(VerificationTask).where(VerificationTask.document_id == document.id)
-        ).scalar_one_or_none()
-        if task:
-            task.status = "IN_PROGRESS"
-            task.assigned_to_id = principal.id
-            task.started_at = task.started_at or datetime.now(UTC)
+    _begin_verification(session, document, principal, doing="corrections")
 
     previous = extraction.effective_value
     extraction.corrected_value = new_value
@@ -255,6 +269,7 @@ def approve_field(session: Session, extraction_id: str, *,
     document = session.get(Document, extraction.document_id)
     if not document_in_jurisdiction(session, principal, document):
         raise VerificationError(f"no extraction {extraction_id}")
+    _begin_verification(session, document, principal, doing="field approvals")
     extraction.status = FieldStatus.VERIFIER_APPROVED
     session.commit()
     return extraction
@@ -278,6 +293,7 @@ def submit_verification(session: Session, document: Document, *,
             f"{len(outstanding)} field(s) still need review: "
             + ", ".join(sorted({e.field for e in outstanding}))
         )
+    _begin_verification(session, document, principal, doing="submissions")
 
     document_service.transition(session, document, DocumentState.VERIFIED,
                                 principal=principal,
@@ -316,6 +332,11 @@ def approve(session: Session, document: Document, *, principal: Principal,
         ).scalars().first()
         if record:
             record.status = "APPROVED"
+
+    # Queue the Record of Rights for the state LRMS in this same transaction,
+    # so every approved record is queued and a rolled-back approval never is.
+    # Delivery itself happens later and may be retried (lrms_service).
+    lrms_service.enqueue(session, document)
 
     for user_id in _citizens_for_parcel(session, document.parcel_id):
         notification_service.notify(

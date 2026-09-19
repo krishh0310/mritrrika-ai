@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from mrittika_domain import DocumentState
-from sqlalchemy import func, select
+from mrittika_domain import DocumentState, FieldStatus
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -18,6 +18,8 @@ from app.models import (
     ApprovalAction,
     Document,
     Extraction,
+    Location,
+    Parcel,
     ProcessingJob,
     VerificationTask,
 )
@@ -25,6 +27,7 @@ from app.services.auth_service import (
     Principal,
     anomaly_jurisdiction_clause,
     document_jurisdiction_clause,
+    jurisdiction_location_ids,
 )
 
 #: §8 bands. Kept here as the reporting cut-points; the fusion that produces
@@ -42,6 +45,35 @@ _DEO_COMPLETED = (
     DocumentState.PENDING_APPROVAL,
     DocumentState.APPROVED,
 )
+
+
+#: Documents a verifier has finished with. Every field on them has been seen
+#: by a person, so each one is evidence about whether the AI was right.
+_HUMAN_REVIEWED = (
+    DocumentState.VERIFIED,
+    DocumentState.PENDING_APPROVAL,
+    DocumentState.APPROVED,
+)
+
+#: Fields the verifier could not judge -- the page was unreadable there, or the
+#: question went upward. Neither says anything about the AI's accuracy.
+_NOT_JUDGED = (FieldStatus.ILLEGIBLE, FieldStatus.ESCALATED)
+
+#: Workflow states grouped into the stages a progress chart shows.
+PROGRESS_STAGES: dict[str, tuple[str, ...]] = {
+    "approved": (DocumentState.APPROVED,),
+    "awaiting_approval": (DocumentState.VERIFIED, DocumentState.PENDING_APPROVAL),
+    "in_verification": (
+        DocumentState.NEEDS_VERIFICATION, DocumentState.UNDER_VERIFICATION,
+    ),
+    "in_processing": (
+        DocumentState.UPLOADED, DocumentState.QUALITY_CHECK,
+        DocumentState.PROCESSING, DocumentState.AI_EXTRACTED,
+    ),
+    "needs_attention": (DocumentState.REJECTED, DocumentState.RESCAN_REQUIRED),
+}
+
+LEVEL_ORDER = ("STATE", "DISTRICT", "TEHSIL", "VILLAGE")
 
 
 def _start_of_today() -> datetime:
@@ -208,6 +240,8 @@ def tehsildar_dashboard(session: Session, principal: Principal) -> dict:
         )
     ).scalar_one()
 
+    accuracy = extraction_accuracy(session, principal)
+
     return {
         "cards": {
             "pending_approval": _count_documents(
@@ -223,8 +257,13 @@ def tehsildar_dashboard(session: Session, principal: Principal) -> dict:
             "digitization_progress": (
                 round(approved / total, 3) if total else 0.0
             ),
+            "extraction_accuracy": accuracy["accuracy"],
         },
-        "totals": {"documents": total, "approved": approved},
+        "totals": {
+            "documents": total,
+            "approved": approved,
+            "accuracy_fields_reviewed": accuracy["fields_reviewed"],
+        },
         "is_synthetic": True,
     }
 
@@ -304,7 +343,202 @@ def analytics(session: Session, principal: Principal) -> dict:
         "anomalies_by_type": by_anomaly,
         "confidence_bands": bands,
         "workload": workload,
+        "extraction_accuracy": extraction_accuracy(session, principal),
+        "progress_by_location": progress_by_location(session, principal),
         "is_synthetic": True,
+    }
+
+
+def extraction_accuracy(session: Session, principal: Principal) -> dict:
+    """How often the AI's value survived human review (§11, §31).
+
+    Measured only on documents a verifier has finished with, because only
+    there has every field been looked at: a field AUTO_ACCEPTED on a document
+    nobody has opened yet is unverified, not correct. On a reviewed document a
+    field counts as correct when the verifier kept the AI's value -- approved
+    it, left it standing, or "corrected" it to the same value -- and as wrong
+    when they changed it.
+
+    This is precision over what the AI extracted. A field the AI missed
+    entirely has no row to count; that is reported by the pipeline as MISSING
+    and is not folded in here, so the figure means one thing.
+
+    Broken down by model version as well as by field, so the effect of a
+    retrained extractor is visible as a change between versions rather than an
+    unexplained drift in one number.
+    """
+    kept = case(
+        (
+            or_(
+                Extraction.corrected_value.is_(None),
+                func.btrim(Extraction.corrected_value)
+                == func.btrim(func.coalesce(Extraction.normalized_value, "")),
+            ),
+            1,
+        ),
+        else_=0,
+    )
+    judged = (
+        document_jurisdiction_clause(session, principal),
+        Document.state.in_(_HUMAN_REVIEWED),
+        Extraction.status.not_in(_NOT_JUDGED),
+    )
+
+    def grouped(column) -> list[dict]:
+        rows = session.execute(
+            select(column, func.count(Extraction.id), func.sum(kept))
+            .join(Document, Document.id == Extraction.document_id)
+            .where(*judged)
+            .group_by(column)
+            .order_by(column)
+        ).all()
+        return [
+            {
+                "key": key,
+                "reviewed": reviewed,
+                "correct": int(correct or 0),
+                "accuracy": round(int(correct or 0) / reviewed, 4) if reviewed else None,
+            }
+            for key, reviewed, correct in rows
+        ]
+
+    reviewed, correct, documents = session.execute(
+        select(
+            func.count(Extraction.id),
+            func.sum(kept),
+            func.count(func.distinct(Extraction.document_id)),
+        )
+        .join(Document, Document.id == Extraction.document_id)
+        .where(*judged)
+    ).one()
+    correct = int(correct or 0)
+
+    not_judged = session.execute(
+        select(func.count(Extraction.id))
+        .join(Document, Document.id == Extraction.document_id)
+        .where(
+            document_jurisdiction_clause(session, principal),
+            Document.state.in_(_HUMAN_REVIEWED),
+            Extraction.status.in_(_NOT_JUDGED),
+        )
+    ).scalar_one()
+
+    return {
+        "accuracy": round(correct / reviewed, 4) if reviewed else None,
+        "fields_reviewed": reviewed,
+        "fields_correct": correct,
+        "fields_corrected": reviewed - correct,
+        "fields_not_judged": not_judged,
+        "documents_reviewed": documents,
+        "by_field": [
+            {"field": row.pop("key"), **row} for row in grouped(Extraction.field)
+        ],
+        "by_model_version": [
+            {"model_version": row.pop("key"), **row}
+            for row in grouped(Extraction.model_version)
+        ],
+    }
+
+
+def progress_by_location(session: Session, principal: Principal) -> dict:
+    """Digitization progress at every level of the revenue hierarchy (§31).
+
+    One row per location in the caller's jurisdiction -- state, district,
+    tehsil, village, as far down as their authority reaches -- each rolled up
+    from the villages beneath it. Locations with no documents yet are included
+    with zeros: "nothing started here" is exactly what a progress view exists
+    to show.
+
+    Two measures, because they answer different questions:
+
+      * `progress` -- of the documents uploaded here, how many are approved.
+        Throughput of the digitization pipeline.
+      * `parcel_coverage` -- of the parcels here, how many have at least one
+        approved record. How much of the land is actually digitized.
+
+    Only the caller's own subtree is reported. A district officer does not get
+    a "state" row: it would carry only their district's numbers under the
+    state's name, which reads as a statewide figure and is not one.
+    """
+    allowed = jurisdiction_location_ids(session, principal)
+    location_query = select(Location)
+    if allowed is not None:
+        location_query = location_query.where(Location.id.in_(allowed))
+    locations = {loc.id: loc for loc in session.execute(location_query).scalars()}
+
+    blank = {stage: 0 for stage in PROGRESS_STAGES}
+    totals: dict[str, dict[str, int]] = {
+        loc_id: {**blank, "documents": 0, "parcels": 0, "parcels_digitized": 0}
+        for loc_id in locations
+    }
+    stage_of = {state: stage for stage, states in PROGRESS_STAGES.items()
+                for state in states}
+
+    def add(village_id: str | None, key: str, amount: int) -> None:
+        """Credit a village and every ancestor of it inside the scope."""
+        node = locations.get(village_id)
+        while node is not None:
+            totals[node.id][key] += amount
+            node = locations.get(node.parent_id)
+
+    village = func.coalesce(Document.village_id, Parcel.village_id)
+    for village_id, state, count in session.execute(
+        select(village, Document.state, func.count(Document.id))
+        .select_from(Document)
+        .outerjoin(Parcel, Parcel.id == Document.parcel_id)
+        .where(document_jurisdiction_clause(session, principal))
+        .group_by(village, Document.state)
+    ).all():
+        add(village_id, "documents", count)
+        if state in stage_of:
+            add(village_id, stage_of[state], count)
+
+    for village_id, count in session.execute(
+        select(Parcel.village_id, func.count(Parcel.id))
+        .where(Parcel.village_id.in_(list(locations)))
+        .group_by(Parcel.village_id)
+    ).all():
+        add(village_id, "parcels", count)
+
+    for village_id, count in session.execute(
+        select(Parcel.village_id, func.count(func.distinct(Parcel.id)))
+        .join(Document, Document.parcel_id == Parcel.id)
+        .where(
+            Parcel.village_id.in_(list(locations)),
+            Document.state == DocumentState.APPROVED,
+        )
+        .group_by(Parcel.village_id)
+    ).all():
+        add(village_id, "parcels_digitized", count)
+
+    rank = {level: i for i, level in enumerate(LEVEL_ORDER)}
+    rows = []
+    for loc in sorted(locations.values(),
+                      key=lambda node: (rank.get(node.level, len(rank)), node.name)):
+        counts = totals[loc.id]
+        parent = locations.get(loc.parent_id)
+        rows.append({
+            "location_id": loc.external_id,
+            "name": loc.name,
+            "name_local": loc.name_devanagari,
+            "level": loc.level,
+            "parent_id": parent.external_id if parent else None,
+            **counts,
+            "progress": (
+                round(counts["approved"] / counts["documents"], 4)
+                if counts["documents"] else None
+            ),
+            "parcel_coverage": (
+                round(counts["parcels_digitized"] / counts["parcels"], 4)
+                if counts["parcels"] else None
+            ),
+        })
+
+    present = {row["level"] for row in rows}
+    return {
+        "levels": [level for level in LEVEL_ORDER if level in present],
+        "stages": list(PROGRESS_STAGES),
+        "rows": rows,
     }
 
 

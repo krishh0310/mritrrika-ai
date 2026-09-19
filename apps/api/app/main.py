@@ -7,7 +7,11 @@ rules live here, never in a frontend.
 from __future__ import annotations
 
 import hmac
+import json
+import logging
+import re
 import time
+import uuid
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -25,6 +29,7 @@ from app.routers import (
     dashboard,
     documents,
     grievances,
+    integrations,
     records,
     workflow,
 )
@@ -33,6 +38,9 @@ from app.services import metrics_service
 from app.services.auth_service import build_principal
 
 settings = get_settings()
+logger = logging.getLogger("mrittika.access")
+
+REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 
 app = FastAPI(
     title="Mrittika AI",
@@ -54,19 +62,63 @@ app.add_middleware(
 
 @app.middleware("http")
 async def record_request_metrics(request: Request, call_next) -> Response:
-    """Time every request for /metrics (§74).
+    """Correlate, harden and time every request (§61, §74).
 
     An unhandled exception is counted as a 500 before being re-raised, so the
     error rate reflects crashes and not only handled failures.
     """
+    supplied_request_id = request.headers.get("x-request-id", "")
+    request_id = (
+        supplied_request_id
+        if REQUEST_ID_PATTERN.fullmatch(supplied_request_id)
+        else uuid.uuid4().hex
+    )
+    request.state.request_id = request_id
     started = time.perf_counter()
     try:
         response = await call_next(request)
     except Exception:
-        metrics_service.requests.observe(500, time.perf_counter() - started)
+        elapsed = time.perf_counter() - started
+        metrics_service.requests.observe(500, elapsed)
+        logger.exception(
+            json.dumps(
+                {
+                    "event": "http_request",
+                    "request_id": request_id,
+                    "method": request.method,
+                    "path": request.url.path,
+                    "status": 500,
+                    "duration_ms": round(elapsed * 1000, 2),
+                },
+                separators=(",", ":"),
+            )
+        )
         raise
-    metrics_service.requests.observe(
-        response.status_code, time.perf_counter() - started
+    elapsed = time.perf_counter() - started
+    metrics_service.requests.observe(response.status_code, elapsed)
+
+    response.headers["X-Request-ID"] = request_id
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    if request.url.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store"
+    if settings.environment.casefold() == "production":
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+
+    logger.info(
+        json.dumps(
+            {
+                "event": "http_request",
+                "request_id": request_id,
+                "method": request.method,
+                "path": request.url.path,
+                "status": response.status_code,
+                "duration_ms": round(elapsed * 1000, 2),
+            },
+            separators=(",", ":"),
+        )
     )
     return response
 
@@ -82,6 +134,7 @@ app.include_router(anomalies.router)
 app.include_router(audit.router)
 app.include_router(records.router)
 app.include_router(ai.router)
+app.include_router(integrations.router)
 
 
 @app.get("/health", tags=["ops"])

@@ -84,7 +84,12 @@ def approve_extraction(
             session, extraction_id, principal=principal
         )
     except VerificationError as exc:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from None
+        # Absent (or out of jurisdiction) is 404; present but past
+        # verification is a conflict with the document's state.
+        missing = str(exc).startswith("no extraction")
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND if missing else status.HTTP_409_CONFLICT, str(exc)
+        ) from None
     return {"extraction_id": extraction.id, "status": extraction.status}
 
 

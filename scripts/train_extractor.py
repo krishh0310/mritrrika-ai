@@ -3,11 +3,20 @@
 
     python scripts/cache_ocr.py --profile v1
     python scripts/build_extraction_dataset.py --profile v1
+    python scripts/export_feedback_dataset.py        # reviewed verifier corrections
     python scripts/train_extractor.py --epochs 20
 
 Trains on what the pipeline actually produces -- real PaddleOCR output over
 degraded pages -- not on the generator's perfect text. See cache_ocr.py for why
 that distinction decides whether the resulting number means anything.
+
+Verifier feedback (§30, §67). When extraction-dataset/feedback.jsonl exists,
+its pages -- production pages whose fields a verifier settled and a reviewer
+accepted -- are added to the TRAINING split, repeated --feedback-weight times.
+They are the scarce, high-value examples: each one exists because the model
+got a real page wrong. They never enter validation, so the validation number
+stays comparable with runs made before any feedback existed. --no-feedback
+trains on the synthetic corpus alone, for exactly that comparison.
 
 The metric printed here is token-level and is NOT the result. The result comes
 from scripts/evaluate_extraction.py --extractor model, which scores whole
@@ -45,11 +54,38 @@ MAX_LENGTH = 512
 #: afford only 20 epochs in the time dynamic padding buys 100+.
 
 
+def read_rows(path: Path) -> list[dict]:
+    return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+
+
+def load_feedback(path: Path, weight: int) -> tuple[list[dict], dict]:
+    """Feedback pages, repeated `weight` times, and a note for the report.
+
+    Refuses a file written against a different label vocabulary: label ids
+    are positions in LABELS, so a mismatch would train every feedback word
+    towards the wrong field without any error.
+    """
+    if not path.exists():
+        return [], {"path": str(path), "pages": 0, "used": False,
+                    "reason": "no feedback file; run scripts/export_feedback_dataset.py"}
+    vocabulary = path.with_suffix(".labels.json")
+    if vocabulary.exists() and json.loads(vocabulary.read_text()) != list(LABELS):
+        raise SystemExit(
+            f"{path} was labelled with a different vocabulary than {BASE_MODEL}'s "
+            "LABELS; re-run scripts/export_feedback_dataset.py"
+        )
+    rows = read_rows(path)
+    tags = sorted({r.get("dataset_tag") for r in rows if r.get("dataset_tag")})
+    return rows * max(weight, 1), {
+        "path": str(path), "pages": len(rows), "weight": weight,
+        "used": bool(rows), "dataset_tags": tags,
+        "feedback_ids": sorted({fid for r in rows for fid in r.get("feedback_ids", [])}),
+    }
+
+
 class PageDataset(Dataset):
-    def __init__(self, path: Path, tokenizer):
-        self.rows = [
-            json.loads(line) for line in path.read_text().splitlines() if line.strip()
-        ]
+    def __init__(self, rows: list[dict], tokenizer):
+        self.rows = rows
         self.tokenizer = tokenizer
 
     def __len__(self) -> int:
@@ -145,6 +181,12 @@ def main() -> None:
     parser.add_argument("--device", default=None)
     parser.add_argument("--name", default="extractor-v1")
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--feedback", default=None,
+                        help="feedback pages (default: <data>/feedback.jsonl)")
+    parser.add_argument("--feedback-weight", type=int, default=3,
+                        help="times each feedback page is repeated in training")
+    parser.add_argument("--no-feedback", action="store_true",
+                        help="train on the synthetic corpus alone")
     args = parser.parse_args()
 
     random.seed(args.seed)
@@ -165,9 +207,19 @@ def main() -> None:
     from transformers import AutoTokenizer
 
     tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL)
-    train = PageDataset(data / "train.jsonl", tokenizer)
-    val = PageDataset(data / "val.jsonl", tokenizer)
-    print(f"train {len(train)} pages, val {len(val)} pages")
+    train_rows = read_rows(data / "train.jsonl")
+    if args.no_feedback:
+        feedback_rows, feedback = [], {"used": False, "pages": 0, "reason": "--no-feedback"}
+    else:
+        feedback_rows, feedback = load_feedback(
+            Path(args.feedback) if args.feedback else data / "feedback.jsonl",
+            args.feedback_weight,
+        )
+    train = PageDataset(train_rows + feedback_rows, tokenizer)
+    val = PageDataset(read_rows(data / "val.jsonl"), tokenizer)
+    print(f"train {len(train_rows)} synthetic pages + {feedback['pages']} feedback "
+          f"pages (x{args.feedback_weight if feedback['used'] else 0}), "
+          f"val {len(val)} pages")
 
     train_loader = DataLoader(
         train, batch_size=args.batch, shuffle=True, collate_fn=collate)
@@ -222,8 +274,9 @@ def main() -> None:
         "trained_at": datetime.now(UTC).isoformat(),
         "base_model": BASE_MODEL,
         "epochs": args.epochs,
-        "train_pages": len(train),
+        "train_pages": len(train_rows),
         "val_pages": len(val),
+        "feedback": feedback,
         "best_val_token_f1": round(best_f1, 4),
         "history": history,
         "note": (

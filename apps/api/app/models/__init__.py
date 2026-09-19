@@ -15,6 +15,7 @@ from .documents import (
 )
 from .geography import Location, Parcel
 from .identity import CitizenProfile, Permission, Role, RolePermission, User, UserRole
+from .integration import LrmsSyncRecord
 from .land import LandRecord, Mutation, Owner, OwnershipRecord
 from .workflow import (
     AnomalyFlag,
@@ -28,7 +29,8 @@ from .workflow import (
 __all__ = [
     "AiFeedback", "AnomalyFlag", "ApprovalAction", "AuditEvent", "Base",
     "CitizenProfile", "Document", "DocumentPage", "Embedding", "Extraction",
-    "FieldCorrection", "Grievance", "LandRecord", "Location", "ModelVersion",
+    "FieldCorrection", "Grievance", "LandRecord", "Location", "LrmsSyncRecord",
+    "ModelVersion",
     "Mutation", "Notification", "OcrBlock", "Owner", "OwnershipRecord",
     "Parcel", "Permission", "ProcessingJob", "Role", "RolePermission", "User",
     "UserRole", "ValidationFinding", "VerificationAction", "VerificationTask",

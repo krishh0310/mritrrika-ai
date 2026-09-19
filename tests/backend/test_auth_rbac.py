@@ -158,6 +158,7 @@ class TestPermissionMatrix:
         "document:reject": {TEHSILDAR},
         "audit:view_full": {TEHSILDAR},
         "analytics:view": {TEHSILDAR},
+        "integration:sync": {TEHSILDAR},
         # Shared across every role.
         "record:search_public": set(ALL_USERS),
         "gis:view": set(ALL_USERS),

@@ -68,12 +68,15 @@ export function CountBars({
   data,
   colour = NAVY,
   unit = "documents",
+  suffix = "",
   height,
   className,
 }: {
   data: Datum[];
   colour?: string;
   unit?: string;
+  /** Printed after each bar's value, e.g. "%" -- a bare number is ambiguous. */
+  suffix?: string;
   height?: number;
   className?: string;
 }) {
@@ -115,6 +118,7 @@ export function CountBars({
             <LabelList
               dataKey="value"
               position="right"
+              formatter={(value: unknown) => `${value}${suffix}`}
               className="id"
               fill="#4f4a40"
               fontSize={11}

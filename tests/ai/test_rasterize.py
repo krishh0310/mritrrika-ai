@@ -20,6 +20,7 @@ sys.path.insert(0, str(REPO_ROOT / "services" / "ai-worker"))
 from ingest.rasterize import (  # noqa: E402
     MAX_LONG_EDGE,
     MAX_PDF_PAGES,
+    MAX_SOURCE_PIXELS,
     decode_pages,
     is_pdf,
 )
@@ -72,6 +73,17 @@ def test_oversized_pages_are_capped():
     huge = to_pdf([page(size=(1240, 1200))], resolution=10)  # ~124in wide
     (image,) = decode_pages(huge)
     assert max(image.shape[:2]) <= MAX_LONG_EDGE
+
+
+def test_large_image_is_bounded_before_inference():
+    (image,) = decode_pages(to_png(page(size=(4000, 1000))))
+    assert max(image.shape[:2]) == MAX_LONG_EDGE
+
+
+def test_excessive_source_pixels_are_refused_before_decode():
+    side = int(MAX_SOURCE_PIXELS**0.5) + 1
+    with pytest.raises(ValueError, match="pixels; at most"):
+        decode_pages(to_png(Image.new("L", (side, side), 255)))
 
 
 def test_too_many_pages_is_refused_with_a_reason():

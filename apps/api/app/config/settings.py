@@ -10,7 +10,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -40,6 +40,10 @@ class Settings(BaseSettings):
     login_rate_limit_failures: int = 5
     login_rate_limit_ip_failures: int = 20
     login_rate_limit_window_seconds: int = 60
+    ai_query_rate_limit_user: int = Field(default=30, ge=1)
+    ai_query_rate_limit_ip: int = Field(default=60, ge=1)
+    ai_query_rate_limit_window_seconds: int = Field(default=60, ge=1)
+    ai_query_daily_quota: int = Field(default=200, ge=1)
 
     # ── storage ───────────────────────────────────────────────────────────
     minio_endpoint: str = "localhost:9000"
@@ -78,6 +82,18 @@ class Settings(BaseSettings):
     # unauthenticated metrics endpoint publishes workload and processing state.
     metrics_scrape_token: str | None = None
 
+    # LRMS / DILRMP delivery (§14). Approved records are queued in an outbox
+    # and delivered through one adapter:
+    #   file      -- write each record as JSON into lrms_outbox_dir, the drop
+    #                folder a state LRMS batch import (or SFTP sync) collects
+    #   http      -- POST each record to lrms_endpoint with a bearer token
+    #   disabled  -- queue only; nothing leaves the system
+    lrms_adapter: str = "file"
+    lrms_outbox_dir: str = str(REPO_ROOT / "var" / "lrms-outbox")
+    lrms_endpoint: str | None = None
+    lrms_api_token: str | None = None
+    lrms_timeout_seconds: float = 15.0
+
     # Notifications (§19). Absent credentials are not an error: the dispatcher
     # falls back to recording the attempt and the in-app notification is still
     # written. See app/services/notification_service.py.
@@ -101,6 +117,9 @@ class Settings(BaseSettings):
     # is reported to the user instead of taking down the API process.
     ocr_provider: str = "gemini"
     ocr_fallback_provider: str = "gemini"
+    #: A PaddleOCR language code, or "auto" to pick the recogniser per page
+    #: from hi/te/ta/ka (slower: one pass per candidate). Gemini reads every
+    #: script and ignores this.
     ocr_lang: str = "hi"
 
     # ── model versions recorded on every prediction (§64) ─────────────────
@@ -127,6 +146,37 @@ class Settings(BaseSettings):
                 "print(secrets.token_urlsafe(64))\""
             )
         return v
+
+    @model_validator(mode="after")
+    def _reject_unsafe_production_defaults(self) -> Settings:
+        """Fail closed when a production process still has local credentials."""
+        if self.environment.casefold() != "production":
+            return self
+
+        problems: list[str] = []
+        if len(self.jwt_secret_key) < 32:
+            problems.append("JWT_SECRET_KEY must contain at least 32 characters")
+        if not self.database_url and self.postgres_password == "change_me_locally":
+            problems.append("POSTGRES_PASSWORD still uses the local default")
+        if self.minio_secret_key == "change_me_locally":
+            problems.append("MINIO_SECRET_KEY still uses the local default")
+        if not self.auth_state_redis_url:
+            problems.append("AUTH_STATE_REDIS_URL is required for shared auth state")
+        if not self.minio_secure:
+            problems.append("MINIO_SECURE must be true")
+        if not self.cors_origins:
+            problems.append("CORS_ALLOW_ORIGINS must contain an HTTPS origin")
+        elif any(
+            not origin.startswith("https://")
+            or "localhost" in origin
+            or "127.0.0.1" in origin
+            for origin in self.cors_origins
+        ):
+            problems.append("CORS_ALLOW_ORIGINS must contain only non-local HTTPS origins")
+
+        if problems:
+            raise ValueError("unsafe production configuration: " + "; ".join(problems))
+        return self
 
     @property
     def sqlalchemy_url(self) -> str:

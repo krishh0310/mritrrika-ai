@@ -24,7 +24,9 @@ export type AreaUnit =
   | 'BISWA'
   | 'ACRE'
   | 'HECTARE'
-  | 'SQUARE_METRE';
+  | 'SQUARE_METRE'
+  | 'GUNTHA'
+  | 'CENT';
 
 export type ConfidenceBand =
   | 'HIGH'

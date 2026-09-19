@@ -94,8 +94,10 @@ Ordered by how load-bearing each one is.
 
 ## Operational notes
 
-* **Secrets** come from the environment. `JWT_SECRET_KEY` refuses to start on
-  the placeholder from `.env.example`; the others do not, and should.
+* **Production configuration fails closed.** Set `ENVIRONMENT=production` only
+  with a 32+ character JWT secret, non-demo database/object-store credentials,
+  `AUTH_STATE_REDIS_URL`, TLS-enabled object storage, and non-local HTTPS CORS
+  origins. The API refuses to start if any invariant is missing.
 * **Migrations** run as a separate step before the API starts, never on API
   boot — two replicas starting at once would race.
 * **The worker recycles** after heavy tasks by design. Do not raise
@@ -106,3 +108,13 @@ Ordered by how load-bearing each one is.
   before it is exposed.
 * **Backups** must cover Postgres *and* object storage. A database restored
   without its documents leaves every record pointing at a missing scan.
+* **Client IPs** for login and AI abuse limits come from the ASGI server's
+  trusted proxy handling. The ingress must replace forwarded-IP headers and
+  Uvicorn must trust only that ingress; never accept client-supplied forwarding
+  headers from the public internet.
+
+The full Compose file is a demo/development topology and intentionally uses
+`ENVIRONMENT=docker`. A production deployment must supply its own secrets,
+TLS ingress, managed backing services, backup policy, and
+`ENVIRONMENT=production`; changing only the Compose environment label is not a
+production deployment.

@@ -113,6 +113,15 @@ the language should pass it and skip routing entirely. This is for the page
 that arrives without provenance. Every decision records the scores it beat, so
 a routing choice is auditable rather than asserted (§64).
 
+### Pages in more than one script, per deployment
+
+`OCR_LANG` names the recogniser for a deployment that knows its language
+(`hi`, `te`, `ta`, `ka`). `OCR_LANG=auto` routes every page through `route()`
+instead, with the engines cached on one `RoutedPaddleProvider` so each model
+loads once per worker process, not once per page. The Gemini vision provider
+reads any script and is prompted to transcribe in the page's own script; each
+block's `script` is measured from the text returned, not assumed.
+
 ### Bounding boxes are stored in ORIGINAL page coordinates
 
 Preprocessing upscales and deskews the image before OCR runs, so the boxes come
@@ -136,6 +145,38 @@ integrated** — an earlier version of this document and of the model registry
 said they were "wired as optional assists", and no code ever referenced them.
 The deterministic path carries the whole load, and every field records the
 model version that produced it (§64).
+
+### Four languages of form labels
+
+Reading a Telugu page is worth nothing if the extractor then searches it for
+`खसरा`. The printed vocabulary lives in `extraction/labels.py`, one set per
+language, in the wording each state's own record uses rather than a
+translation of the Hindi form:
+
+| lang | record | parcel number | holding | tehsil-level unit |
+|---|---|---|---|---|
+| hi | Khasra / Khatauni | खसरा सं | खाता सं | तहसील |
+| te | Pahani / Adangal, 1-B | సర్వే నంబరు | ఖాతా సంఖ్య | మండలం |
+| ta | Chitta / Adangal | புல எண் | பட்டா எண் | வட்டம் |
+| kn | Pahani / RTC | ಸರ್ವೆ ನಂಬರ್ | ಖಾತೆ ಸಂಖ್ಯೆ | ತಾಲ್ಲೂಕು |
+
+All four map onto the same canonical fields. The sets are merged into one
+lookup, which is safe because the scripts occupy disjoint Unicode blocks: a
+Telugu block scores 0.0 against a Devanagari label, so a label can never
+fuzzily match text in another language, and a mixed page needs no switch.
+
+Everything downstream of the labels had to stop assuming Devanagari too:
+native digits in every script normalise to ASCII (`౧౪౨/౨` → `142/2`); the
+southern area units are recognised, with `GUNTHA` (1/40 acre) and `CENT`
+(1/100 acre) added to `AreaUnit`; the plausibility check accepts a letter in
+any script while still rejecting a lone vowel sign; and canonicalisation uses
+the Indic NLP normaliser for the text's own script.
+
+`tests/ai/test_multilingual_extraction.py` lays out a Telugu Pahani, a Tamil
+Chitta and a Kannada RTC in OCR blocks and checks every header field and the
+owners table come out normalised. These are synthetic layouts, not measured
+accuracy on real southern records — there is no such corpus here — and the
+number in the evaluation section remains a Hindi number.
 
 ## Region detection: accurate, and it did not help
 
@@ -399,11 +440,50 @@ Every prediction stores its model version (`ocr-v1`, `extractor-v1`,
 records the version that made the prediction it replaced, which is what makes
 the §67 active-learning pool meaningful.
 
+### Live accuracy
+
+The analytics dashboard reports **extraction accuracy from verifier
+decisions**: on documents a verifier has finished with, the share of AI fields
+kept unchanged. Only finished documents count, because an AUTO_ACCEPTED field
+on a page nobody has opened is unverified, not correct. Fields marked
+illegible or escalated are excluded as unjudged. It is broken down by field and
+by model version, so a retrained extractor shows up as a difference between
+versions. It is precision over what was extracted; fields the AI missed
+entirely are reported as MISSING by the pipeline, not folded in.
+
 Evaluation lives in `scripts/evaluate_extraction.py` and reports per difficulty
 tier (clean / moderate / hard / extreme) rather than as one headline number. §65
 forbids claiming an accuracy figure that has not been measured, and a single
 average over a corpus that is 20% clean and 15% extreme tells you nothing about
 either.
+
+## Learning from corrections
+
+A verifier's correction becomes training data in four steps, each a person's
+decision or an explicit command — never a background job (§67):
+
+1. **Correct.** `correct_field` records a `FieldCorrection` and an unreviewed
+   `ai_feedback` row, ranked by how informative it is (confident-and-wrong
+   first).
+2. **Review.** The tehsildar accepts or rejects it — the retraining pool on
+   the analytics page, or `POST /api/v1/ai/feedback/{id}/review`. Audited.
+   Readiness counts *accepted* rows against the threshold.
+3. **Export.** `scripts/export_feedback_dataset.py` writes every page holding
+   an accepted correction, on a document whose verification is finished, to
+   `datasets/extraction-dataset/feedback.jsonl` — labelled by the same
+   `build_page` as the synthetic corpus. A corrected field is labelled at the
+   OCR block that carries the corrected value, not at the block the AI chose;
+   the AI's box is the wrong answer precisely when it read the wrong block.
+4. **Train.** `scripts/train_extractor.py` adds those pages to the training
+   split (repeated `--feedback-weight` times, default 3) and never to
+   validation, so runs with and without feedback stay comparable
+   (`--no-feedback`). The run report lists the feedback rows it used.
+
+What this does not change: production extraction is the rules extractor, and
+the trained extractor is not in the pipeline (see above). The loop is complete
+up to a checkpoint; promoting one is a measured decision via
+`evaluate_extraction.py --extractor model`, not something a training run does
+by itself.
 
 ## What is NOT implemented
 
@@ -418,5 +498,6 @@ Named here so nothing above reads as a claim (§69):
 | Embeddings / pgvector retrieval | not implemented — the `embeddings` table exists, nothing writes or queries it |
 | Confidence calibration (ECE, reliability diagrams) | planned, not measured |
 | Federated learning, GNN ownership analysis, MAML | research direction only |
-| Bhashini, DILRMP, BhuNaksha integration | not connected to anything |
+| State LRMS / DILRMP | approved records are queued and delivered by a file-drop or HTTP adapter ([lrms-integration.md](lrms-integration.md)); **not connected to a live state server** — no endpoint or credentials exist for one |
+| Bhashini, BhuNaksha integration | not connected to anything |
 | Continuous autonomous retraining | deliberately absent (§67) |

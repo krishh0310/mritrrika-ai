@@ -22,6 +22,8 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from .scripts import SCRIPT_TO_LANG, detect_script
+
 logger = logging.getLogger(__name__)
 
 
@@ -203,7 +205,7 @@ class PaddleOcrProvider(OcrProvider):
                         text=str(text),
                         confidence=float(score),
                         bbox=(x1, y1, x2, y2),
-                        script="devanagari" if self.lang == "hi" else self.lang,
+                        script=_script_for_lang(self.lang),
                     )
                 )
 
@@ -266,8 +268,10 @@ class GeminiVisionOcrProvider(OcrProvider):
                             "type": "text",
                             "text": (
                                 "Transcribe every line of visible text exactly as written, "
-                                "preserving Devanagari digits and spelling. One line per "
-                                "output line. Do not translate, explain or add commentary."
+                                "in the script it is written in (Devanagari, Telugu, Tamil, "
+                                "Kannada or any other), preserving the native digits and "
+                                "spelling. One line per output line. Do not translate, "
+                                "transliterate, explain or add commentary."
                             ),
                         },
                     ],
@@ -299,7 +303,9 @@ class GeminiVisionOcrProvider(OcrProvider):
                 # precise-looking one, and flag the result as degraded.
                 confidence=0.55,
                 bbox=(0, int(i * step), width, int((i + 1) * step)),
-                script="devanagari",
+                # Measured from the text returned, not assumed: this provider
+                # reads whatever script the page is in.
+                script=detect_script(line),
             )
             for i, line in enumerate(lines)
         ]
@@ -310,6 +316,14 @@ class GeminiVisionOcrProvider(OcrProvider):
             provider=self.name,
             degraded=True,
         )
+
+
+def _script_for_lang(lang: str) -> str:
+    """The script name a recogniser language reads, for the block's `script`."""
+    for script, code in SCRIPT_TO_LANG.items():
+        if code == lang:
+            return script
+    return lang
 
 
 class OcrEngine:
@@ -411,6 +425,7 @@ def route(
     candidates: Sequence[str] = ("hi", "te", "ta", "ka"),
     *,
     detection_model: str | None = None,
+    providers: dict[str, PaddleOcrProvider] | None = None,
 ) -> RoutingDecision:
     """Identify a page's script by recognising it with each candidate (§6).
 
@@ -420,9 +435,12 @@ def route(
     each candidate and comparing is slower but has no failure mode of its own
     -- the answer is judged on the output it actually produced.
 
-    It is correspondingly expensive: one engine load and one pass per
-    candidate. Callers that know the language should say so and skip this
-    entirely; this is for the page that arrives without provenance.
+    It is correspondingly expensive: one pass per candidate, and one engine
+    load per candidate unless `providers` carries engines already loaded --
+    which a long-lived caller should pass, so each model loads once per
+    process rather than once per page. Callers that know the language should
+    say so and skip this entirely; this is for the page that arrives without
+    provenance.
     """
     from .scripts import SCRIPT_TO_LANG, UnsupportedScript, profile
 
@@ -435,7 +453,12 @@ def route(
     considered: dict[str, float] = {}
 
     for lang in usable:
-        provider = PaddleOcrProvider(lang=lang, detection_model=detection_model)
+        if providers is not None:
+            provider = providers.setdefault(
+                lang, PaddleOcrProvider(lang=lang, detection_model=detection_model)
+            )
+        else:
+            provider = PaddleOcrProvider(lang=lang, detection_model=detection_model)
         try:
             result = provider.recognize(image)
         except OcrUnavailable as exc:
@@ -462,6 +485,54 @@ def route(
     return best
 
 
+class RoutedPaddleProvider(OcrProvider):
+    """PaddleOCR with the recogniser chosen per page (§6).
+
+    Used when the deployment receives pages in more than one script and the
+    upload does not say which. Each page is read by every candidate recogniser
+    and the one whose output is most confidently IN its own script wins (see
+    `route`). Engines are cached on the instance, so each loads once.
+
+    Several times slower than a fixed language -- one pass per candidate -- so
+    a single-state deployment should name its language instead.
+    """
+
+    name = "paddle-routed"
+
+    def __init__(
+        self,
+        candidates: Sequence[str] = ("hi", "te", "ta", "ka"),
+        model_version: str = "ocr-v1",
+        detection_model: str | None = None,
+    ) -> None:
+        self.candidates = tuple(candidates)
+        self.model_version = model_version
+        self.detection_model = detection_model
+        self._providers: dict[str, PaddleOcrProvider] = {}
+        #: The last page's routing decision, for the caller's audit trail.
+        self.last_decision: RoutingDecision | None = None
+
+    def recognize(self, image: np.ndarray) -> OcrResult:
+        from .scripts import UnsupportedScript
+
+        try:
+            decision = route(
+                image, self.candidates,
+                detection_model=self.detection_model, providers=self._providers,
+            )
+        except UnsupportedScript as exc:
+            raise OcrUnavailable(str(exc)) from exc
+        self.last_decision = decision
+        result = decision.result
+        result.model_version = self.model_version
+        result.provider = f"paddle:{decision.lang}"
+        return result
+
+
+#: `OCR_LANG=auto` routes each page across these recognisers.
+AUTO_LANG = "auto"
+
+
 def build_default_engine(
     provider: str = "paddle",
     lang: str = "hi",
@@ -469,7 +540,11 @@ def build_default_engine(
     gemini_model: str = "gemini-3.6-flash",
     detection_model: str | None = DETECTION_MODEL,
 ) -> OcrEngine:
-    paddle = PaddleOcrProvider(lang=lang, detection_model=detection_model)
+    paddle: OcrProvider = (
+        RoutedPaddleProvider(detection_model=detection_model)
+        if lang == AUTO_LANG
+        else PaddleOcrProvider(lang=lang, detection_model=detection_model)
+    )
     gemini = GeminiVisionOcrProvider(api_key=gemini_api_key, model=gemini_model)
     if provider == "gemini":
         # A Paddle native crash is a process-level SIGSEGV and cannot be

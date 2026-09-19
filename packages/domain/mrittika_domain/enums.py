@@ -119,10 +119,12 @@ class FieldName(StrEnum):
 
 
 class AreaUnit(StrEnum):
-    """Area units found in North Indian land records.
+    """Area units found in Indian land records.
 
     Stored as the unit actually written on the document; conversion to a
     canonical unit is a separate, explicit step so the original is never lost.
+    BIGHA and BISWA are northern; GUNTHA and CENT are the southern subdivisions
+    of the acre (Telangana, Andhra Pradesh, Karnataka, Tamil Nadu).
     """
 
     BIGHA = "BIGHA"
@@ -130,6 +132,8 @@ class AreaUnit(StrEnum):
     ACRE = "ACRE"
     HECTARE = "HECTARE"
     SQUARE_METRE = "SQUARE_METRE"
+    GUNTHA = "GUNTHA"
+    CENT = "CENT"
 
 
 class MutationType(StrEnum):

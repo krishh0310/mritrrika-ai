@@ -30,7 +30,7 @@
       "name": "extractor-v1",
       "kind": "extraction",
       "provider": "rules",
-      "description": "Deterministic rules over OCR blocks: fuzzy label matching, then value-right, inline and value-below strategies, plus table-column extraction. Values that cannot be normalised are dropped and reported missing.",
+      "description": "Deterministic rules over OCR blocks: fuzzy label matching against Hindi, Telugu, Tamil and Kannada form labels, then value-right, inline and value-below strategies, plus table-column extraction. Values that cannot be normalised are dropped and reported missing.",
       "notes": "Rules first: each value records which strategy found it. Unsuccessful model experiments are documented separately in docs/ai-pipeline.md.",
       "training_status": "not_applicable_rules"
     },

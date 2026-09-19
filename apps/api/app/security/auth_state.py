@@ -17,6 +17,7 @@ from app.config.settings import get_settings
 
 _lock = threading.Lock()
 _attempts: dict[str, tuple[int, float]] = {}
+_usage: dict[str, tuple[int, float]] = {}
 _consumed_tokens: dict[str, float] = {}
 
 
@@ -27,6 +28,11 @@ class LoginRateLimited(Exception):
 
 class RefreshTokenReplay(Exception):
     pass
+
+
+@dataclass
+class AiRateLimited(Exception):
+    retry_after: int
 
 
 def _digest(value: str) -> str:
@@ -134,8 +140,51 @@ def revoke_refresh_token(jti: str, expires_at: int) -> None:
         pass
 
 
+def consume_ai_query(user_id: str, client_ip: str) -> None:
+    """Consume per-user, per-IP and daily AI allowance atomically per key."""
+    settings = get_settings()
+    limits = (
+        (
+            f"ai:minute:user:{_digest(user_id)}",
+            settings.ai_query_rate_limit_user,
+            settings.ai_query_rate_limit_window_seconds,
+        ),
+        (
+            f"ai:minute:ip:{_digest(client_ip)}",
+            settings.ai_query_rate_limit_ip,
+            settings.ai_query_rate_limit_window_seconds,
+        ),
+        (
+            f"ai:day:user:{_digest(user_id)}",
+            settings.ai_query_daily_quota,
+            86_400,
+        ),
+    )
+    backend = _redis()
+    now = time.monotonic()
+
+    for key, limit, window in limits:
+        if backend is not None:
+            count = backend.incr(key)
+            if count == 1:
+                backend.expire(key, window)
+            if count > limit:
+                raise AiRateLimited(max(1, backend.ttl(key)))
+            continue
+
+        with _lock:
+            count, expires = _usage.get(key, (0, 0.0))
+            if expires <= now:
+                count, expires = 0, now + window
+            count += 1
+            _usage[key] = (count, expires)
+            if count > limit:
+                raise AiRateLimited(max(1, int(expires - now)))
+
+
 def reset_memory_state() -> None:
     """Test helper; production Redis state is deliberately untouched."""
     with _lock:
         _attempts.clear()
+        _usage.clear()
         _consumed_tokens.clear()

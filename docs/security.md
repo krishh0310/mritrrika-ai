@@ -50,6 +50,10 @@ IP/email pair. Production and full-compose environments share that state in
 Redis; the in-memory fallback exists only for single-process local development.
 A successful login clears the account-specific failure bucket.
 
+Grounded AI queries are separately limited by user, source IP, and a per-user
+daily quota before retrieval or provider use. The counters use the same shared
+Redis backend in production and return HTTP 429 with `Retry-After`.
+
 Refresh tokens are rotated on use. Replaying a consumed token returns 401, and
 logout idempotently revokes the supplied refresh token. The already-issued
 access token remains usable only for its short configured lifetime.
@@ -142,6 +146,11 @@ leave an entry claiming it happened.
 
 `.env.example` is committed; `.env` is not. No production secret is hardcoded,
 and CI has no credentials in it.
+
+When `ENVIRONMENT=production`, startup fails if the JWT is weak, database or
+object-store credentials retain local defaults, shared Redis auth state is not
+configured, object storage is not TLS-enabled, or CORS contains a non-HTTPS or
+local origin. This turns deployment guidance into an enforced invariant.
 
 The demo password lives in the seed configuration, not in source. It is a demo
 password for a synthetic dataset — but it is still read from the environment so

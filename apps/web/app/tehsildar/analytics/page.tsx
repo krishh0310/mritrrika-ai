@@ -1,6 +1,8 @@
 "use client";
 
 import { BURNT, ConfidenceSplit, CountBars, toData } from "@/components/tehsildar/charts";
+import { LrmsSyncCard, RetrainingPoolCard } from "@/components/tehsildar/operations-cards";
+import { ProgressByLocation } from "@/components/tehsildar/progress-by-location";
 import { QueryBoundary } from "@/components/shared/query-boundary";
 import { PageHeader } from "@/components/shell/app-shell";
 import { useAnalytics } from "@/lib/queries";
@@ -20,13 +22,57 @@ export default function AnalyticsPage() {
     <>
       <PageHeader
         title="Analytics"
-        description="Where documents are, how they were scanned, and how confident the models were."
+        description="Progress across your jurisdiction, how accurate the models were, and what is flowing to the state LRMS."
         actions={<SyntheticNotice className="self-center" />}
       />
 
       <QueryBoundary query={analytics} label="the analytics">
         {(data) => (
           <div className="grid gap-5 lg:grid-cols-2">
+            <Card className="lg:col-span-2">
+              <CardHeader
+                title="Digitization progress by location"
+                description="Every level of your jurisdiction, each rolled up from the villages beneath it."
+              />
+              <ProgressByLocation
+                levels={data.progress_by_location.levels}
+                rows={data.progress_by_location.rows}
+              />
+            </Card>
+
+            <Card>
+              <CardHeader
+                title="Extraction accuracy by field"
+                description={
+                  data.extraction_accuracy.accuracy === null
+                    ? "No verified documents yet."
+                    : `${(data.extraction_accuracy.accuracy * 100).toFixed(1)}% of ${data.extraction_accuracy.fields_reviewed} fields kept unchanged by verifiers, across ${data.extraction_accuracy.documents_reviewed} documents.`
+                }
+              />
+              <div className="p-5">
+                <CountBars
+                  // Sample size in the label: 100% of 3 fields and 100% of 300
+                  // are not the same claim.
+                  data={data.extraction_accuracy.by_field
+                    .filter((row) => row.accuracy !== null)
+                    .map((row) => ({
+                      name: `${row.field.replaceAll("_", " ").toLowerCase()} (${row.reviewed})`,
+                      value: Math.round((row.accuracy ?? 0) * 1000) / 10,
+                    }))}
+                  unit="% kept unchanged"
+                  suffix="%"
+                />
+                {data.extraction_accuracy.by_model_version.length > 1 ? (
+                  <p className="mt-3 border-t border-sand-100 pt-3 text-xs text-sand-500">
+                    By model version:{" "}
+                    {data.extraction_accuracy.by_model_version
+                      .map((v) => `${v.model_version} ${Math.round((v.accuracy ?? 0) * 1000) / 10}%`)
+                      .join(" · ")}
+                  </p>
+                ) : null}
+              </div>
+            </Card>
+
             <Card>
               <CardHeader
                 title="Documents by workflow state"
@@ -84,6 +130,9 @@ export default function AnalyticsPage() {
                 />
               </div>
             </Card>
+
+            <LrmsSyncCard />
+            <RetrainingPoolCard />
           </div>
         )}
       </QueryBoundary>
