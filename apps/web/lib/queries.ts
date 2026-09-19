@@ -454,7 +454,7 @@ export type LocationProgress = Record<ProgressStage, number> & {
   location_id: string;
   name: string;
   name_local: string | null;
-  level: "STATE" | "DISTRICT" | "TEHSIL" | "VILLAGE";
+  level: "COUNTRY" | "STATE" | "DISTRICT" | "TEHSIL" | "VILLAGE";
   parent_id: string | null;
   documents: number;
   parcels: number;

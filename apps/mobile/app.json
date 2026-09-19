@@ -29,7 +29,8 @@
         }
       ],
       "expo-secure-store",
-      "expo-status-bar"
+      "expo-status-bar",
+      "expo-notifications"
     ],
     "extra": {
       "apiUrl": "http://localhost:8000"

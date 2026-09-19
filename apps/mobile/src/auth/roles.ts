@@ -18,7 +18,10 @@ export type CurrentUser = {
   is_synthetic: boolean;
 };
 
-export const ROLES = ["CITIZEN", "DEO", "VERIFIER", "TEHSILDAR"] as const;
+export const ROLES = [
+  "CITIZEN", "DEO", "VERIFIER", "TEHSILDAR",
+  "STATE_OFFICER", "CENTRAL_OFFICER", "SURVEYOR", "RESEARCHER",
+] as const;
 export type Role = (typeof ROLES)[number];
 
 export const ROLE_LABELS: Record<Role, string> = {
@@ -26,6 +29,10 @@ export const ROLE_LABELS: Record<Role, string> = {
   DEO: "Data Entry Operator",
   VERIFIER: "Verifier / Lekhpal",
   TEHSILDAR: "Tehsildar",
+  STATE_OFFICER: "State Revenue Officer",
+  CENTRAL_OFFICER: "Central Ministry Officer",
+  SURVEYOR: "Survey Department",
+  RESEARCHER: "Research Institution",
 };
 
 /**

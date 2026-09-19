@@ -38,7 +38,7 @@ from app.models import (  # noqa: E402
 )
 from app.security.passwords import hash_password  # noqa: E402
 from mrittika_domain import SyntheticWorld  # noqa: E402
-from sqlalchemy import func, select  # noqa: E402
+from sqlalchemy import delete, func, select  # noqa: E402
 from sqlalchemy.orm import Session  # noqa: E402
 
 #: §36 capabilities, granted per role. Enforced server-side; the frontend never
@@ -64,6 +64,29 @@ PERMISSIONS: dict[str, list[str]] = {
         "document:approve", "document:reject", "document:return",
         "anomaly:view", "gis:view", "ai:query", "audit:view_full",
         "grievance:review", "analytics:view", "integration:sync",
+    ],
+    # Read-only stakeholders. Nothing here changes a record; each sees only
+    # its own jurisdiction (the state, the whole country, or a district).
+    "STATE_OFFICER": [
+        "record:search_public", "gis:view", "analytics:view", "anomaly:view",
+        "audit:view_full",
+    ],
+    "CENTRAL_OFFICER": [
+        "record:search_public", "gis:view", "analytics:view", "anomaly:view",
+    ],
+    # The survey department's concern is the cadastre: the map, and where the
+    # records and the geometry disagree.
+    "SURVEYOR": [
+        "record:search_public", "gis:view", "anomaly:view",
+    ],
+    # Aggregates and an anonymised export -- never names, never a parcel id.
+    "RESEARCHER": [
+        "analytics:view", "research:export",
+    ],
+    # A state LRMS calling in with an API key: read records, pull and push
+    # Records of Rights. It cannot touch the workflow.
+    "INTEGRATION": [
+        "record:search_public", "gis:view", "integration:sync",
     ],
 }
 
@@ -149,7 +172,7 @@ def seed(session: Session, world: SyntheticWorld, password: str) -> dict[str, in
 
     # Locations, parents first so parent_id always resolves.
     location_ids: dict[str, str] = {}
-    for level in ("STATE", "DISTRICT", "TEHSIL", "VILLAGE"):
+    for level in ("COUNTRY", "STATE", "DISTRICT", "TEHSIL", "VILLAGE"):
         for loc in (x for x in world.locations if x.level == level):
             row = upsert(
                 session, Location, loc.location_id,
@@ -216,6 +239,19 @@ def seed(session: Session, world: SyntheticWorld, password: str) -> dict[str, in
             valid_to=record.valid_to,
             status=record.status,
         )
+
+    # A world is the whole truth about its parcels. Upserting alone left rows
+    # from a previously seeded profile in place: slice1 and v1 share parcel ids
+    # but not histories, so PARCEL-UP-DEMO-0181 ended up with two ACTIVE holders.
+    seeded = list(parcel_ids.values())
+    session.execute(delete(OwnershipRecord).where(
+        OwnershipRecord.parcel_id.in_(seeded),
+        OwnershipRecord.external_id.not_in([r.ownership_id for r in world.ownership]),
+    ))
+    session.execute(delete(Mutation).where(
+        Mutation.parcel_id.in_(seeded),
+        Mutation.external_id.not_in([m.mutation_id for m in world.mutations]),
+    ))
 
     for record in world.land_records:
         upsert(
@@ -296,6 +332,9 @@ def main() -> int:
 
     with SessionLocal() as session:
         counts = seed(session, world, password)
+        from app.services.embedding_service import reindex_approved
+
+        counts["embeddings"] = reindex_approved(session)
 
     print("seeded:")
     for key, value in counts.items():

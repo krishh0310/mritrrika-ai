@@ -5,6 +5,7 @@ import { LrmsSyncCard, RetrainingPoolCard } from "@/components/tehsildar/operati
 import { ProgressByLocation } from "@/components/tehsildar/progress-by-location";
 import { QueryBoundary } from "@/components/shared/query-boundary";
 import { PageHeader } from "@/components/shell/app-shell";
+import { useAuth } from "@/lib/auth-context";
 import { useAnalytics } from "@/lib/queries";
 import { Card, CardHeader, DOCUMENT_STATES, SyntheticNotice } from "@mrittika/ui";
 
@@ -17,12 +18,19 @@ import { Card, CardHeader, DOCUMENT_STATES, SyntheticNotice } from "@mrittika/ui
  */
 export default function AnalyticsPage() {
   const analytics = useAnalytics();
+  // The page is shared with the read-only oversight roles; the delivery queue
+  // and the retraining pool are the tehsildar's to act on.
+  const { can } = useAuth();
 
   return (
     <>
       <PageHeader
         title="Analytics"
-        description="Progress across your jurisdiction, how accurate the models were, and what is flowing to the state LRMS."
+        description={
+          can("integration:sync")
+            ? "Progress across your jurisdiction, how accurate the models were, and what is flowing to the state LRMS."
+            : "Progress across your jurisdiction, and how accurate the models were."
+        }
         actions={<SyntheticNotice className="self-center" />}
       />
 
@@ -131,8 +139,8 @@ export default function AnalyticsPage() {
               </div>
             </Card>
 
-            <LrmsSyncCard />
-            <RetrainingPoolCard />
+            {can("integration:sync") ? <LrmsSyncCard /> : null}
+            {can("document:approve") ? <RetrainingPoolCard /> : null}
           </div>
         )}
       </QueryBoundary>

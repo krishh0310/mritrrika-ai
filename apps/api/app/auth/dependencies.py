@@ -7,10 +7,13 @@ because `current_principal` alone confers no capability.
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Callable
+from datetime import UTC, datetime
 
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db import get_session
@@ -19,6 +22,9 @@ from app.security.tokens import TokenError, decode_token
 from app.services.auth_service import Principal, build_principal
 
 bearer_scheme = HTTPBearer(auto_error=False)
+#: Other government systems authenticate with a key instead of a login. See
+#: scripts/api_keys.py and models.ApiKey.
+api_key_scheme = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 CREDENTIALS_ERROR = HTTPException(
     status_code=status.HTTP_401_UNAUTHORIZED,
@@ -27,16 +33,36 @@ CREDENTIALS_ERROR = HTTPException(
 )
 
 
+def hash_api_key(key: str) -> str:
+    """SHA-256 is enough here: a key is 32 random bytes, not a password."""
+    return hashlib.sha256(key.encode()).hexdigest()
+
+
 def current_principal(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    api_key: str | None = Depends(api_key_scheme),
     session: Session = Depends(get_session),
 ) -> Principal:
-    """Resolve the caller from their token.
+    """Resolve the caller from their token, or from an API key.
 
     The token supplies only a subject id. Role, permissions and owner link are
     re-read from the database every request, so nothing the client sends
-    influences authority (§12).
+    influences authority (§12). An API key resolves to its service user and
+    is then exactly as authorized as that user.
     """
+    if api_key:
+        from app.models import ApiKey
+
+        row = session.execute(
+            select(ApiKey).where(ApiKey.key_hash == hash_api_key(api_key))
+        ).scalar_one_or_none()
+        user = user_repository.get_by_id(session, row.user_id) if row else None
+        if row is None or row.revoked_at is not None or user is None or not user.is_active:
+            raise CREDENTIALS_ERROR
+        row.last_used_at = datetime.now(UTC)
+        session.commit()
+        return build_principal(session, user)
+
     if credentials is None or not credentials.credentials:
         raise CREDENTIALS_ERROR
     try:

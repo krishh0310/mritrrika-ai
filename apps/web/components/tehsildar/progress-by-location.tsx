@@ -8,6 +8,7 @@ import { cn, Table, Td, Th } from "@mrittika/ui";
 import { NAVY } from "./charts";
 
 const LEVEL_LABEL: Record<LocationProgress["level"], string> = {
+  COUNTRY: "Country",
   STATE: "State",
   DISTRICT: "District",
   TEHSIL: "Tehsil",

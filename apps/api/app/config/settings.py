@@ -104,12 +104,25 @@ class Settings(BaseSettings):
     msg91_auth_key: str | None = None
     msg91_sender_id: str | None = None
     msg91_pe_id: str | None = None
+    #: Email (stdlib SMTP). Unset host = no email is attempted.
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_sender: str | None = None
+    smtp_starttls: bool = True
+    #: Expo push needs no credentials; a token raises the per-project limits.
+    expo_push_enabled: bool = True
+    expo_access_token: str | None = None
 
     llm_provider: str = "gemini"
     gemini_api_key: str | None = None
     gemini_llm_model: str = "gemini-3.6-flash"
     gemini_embedding_model: str = "text-embedding-004"
     embedding_dim: int = 768
+    #: "ngram" (default: offline, stdlib, lexical) or "gemini" (semantic; needs
+    #: GEMINI_API_KEY). Changing it needs a reindex: vectors never mix.
+    embedding_provider: str = "ngram"
     groq_api_key: str | None = None
     groq_model: str = "openai/gpt-oss-20b"
     # Paddle's native runtime can terminate the entire interpreter on some

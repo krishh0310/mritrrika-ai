@@ -23,6 +23,7 @@ import {
 } from "react";
 
 import { ApiError, api } from "../api/client";
+import { registerForPush, unregisterPush } from "../notifications/push";
 import { clearTokens, readTokens, writeTokens } from "../storage/session";
 import { experienceFor, type CurrentUser, type Experience } from "./roles";
 
@@ -85,10 +86,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const me = await api.get<CurrentUser>("/api/v1/auth/me");
     setUser(me);
+    void registerForPush();
     return me;
   }, []);
 
   const signOut = useCallback(async () => {
+    // While the session still exists: clearing the token needs it.
+    await unregisterPush();
     const tokens = await readTokens();
     await clearTokens();
     setUser(null);

@@ -62,6 +62,9 @@ VILLAGE_SITES: dict[str, VillageSite] = {
     "LOC-VIL-02": VillageSite("LOC-VIL-02", "मुड़ियाकला", 80.9055, 26.8040, radius_for(20)),
     "LOC-VIL-03": VillageSite("LOC-VIL-03", "बरगदही", 80.9110, 26.7960, radius_for(20)),
     "LOC-VIL-04": VillageSite("LOC-VIL-04", "सोनवर्षा", 80.8945, 26.8055, radius_for(20)),
+    # The second state (Bihar), near Muzaffarpur.
+    "LOC-VIL-BR-01": VillageSite("LOC-VIL-BR-01", "सरैया", 85.3900, 26.1200, radius_for(20)),
+    "LOC-VIL-BR-02": VillageSite("LOC-VIL-BR-02", "कटरा", 85.3955, 26.1240, radius_for(20)),
 }
 
 

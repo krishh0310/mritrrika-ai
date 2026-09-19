@@ -13,3 +13,10 @@ VERIFIER = "lekhpal@mrittika.demo"
 TEHSILDAR = "tehsildar@mrittika.demo"
 
 ALL_USERS = [CITIZEN_A, CITIZEN_B, DEO, VERIFIER, TEHSILDAR]
+
+# Read-only stakeholders.
+STATE_OFFICER = "state@mrittika.demo"
+CENTRAL_OFFICER = "central@mrittika.demo"
+SURVEYOR = "survey@mrittika.demo"
+RESEARCHER = "research@mrittika.demo"
+STAKEHOLDERS = [STATE_OFFICER, CENTRAL_OFFICER, SURVEYOR, RESEARCHER]

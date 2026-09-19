@@ -68,7 +68,7 @@ def review_feedback(
     feedback_id: str,
     decision: str = Body(..., embed=True, max_length=16),
     note: str | None = Body(None, embed=True, max_length=1000),
-    principal: Principal = Depends(require("analytics:view")),
+    principal: Principal = Depends(require("document:approve")),
     session: Session = Depends(get_session),
 ) -> dict:
     """Accept a verifier correction into the training pool, or reject it (§67).

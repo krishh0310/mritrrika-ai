@@ -19,6 +19,8 @@ from app.models import (
     Document,
     Extraction,
     Location,
+    Mutation,
+    OwnershipRecord,
     Parcel,
     ProcessingJob,
     VerificationTask,
@@ -73,7 +75,7 @@ PROGRESS_STAGES: dict[str, tuple[str, ...]] = {
     "needs_attention": (DocumentState.REJECTED, DocumentState.RESCAN_REQUIRED),
 }
 
-LEVEL_ORDER = ("STATE", "DISTRICT", "TEHSIL", "VILLAGE")
+LEVEL_ORDER = ("COUNTRY", "STATE", "DISTRICT", "TEHSIL", "VILLAGE")
 
 
 def _start_of_today() -> datetime:
@@ -580,3 +582,72 @@ __all__ = [
     "analytics", "approval_queue_detail", "deo_dashboard", "tehsildar_dashboard",
     "verifier_dashboard",
 ]
+
+
+RESEARCH_COLUMNS = (
+    "state", "district", "tehsil", "village", "area_sqm", "land_class",
+    "current_holders", "mutations", "last_mutation_year", "digitized",
+)
+
+
+def research_rows(session: Session, principal: Principal) -> list[dict]:
+    """One anonymised row per parcel in the caller's jurisdiction (§15).
+
+    For research institutions: land-holding structure and digitization, with
+    nothing that names a person or a plot. Dropped: owner and guardian names,
+    parcel id, khasra and khata numbers, geometry. Area is rounded to 100 m^2
+    so it cannot be matched back to a recorded figure, and rows are ordered by
+    village then area, not by khasra, so position does not identify a plot.
+    """
+    from mrittika_domain.area import UnknownAreaUnit, to_square_metres
+
+    allowed = jurisdiction_location_ids(session, principal)
+    places = {loc.id: loc for loc in session.execute(select(Location)).scalars()}
+
+    def ancestor(loc: Location | None, level: str) -> str | None:
+        while loc is not None and loc.level != level:
+            loc = places.get(loc.parent_id)
+        return loc.name if loc else None
+
+    holders = dict(session.execute(
+        select(OwnershipRecord.parcel_id, func.count())
+        .where(OwnershipRecord.valid_to.is_(None))
+        .group_by(OwnershipRecord.parcel_id)
+    ).all())
+    mutations = {
+        pid: (count, year) for pid, count, year in session.execute(
+            select(Mutation.parcel_id, func.count(),
+                   func.max(func.extract("year", Mutation.effective_date)))
+            .group_by(Mutation.parcel_id)
+        ).all()
+    }
+    digitized = set(session.execute(
+        select(Document.parcel_id).where(Document.state == DocumentState.APPROVED)
+    ).scalars())
+
+    query = select(Parcel)
+    if allowed is not None:
+        query = query.where(Parcel.village_id.in_(allowed))
+    rows = []
+    for parcel in session.execute(query).scalars():
+        village = places.get(parcel.village_id)
+        try:
+            area = round(to_square_metres(parcel.area_value, parcel.area_unit), -2)
+        except UnknownAreaUnit:
+            area = None
+        count, year = mutations.get(parcel.id, (0, None))
+        rows.append({
+            "state": ancestor(village, "STATE"),
+            "district": ancestor(village, "DISTRICT"),
+            "tehsil": ancestor(village, "TEHSIL"),
+            "village": village.name if village else None,
+            "area_sqm": int(area) if area is not None else None,
+            "land_class": parcel.land_class,
+            "current_holders": holders.get(parcel.id, 0),
+            "mutations": count,
+            "last_mutation_year": int(year) if year else None,
+            "digitized": parcel.id in digitized,
+        })
+    rows.sort(key=lambda r: (r["state"] or "", r["district"] or "", r["village"] or "",
+                             r["area_sqm"] or 0))
+    return rows

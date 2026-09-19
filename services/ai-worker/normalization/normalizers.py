@@ -30,6 +30,11 @@ _NORMALIZER_LANG = {
     "telugu": "te",
     "tamil": "ta",
     "kannada": "kn",
+    "bengali": "bn",
+    "gujarati": "gu",
+    "gurmukhi": "pa",
+    "odia": "or",
+    "malayalam": "ml",
 }
 
 try:  # pragma: no cover - exercised by whichever environment is installed
@@ -48,9 +53,14 @@ INDIC_NLP_AVAILABLE = bool(_INDIC_NORMALIZERS)
 #: rather than imported: normalization must stay importable on its own.
 _SCRIPT_RANGES = (
     (0x0900, 0x097F, "devanagari"),
+    (0x0980, 0x09FF, "bengali"),
+    (0x0A00, 0x0A7F, "gurmukhi"),
+    (0x0A80, 0x0AFF, "gujarati"),
+    (0x0B00, 0x0B7F, "odia"),
     (0x0B80, 0x0BFF, "tamil"),
     (0x0C00, 0x0C7F, "telugu"),
     (0x0C80, 0x0CFF, "kannada"),
+    (0x0D00, 0x0D7F, "malayalam"),
 )
 
 
@@ -114,6 +124,15 @@ UNIT_ALIASES: dict[str, str] = {
     "ಹೆಕ್ಟೇರ್": "HECTARE",
     "ಗುಂಟೆ": "GUNTHA",
     "ಸೆಂಟ್ಸ್": "CENT",
+    # Bengali, Gujarati, Punjabi, Odia, Malayalam. A decimal (শতক, ଡେସିମିଲ) is
+    # 1/100 acre, the same as a cent. Bengal's bigha and Punjab's kanal-marla
+    # are deliberately absent: the Bengal bigha is not the UP bigha this system
+    # converts with, and guessing a factor would silently misstate the area.
+    "একর": "ACRE", "হেক্টর": "HECTARE", "শতক": "CENT", "ডেসিমেল": "CENT",
+    "એકર": "ACRE", "હેક્ટર": "HECTARE",
+    "ਏਕੜ": "ACRE", "ਹੈਕਟੇਅਰ": "HECTARE",
+    "ଏକର": "ACRE", "ହେକ୍ଟର": "HECTARE", "ଡେସିମିଲ": "CENT",
+    "ഏക്കർ": "ACRE", "ഹെക്ടർ": "HECTARE", "സെന്റ്": "CENT",
 }
 
 

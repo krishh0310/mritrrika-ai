@@ -109,6 +109,10 @@ export function RoleBadge({ role, className }: { role: string; className?: strin
     DEO: "Data Entry Operator",
     VERIFIER: "Verifier",
     TEHSILDAR: "Tehsildar",
+    STATE_OFFICER: "State Officer",
+    CENTRAL_OFFICER: "Central Ministry",
+    SURVEYOR: "Survey Department",
+    RESEARCHER: "Researcher",
   };
   return (
     <span

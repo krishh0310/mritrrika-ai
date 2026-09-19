@@ -169,6 +169,10 @@ export const en = {
   "tehsildar.nav.map": "Map",
   "tehsildar.nav.grievances": "Grievances",
   "tehsildar.nav.assistant": "Assistant",
+  "oversight.section.title": "Oversight",
+  "oversight.nav.analytics": "Analytics",
+  "oversight.nav.map": "Map",
+  "oversight.nav.research": "Research data",
 
   "record.title": "Record",
 

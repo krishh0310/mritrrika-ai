@@ -64,6 +64,7 @@ export type FieldName =
   | 'TEHSIL'
   | 'DISTRICT'
   | 'STATE'
+  | 'COUNTRY'
   | 'AREA'
   | 'AREA_UNIT'
   | 'LAND_CLASS'
@@ -118,7 +119,12 @@ export type Role =
   | 'CITIZEN'
   | 'DEO'
   | 'VERIFIER'
-  | 'TEHSILDAR';
+  | 'TEHSILDAR'
+  | 'STATE_OFFICER'
+  | 'CENTRAL_OFFICER'
+  | 'SURVEYOR'
+  | 'RESEARCHER'
+  | 'INTEGRATION';
 
 export type ValidationSeverity =
   | 'info'

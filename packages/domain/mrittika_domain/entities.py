@@ -32,7 +32,7 @@ class Location(BaseModel):
     location_id: str
     name: str
     name_devanagari: str | None = None
-    level: str = Field(pattern="^(STATE|DISTRICT|TEHSIL|VILLAGE)$")
+    level: str = Field(pattern="^(COUNTRY|STATE|DISTRICT|TEHSIL|VILLAGE)$")
     parent_id: str | None = None
 
 

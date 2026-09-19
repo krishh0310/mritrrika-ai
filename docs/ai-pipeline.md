@@ -82,9 +82,11 @@ shapes.
 | Urdu | `ur` | `arabic_PP-OCRv5_mobile_rec` |
 
 `ocr/scripts.py` also identifies **Bengali, Gujarati, Gurmukhi, Odia and
-Malayalam** — and refuses them by name. PP-OCRv5 ships no recogniser for those,
-and `language_for_script` raises `UnsupportedScript` rather than defaulting to
-Devanagari. Identified and refused is a page an operator can be told to key in
+Malayalam**. PP-OCRv5 ships no recogniser for those, so PaddleOCR refuses them
+by name (`language_for_script` raises `UnsupportedScript` rather than defaulting
+to Devanagari) — but the Gemini vision provider reads them, and extraction has
+their form labels, so a deployment receiving them runs with
+`OCR_PROVIDER=gemini`. Identified and refused is a page an operator can be told to key in
 by hand; unidentified and guessed is a record that looks real and is not.
 
 ### Routing recognises first and decides after
@@ -146,7 +148,7 @@ said they were "wired as optional assists", and no code ever referenced them.
 The deterministic path carries the whole load, and every field records the
 model version that produced it (§64).
 
-### Four languages of form labels
+### Nine languages of form labels
 
 Reading a Telugu page is worth nothing if the extractor then searches it for
 `खसरा`. The printed vocabulary lives in `extraction/labels.py`, one set per
@@ -159,8 +161,15 @@ translation of the Hindi form:
 | te | Pahani / Adangal, 1-B | సర్వే నంబరు | ఖాతా సంఖ్య | మండలం |
 | ta | Chitta / Adangal | புல எண் | பட்டா எண் | வட்டம் |
 | kn | Pahani / RTC | ಸರ್ವೆ ನಂಬರ್ | ಖಾತೆ ಸಂಖ್ಯೆ | ತಾಲ್ಲೂಕು |
+| bn | Khatian / Parcha | দাগ নং | খতিয়ান নং | ব্লক |
+| gu | 7/12 Utara | સર્વે નંબર | ખાતા નંબર | તાલુકો |
+| pa | Jamabandi | ਖਸਰਾ ਨੰ | ਖੇਵਟ ਨੰ | ਤਹਿਸੀਲ |
+| or | Record of Rights | ପ୍ଲଟ ନଂ | ଖାତା ନଂ | ତହସିଲ |
+| ml | Thandaper | സർവ്വേ നമ്പർ | തണ്ടപ്പേര് നമ്പർ | താലൂക്ക് |
 
-All four map onto the same canonical fields. The sets are merged into one
+All nine map onto the same canonical fields. Bengal's bigha and Punjab's
+kanal-marla are deliberately not converted: the Bengal bigha is not the UP bigha
+this system converts with, and a guessed factor would misstate the area. The sets are merged into one
 lookup, which is safe because the scripts occupy disjoint Unicode blocks: a
 Telugu block scores 0.0 against a Devanagari label, so a label can never
 fuzzily match text in another language, and a mixed page needs no switch.
@@ -495,7 +504,7 @@ Named here so nothing above reads as a claim (§69):
 | PP-Structure / LayoutLMv3 | not integrated — table structure is deterministic geometry inside the extractor. A YOLOv8 *region* detector is trained and available (see above), but is opt-in and off by default because it did not improve extraction |
 | IndicBERT extraction assist | not integrated — AI4Bharat's repo is gated; MuRIL was used instead |
 | Trained field extraction (MuRIL + layout) | **built and does not work** — see above. The rules ship. |
-| Embeddings / pgvector retrieval | not implemented — the `embeddings` table exists, nothing writes or queries it |
+| Embeddings / pgvector retrieval | `/api/v1/records/semantic-search` over approved parcels. Default vectors are character n-grams (offline, lexical, not semantic); `EMBEDDING_PROVIDER=gemini` gives real semantic vectors. Owner names are never indexed. The assistant still answers from SQL, not from this index |
 | Confidence calibration (ECE, reliability diagrams) | planned, not measured |
 | Federated learning, GNN ownership analysis, MAML | research direction only |
 | State LRMS / DILRMP | approved records are queued and delivered by a file-drop or HTTP adapter ([lrms-integration.md](lrms-integration.md)); **not connected to a live state server** — no endpoint or credentials exist for one |

@@ -48,6 +48,18 @@ VILLAGES = [
 DISTRICT = ("डेमो जिला", "Demo District")
 TEHSIL = ("डेमो तहसील", "Demo Tehsil")
 STATE = ("उत्तर प्रदेश", "Uttar Pradesh")
+COUNTRY = ("भारत", "India")
+
+#: A second state, so state-wise and district-wise progress have something to
+#: compare. Bihar because its records are Hindi khasras too; its tehsil-level
+#: unit is the anchal (circle).
+SECOND_STATE = ("बिहार", "Bihar")
+SECOND_DISTRICT = ("नमूना जिला", "Sample District")
+SECOND_TEHSIL = ("नमूना अंचल", "Sample Anchal")
+SECOND_VILLAGES = [
+    ("सरैया", "Saraiya"),
+    ("कटरा", "Katra"),
+]
 
 #: Devanagari digits, for rendering numbers as they appear on legacy documents.
 DEVANAGARI_DIGITS = "०१२३४५६७८९"

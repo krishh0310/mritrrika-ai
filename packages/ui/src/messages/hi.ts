@@ -177,6 +177,10 @@ export const hi: Record<MessageKey, string> = {
   "tehsildar.nav.map": "मानचित्र",
   "tehsildar.nav.grievances": "शिकायतें",
   "tehsildar.nav.assistant": "सहायक",
+  "oversight.section.title": "निगरानी",
+  "oversight.nav.analytics": "विश्लेषण",
+  "oversight.nav.map": "मानचित्र",
+  "oversight.nav.research": "शोध डेटा",
 
   "record.title": "अभिलेख",
 

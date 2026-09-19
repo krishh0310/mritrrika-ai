@@ -27,6 +27,7 @@ from app.models import (
     LandRecord,
     OcrBlock,
     OwnershipRecord,
+    Parcel,
     ValidationFinding,
     VerificationAction,
     VerificationTask,
@@ -35,6 +36,7 @@ from app.services import (
     audit_service,
     cross_reference_service,
     document_service,
+    embedding_service,
     feedback_service,
     lrms_service,
     notification_service,
@@ -332,6 +334,8 @@ def approve(session: Session, document: Document, *, principal: Principal,
         ).scalars().first()
         if record:
             record.status = "APPROVED"
+        # Keep vector search current with what was just approved.
+        embedding_service.index_parcels(session, [session.get(Parcel, document.parcel_id)])
 
     # Queue the Record of Rights for the state LRMS in this same transaction,
     # so every approved record is queued and a rolled-back approval never is.

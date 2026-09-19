@@ -10,6 +10,9 @@ So the unit of sending here is a TEMPLATE plus variables, never a string. A
 `send(phone, "your record was approved")` API would work in development and
 fail silently in production, which is the worst of both.
 
+Email and push are further channels, sent IN ADDITION to the phone chain, not
+as fallbacks from it: someone with a phone and a registered app gets both.
+
 **A notification is delivered to a phone, not to a session.** It leaves the
 system's authorization behind entirely -- it will be read on a lock screen, by
 whoever is holding the handset. So no template carries record content. They
@@ -343,6 +346,115 @@ class Msg91SmsProvider(NotificationProvider):
         )
 
 
+class EmailProvider:
+    """Email over SMTP, with the standard library.
+
+    Sends the same lock-screen-safe title and body as the in-app notification
+    -- an inbox is read on shared screens too.
+    """
+
+    name = "email"
+
+    def __init__(self, host: str | None, sender: str | None, *, port: int = 587,
+                 username: str | None = None, password: str | None = None,
+                 starttls: bool = True, timeout: float = 10.0) -> None:
+        self.host, self.sender, self.port = host, sender, port
+        self.username, self.password = username, password
+        self.starttls, self.timeout = starttls, timeout
+
+    def available(self) -> bool:
+        return bool(self.host and self.sender)
+
+    def send(self, address: str, template: Template, values: dict) -> Delivery:
+        import smtplib
+        from email.message import EmailMessage
+
+        title, body = template.render(values)
+        message = EmailMessage()
+        message["Subject"], message["From"], message["To"] = title, self.sender, address
+        message.set_content(body)
+        try:
+            with smtplib.SMTP(self.host, self.port, timeout=self.timeout) as smtp:
+                if self.starttls:
+                    smtp.starttls()
+                if self.username:
+                    smtp.login(self.username, self.password or "")
+                smtp.send_message(message)
+        except (smtplib.SMTPException, OSError) as exc:
+            raise NotificationError(f"SMTP delivery failed: {exc}") from exc
+        return Delivery(channel="email", recipient=address, template=template.key,
+                        delivered=True, detail="accepted by SMTP server")
+
+
+class ExpoPushProvider:
+    """Push to the mobile app through Expo's push service.
+
+    Expo answers 200 even for a token it rejects, with the verdict in the body,
+    so the body is read -- a 200 alone is not a delivery.
+    """
+
+    name = "push"
+    URL = "https://exp.host/--/api/v2/push/send"
+
+    def __init__(self, access_token: str | None = None, timeout: float = 10.0) -> None:
+        self.access_token, self.timeout = access_token, timeout
+
+    def send(self, token: str, template: Template, values: dict,
+             link: str | None = None) -> Delivery:
+        import httpx
+
+        title, body = template.render(values)
+        headers = {"Content-Type": "application/json"}
+        if self.access_token:
+            headers["Authorization"] = f"Bearer {self.access_token}"
+        try:
+            response = httpx.post(self.URL, headers=headers, timeout=self.timeout, json={
+                "to": token, "title": title, "body": body, "data": {"link": link},
+            })
+            result = response.json().get("data") or {}
+        except Exception as exc:
+            raise NotificationError(f"Expo push request failed: {exc}") from exc
+        if response.status_code >= 300 or result.get("status") != "ok":
+            reason = result.get("message") or response.text[:200]
+            raise NotificationError(f"Expo rejected the push: {reason}")
+        return Delivery(channel="push", recipient=token, template=template.key,
+                        delivered=True, detail=f"ticket {result.get('id', '')}")
+
+
+def extra_channels(user: User | None, template: Template, values: dict,
+                   link: str | None = None, settings=None) -> list[Delivery]:
+    """Email and push for this user, where configured. Never raises: a failed
+    channel is a Delivery with delivered=False, like the phone chain's."""
+    if user is None:
+        return []
+    if settings is None:
+        from app.config.settings import get_settings
+
+        settings = get_settings()
+
+    deliveries = []
+    email = EmailProvider(
+        settings.smtp_host, settings.smtp_sender, port=settings.smtp_port,
+        username=settings.smtp_username, password=settings.smtp_password,
+        starttls=settings.smtp_starttls,
+    )
+    attempts = []
+    if email.available():
+        attempts.append(("email", user.email, lambda: email.send(user.email, template, values)))
+    if settings.expo_push_enabled and user.push_token:
+        push = ExpoPushProvider(settings.expo_access_token)
+        attempts.append(("push", user.push_token,
+                         lambda: push.send(user.push_token, template, values, link)))
+    for channel, recipient, attempt in attempts:
+        try:
+            deliveries.append(attempt())
+        except NotificationError as exc:
+            logger.warning("notification channel %s failed: %s", channel, exc)
+            deliveries.append(Delivery(channel=channel, recipient=recipient,
+                                       template=template.key, delivered=False, detail=str(exc)))
+    return deliveries
+
+
 @dataclass
 class Dispatcher:
     """Tries each provider in turn; the in-app record is written regardless."""
@@ -439,16 +551,18 @@ def notify(
 
     dispatcher = dispatcher or build_default_dispatcher()
     delivery = dispatcher.deliver(phone, template, values)
+    others = extra_channels(user, template, values, link)
     logger.info(
-        "notified user=%s template=%s delivered=%s at=%s",
+        "notified user=%s template=%s delivered=%s others=%s at=%s",
         user.email if user else user_id, template_key, delivery.delivered,
-        datetime.now(UTC).isoformat(),
+        [(d.channel, d.delivered) for d in others], datetime.now(UTC).isoformat(),
     )
     return notification, delivery
 
 
 __all__ = [
-    "PLACEHOLDERS", "TEMPLATES", "Delivery", "Dispatcher", "Msg91SmsProvider",
+    "PLACEHOLDERS", "TEMPLATES", "Delivery", "Dispatcher", "EmailProvider",
+    "ExpoPushProvider", "Msg91SmsProvider", "extra_channels",
     "NotificationError", "NotificationProvider", "RecordedProvider", "Template",
     "WhatsAppCloudProvider", "build_default_dispatcher", "mask",
     "normalise_phone", "notify",

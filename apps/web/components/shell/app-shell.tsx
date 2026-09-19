@@ -29,7 +29,8 @@ import {
  * a piece of chrome that the language toggle cannot reach -- and navigation is
  * the first thing a reader needs in their own language.
  */
-export type NavItem = { href: string; labelKey: MessageKey };
+/** `permission`: shown only to a user who holds it. */
+export type NavItem = { href: string; labelKey: MessageKey; permission?: string };
 
 /**
  * What each role reads before anyone chooses.
@@ -40,7 +41,7 @@ export type NavItem = { href: string; labelKey: MessageKey };
  * entry is already written in. A stored choice always overrides this -- the
  * default is a starting point, not a statement about what someone can read.
  */
-const DEFAULT_LANGUAGE: Record<Role, UiLanguage> = {
+const DEFAULT_LANGUAGE: Partial<Record<Role, UiLanguage>> = {
   CITIZEN: "hi",
   DEO: "en",
   VERIFIER: "en",
@@ -53,14 +54,17 @@ export function AppShell({
   titleKey,
   children,
 }: {
-  /** The role this section belongs to. Used for the guard and the header. */
-  role: Role;
+  /** The role(s) this section belongs to. Used for the guard and the header. */
+  role: Role | readonly Role[];
   nav: NavItem[];
   /** Message key for the section name, so the header speaks the chosen language. */
   titleKey: MessageKey;
   children: ReactNode;
 }) {
-  const { user, loading, signOut, hasRole } = useAuth();
+  const { user, loading, signOut, hasRole, can } = useAuth();
+  const allowed = typeof role === "string" ? [role] : role;
+  // The header names the role the user actually holds, not the section's first.
+  const heldRole = allowed.find((r) => hasRole(r)) ?? allowed[0];
   const router = useRouter();
   const pathname = usePathname();
 
@@ -78,18 +82,18 @@ export function AppShell({
 
   useEffect(() => {
     if (!loading && !user) {
-      router.replace(`/login?role=${role}&next=${encodeURIComponent(pathname)}`);
+      router.replace(`/login?role=${heldRole}&next=${encodeURIComponent(pathname)}`);
     }
-  }, [loading, user, router, role, pathname]);
+  }, [loading, user, router, heldRole, pathname]);
 
   if (loading) return <LoadingState label="Checking your session" />;
   if (!user) return <LoadingState label="Redirecting to sign in" />;
 
-  if (!hasRole(role)) {
+  if (!allowed.some((r) => hasRole(r))) {
     return (
       <main id="main" className="mx-auto max-w-2xl px-6 py-20">
         <ForbiddenState
-          description={`This section is for the ${ROLE_LABELS[role]} role. You are signed in as ${user.roles.map((r) => ROLE_LABELS[r as Role] ?? r).join(", ")}.`}
+          description={`This section is for the ${allowed.map((r) => ROLE_LABELS[r]).join(" or ")} role. You are signed in as ${user.roles.map((r) => ROLE_LABELS[r as Role] ?? r).join(", ")}.`}
         />
         <div className="flex justify-center">
           <Button variant="outline" onClick={signOut}>
@@ -103,11 +107,11 @@ export function AppShell({
   // The chrome is a separate component because `useT` reads the provider, and
   // a hook cannot see a context its own component renders.
   return (
-    <UiLanguageProvider defaultLanguage={DEFAULT_LANGUAGE[role] ?? "en"}>
+    <UiLanguageProvider defaultLanguage={DEFAULT_LANGUAGE[heldRole] ?? "en"}>
       <DisplayLanguageProvider places={places}>
         <ShellChrome
-          role={role}
-          nav={nav}
+          role={heldRole}
+          nav={nav.filter((item) => !item.permission || can(item.permission))}
           titleKey={titleKey}
           pathname={pathname}
           userName={user.full_name}

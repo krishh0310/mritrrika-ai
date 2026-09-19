@@ -41,7 +41,7 @@ def verified():
 
     world = SyntheticWorld.model_validate_json(WORLD_PATH.read_text())
     load(world.parcels)
-    return verify()
+    return {**verify(), "expected": len(world.parcels)}
 
 
 def test_all_geometries_valid_in_postgis(verified):
@@ -59,7 +59,7 @@ def test_srid_is_set_uniformly(verified):
 
 
 def test_all_parcels_loaded(verified):
-    assert verified["count"] == 40
+    assert verified["count"] == verified["expected"]
 
 
 def test_areas_are_smallholding_sized(verified):

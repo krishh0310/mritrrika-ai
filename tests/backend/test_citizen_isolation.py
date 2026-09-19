@@ -223,3 +223,20 @@ class TestOfficersCannotUseCitizenPortal:
     @pytest.mark.parametrize("email", [DEO, VERIFIER, TEHSILDAR])
     def test_officer_denied_citizen_dashboard(self, client, auth, email):
         assert client.get("/api/v1/citizen/dashboard", headers=auth(email)).status_code == 403
+
+
+def test_no_owner_holds_a_parcel_twice_at_once(client):
+    """Seeding a second profile once left two ACTIVE rows for one holder of
+    PARCEL-UP-DEMO-0181, and the parcel appeared twice on their dashboard."""
+    from app.db import SessionLocal
+    from app.models import OwnershipRecord
+    from sqlalchemy import func, select
+
+    with SessionLocal() as session:
+        doubled = session.execute(
+            select(OwnershipRecord.parcel_id, OwnershipRecord.owner_id)
+            .where(OwnershipRecord.valid_to.is_(None))
+            .group_by(OwnershipRecord.parcel_id, OwnershipRecord.owner_id)
+            .having(func.count() > 1)
+        ).all()
+    assert doubled == []

@@ -146,6 +146,7 @@ async function send<T>(path: string, options: Options, retry: boolean): Promise<
 export const api = {
   get: <T>(path: string) => send<T>(path, {}, true),
   post: <T>(path: string, body?: unknown) => send<T>(path, { method: "POST", body }, true),
+  put: <T>(path: string, body?: unknown) => send<T>(path, { method: "PUT", body }, true),
   upload: <T>(path: string, form: FormData) =>
     send<T>(path, { method: "POST", form }, true),
   anonymousPost: <T>(path: string, body: unknown) =>

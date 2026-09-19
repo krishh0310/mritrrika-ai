@@ -93,6 +93,42 @@ KANNADA = page(
     footer="ಷರಾ: ಗಣಕೀಕರಣಕ್ಕಾಗಿ",
 )
 
+BENGALI = page(
+    header=[("জেলা", "নদিয়া"), ("ব্লক", "হাঁসখালি"), ("মৌজা", "বগুলা"),
+            ("খতিয়ান নং", "৩১২"), ("দাগ নং", "৭৪/২"), ("জমির পরিমাণ", "১.২ একর")],
+    owner_heading="রায়তের নাম", share_heading="অংশ",
+    owners=[("সুবীর মণ্ডল", "১/২"), ("রীতা মণ্ডল", "১/২")],
+    footer="মন্তব্য: ডিজিটাইজেশনের জন্য",
+)
+GUJARATI = page(
+    header=[("જિલ્લો", "આણંદ"), ("તાલુકો", "પેટલાદ"), ("ગામ", "સોજિત્રા"),
+            ("ખાતા નંબર", "૧૫૮"), ("સર્વે નંબર", "૪૪૧/૩"), ("ક્ષેત્રફળ", "૨.૫ એકર")],
+    owner_heading="ખાતેદારનું નામ", share_heading="હિસ્સો",
+    owners=[("રમેશભાઈ પટેલ", "૧")],
+    footer="નોંધ: ડિજિટાઇઝેશન માટે",
+)
+PUNJABI = page(
+    header=[("ਜ਼ਿਲ੍ਹਾ", "ਲੁਧਿਆਣਾ"), ("ਤਹਿਸੀਲ", "ਜਗਰਾਉਂ"), ("ਪਿੰਡ", "ਸਿੱਧਵਾਂ"),
+            ("ਖੇਵਟ ਨੰ", "੭੭"), ("ਖਸਰਾ ਨੰ", "੨੧੩/੧"), ("ਰਕਬਾ", "੩ ਏਕੜ")],
+    owner_heading="ਮਾਲਕ ਦਾ ਨਾਮ", share_heading="ਹਿੱਸਾ",
+    owners=[("ਗੁਰਪ੍ਰੀਤ ਸਿੰਘ", "੧/੨"), ("ਹਰਜੀਤ ਕੌਰ", "੧/੨")],
+    footer="ਕੈਫੀਅਤ: ਡਿਜੀਟਾਈਜ਼ੇਸ਼ਨ ਲਈ",
+)
+ODIA = page(
+    header=[("ଜିଲ୍ଲା", "ପୁରୀ"), ("ତହସିଲ", "ପିପିଲି"), ("ମୌଜା", "ରଘୁରାଜପୁର"),
+            ("ଖାତା ନଂ", "୯୨"), ("ପ୍ଲଟ ନଂ", "୫୬୭/୨"), ("ରକବା", "୦.୮ ଏକର")],
+    owner_heading="ରୟତଙ୍କ ନାମ", share_heading="ଅଂଶ",
+    owners=[("ବିଶ୍ୱନାଥ ମହାପାତ୍ର", "୧")],
+    footer="ମନ୍ତବ୍ୟ: ଡିଜିଟାଇଜେସନ ପାଇଁ",
+)
+MALAYALAM = page(
+    header=[("ജില്ല", "തൃശൂർ"), ("താലൂക്ക്", "ചാവക്കാട്"), ("വില്ലേജ്", "ഗുരുവായൂർ"),
+            ("തണ്ടപ്പേര് നമ്പർ", "൧൨൩"), ("സർവ്വേ നമ്പർ", "൮൯/൪"), ("വിസ്തീർണ്ണം", "൫൦ സെന്റ്")],
+    owner_heading="ഉടമയുടെ പേര്", share_heading="ഓഹരി",
+    owners=[("രാജൻ നായർ", "൧")],
+    footer="കുറിപ്പ്: ഡിജിറ്റൈസേഷനായി",
+)
+
 CASES = {
     "telugu": (TELUGU, {
         # The zero-width non-joiner in the page's spelling is canonicalised
@@ -108,6 +144,27 @@ CASES = {
         "DISTRICT": "ಮಂಡ್ಯ", "TEHSIL": "ಮದ್ದೂರು", "VILLAGE": "ಕೆಸ್ತೂರು",
         "KHATA": "33", "KHASRA": "57/1", "AREA": "2",
     }, ["ಬಸವರಾಜು ಗೌಡ", "ನಾಗಮ್ಮ"], ["1/3", "2/3"]),
+    # Read by Gemini vision in production; PaddleOCR has no model for these.
+    "bengali": (BENGALI, {
+        "DISTRICT": "নদিয়া", "TEHSIL": "হাঁসখালি", "VILLAGE": "বগুলা",
+        "KHATA": "312", "KHASRA": "74/2", "AREA": "1.2",
+    }, ["সুবীর মণ্ডল", "রীতা মণ্ডল"], ["1/2", "1/2"]),
+    "gujarati": (GUJARATI, {
+        "DISTRICT": "આણંદ", "TEHSIL": "પેટલાદ", "VILLAGE": "સોજિત્રા",
+        "KHATA": "158", "KHASRA": "441/3", "AREA": "2.5",
+    }, ["રમેશભાઈ પટેલ"], ["1/1"]),
+    "punjabi": (PUNJABI, {
+        "DISTRICT": "ਲੁਧਿਆਣਾ", "TEHSIL": "ਜਗਰਾਉਂ", "VILLAGE": "ਸਿੱਧਵਾਂ",
+        "KHATA": "77", "KHASRA": "213/1", "AREA": "3",
+    }, ["ਗੁਰਪ੍ਰੀਤ ਸਿੰਘ", "ਹਰਜੀਤ ਕੌਰ"], ["1/2", "1/2"]),
+    "odia": (ODIA, {
+        "DISTRICT": "ପୁରୀ", "TEHSIL": "ପିପିଲି", "VILLAGE": "ରଘୁରାଜପୁର",
+        "KHATA": "92", "KHASRA": "567/2", "AREA": "0.8",
+    }, ["ବିଶ୍ୱନାଥ ମହାପାତ୍ର"], ["1/1"]),
+    "malayalam": (MALAYALAM, {
+        "DISTRICT": "തൃശൂർ", "TEHSIL": "ചാവക്കാട്", "VILLAGE": "ഗുരുവായൂർ",
+        "KHATA": "123", "KHASRA": "89/4", "AREA": "50",
+    }, ["രാജൻ നായർ"], ["1/1"]),
 }
 
 
@@ -164,6 +221,8 @@ def test_hindi_extraction_is_unchanged_by_the_merge():
 
 @pytest.mark.parametrize("native, ascii_", [
     ("१४२/२", "142/2"), ("౧౪౨/౨", "142/2"), ("௧௪௨/௨", "142/2"), ("೧೪೨/೨", "142/2"),
+    ("১৪২/২", "142/2"), ("૧૪૨/૨", "142/2"), ("੧੪੨/੨", "142/2"), ("୧୪୨/୨", "142/2"),
+    ("൧൪൨/൨", "142/2"),
 ])
 def test_native_digits_in_every_script_become_ascii(native, ascii_):
     assert to_ascii_digits(native) == ascii_
@@ -174,6 +233,8 @@ def test_native_digits_in_every_script_become_ascii(native, ascii_):
     ("௧.௫ ஏக்கர்", "ACRE"), ("40 சென்ட்", "CENT"),
     ("೨ ಎಕರೆ", "ACRE"), ("20 ಗುಂಟೆ", "GUNTHA"),
     ("२.७५ बीघा", "BIGHA"),
+    ("১.২ একর", "ACRE"), ("৪০ শতক", "CENT"), ("૨.૫ એકર", "ACRE"), ("੩ ਏਕੜ", "ACRE"),
+    ("୦.୮ ଏକର", "ACRE"), ("୫୦ ଡେସିମିଲ", "CENT"), ("൫൦ സെന്റ്", "CENT"),
 ])
 def test_unit_words_in_every_language(text, unit):
     assert normalize_unit(text) == unit

@@ -6,7 +6,9 @@ derived from it server-side and never accepted from the client (§62).
 
 from __future__ import annotations
 
-from sqlalchemy import Boolean, ForeignKey, String, Text, UniqueConstraint
+from datetime import datetime
+
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base, SyntheticMixin, TimestampMixin, new_uuid
@@ -60,6 +62,8 @@ class User(Base, TimestampMixin, SyntheticMixin):
     jurisdiction_id: Mapped[str | None] = mapped_column(
         ForeignKey("locations.id", ondelete="SET NULL")
     )
+    #: Expo push token of the user's phone, set by the mobile app on sign-in.
+    push_token: Mapped[str | None] = mapped_column(String(255))
 
     roles: Mapped[list[UserRole]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
@@ -105,3 +109,26 @@ class CitizenProfile(Base, TimestampMixin, SyntheticMixin):
 
     user: Mapped[User] = relationship(back_populates="citizen_profile")
     owner: Mapped[Owner] = relationship(back_populates="citizen_profile")  # noqa: F821
+
+
+class ApiKey(Base, TimestampMixin):
+    """A credential for another government system, acting as a service user.
+
+    The key carries no authority of its own: requests made with it are exactly
+    as authorized as its user -- same roles, permissions and jurisdiction -- so
+    there is one access-control system, not two. Only a SHA-256 of the key is
+    stored; the key itself is shown once, at creation.
+    """
+
+    __tablename__ = "api_keys"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    #: The first characters, so an operator can tell keys apart.
+    prefix: Mapped[str] = mapped_column(String(16), nullable=False)
+    key_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

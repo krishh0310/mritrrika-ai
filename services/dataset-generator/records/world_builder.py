@@ -72,11 +72,23 @@ class WorldBuilder:
 
     # ── locations ────────────────────────────────────────────────────────
     def build_locations(self) -> list[Location]:
+        """India, then Uttar Pradesh down to the demo villages.
+
+        The second state is NOT built here: see build_second_state for why it
+        must come after everything else.
+        """
+        country = Location(
+            location_id="LOC-IN",
+            name=pools.COUNTRY[1],
+            name_devanagari=pools.COUNTRY[0],
+            level="COUNTRY",
+        )
         state = Location(
             location_id="LOC-STATE-UP",
             name=pools.STATE[1],
             name_devanagari=pools.STATE[0],
             level="STATE",
+            parent_id=country.location_id,
         )
         district = Location(
             location_id="LOC-DIST-DEMO",
@@ -110,7 +122,7 @@ class WorldBuilder:
             )
             for i, (deva, latin) in enumerate(pools.VILLAGES[: self.spec.villages], 1)
         ]
-        return [state, district, tehsil, *villages]
+        return [country, state, district, tehsil, *villages]
 
     # ── owners ───────────────────────────────────────────────────────────
     def build_owners(self) -> list[Owner]:
@@ -147,12 +159,16 @@ class WorldBuilder:
         return owners
 
     # ── parcels ──────────────────────────────────────────────────────────
-    def build_parcels(self, villages: list[Location]) -> list[Parcel]:
+    def build_parcels(
+        self,
+        villages: list[Location],
+        id_prefix: str = "PARCEL-UP-DEMO",
+        khasra_base: int = 140,
+    ) -> list[Parcel]:
         parcels: list[Parcel] = []
         # Base 140 with 40 per village puts khasra 142 in the first village
         # (रामपुर, matching the §45 sample) and 181 in the second, so the demo
         # parcel ids named in §45/§46 are real rather than aspirational.
-        khasra_base = 140
         for v_index, village in enumerate(villages):
             for i in range(self.spec.parcels_per_village):
                 khasra_n = khasra_base + v_index * 40 + i
@@ -169,7 +185,7 @@ class WorldBuilder:
                 )
                 parcels.append(
                     Parcel(
-                        parcel_id=f"PARCEL-UP-DEMO-{khasra_n:04d}",
+                        parcel_id=f"{id_prefix}-{khasra_n:04d}",
                         village_id=village.location_id,
                         khasra_number=khasra,
                         khata_number=str(self.rng.randint(10, 240)),
@@ -181,7 +197,9 @@ class WorldBuilder:
                 )
 
         # Pin the demo parcel so the §70 script and §45 sample line up exactly.
-        demo = next(p for p in parcels if p.parcel_id == DEMO_PARCEL)
+        demo = next((p for p in parcels if p.parcel_id == DEMO_PARCEL), None)
+        if demo is None:
+            return parcels
         demo.khasra_number = "142/2"
         demo.khata_number = "87"
         demo.area_value = 2.75
@@ -286,7 +304,8 @@ class WorldBuilder:
         mutations: list[Mutation] = []
         pool = [o.owner_id for o in owners]
 
-        self.build_demo_history(ownership, mutations)
+        if any(p.parcel_id == DEMO_PARCEL for p in parcels):
+            self.build_demo_history(ownership, mutations)
 
         for parcel in parcels:
             if parcel.parcel_id == DEMO_PARCEL:
@@ -320,8 +339,9 @@ class WorldBuilder:
         # list rather than a single row, and so the §72 isolation test has a
         # parcel on each side that the other must not reach.
         known = {p.parcel_id for p in parcels}
-        self._grant(ownership, known, "PARCEL-UP-DEMO-0181", DEMO_OWNER_A, date(2011, 2, 14))
-        self._grant(ownership, known, "PARCEL-UP-DEMO-0190", DEMO_OWNER_B, date(2015, 6, 9))
+        if DEMO_PARCEL in known:  # the demo state only; the second state has no citizens
+            self._grant(ownership, known, "PARCEL-UP-DEMO-0181", DEMO_OWNER_A, date(2011, 2, 14))
+            self._grant(ownership, known, "PARCEL-UP-DEMO-0190", DEMO_OWNER_B, date(2015, 6, 9))
 
         return ownership, mutations
 
@@ -402,7 +422,9 @@ class WorldBuilder:
         return new_holders
 
     # ── records + users ──────────────────────────────────────────────────
-    def build_land_records(self, parcels: list[Parcel]) -> list[LandRecord]:
+    def build_land_records(
+        self, parcels: list[Parcel], id_prefix: str = "LR-UP"
+    ) -> list[LandRecord]:
         types = [
             DocumentType.KHASRA,
             DocumentType.KHATAUNI,
@@ -413,7 +435,7 @@ class WorldBuilder:
             year_start = self.rng.choice([1995, 1998, 2003, 2010, 2016])
             records.append(
                 LandRecord(
-                    record_id=f"LR-UP-{i:06d}",
+                    record_id=f"{id_prefix}-{i:06d}",
                     parcel_id=parcel.parcel_id,
                     document_type=types[i % len(types)],
                     record_year=f"{year_start}-{str(year_start + 1)[-2:]}",
@@ -459,7 +481,82 @@ class WorldBuilder:
                 email="tehsildar@mrittika.demo",
                 jurisdiction_id="LOC-DIST-DEMO",
             ),
+            SyntheticUser(
+                user_id="USR-S-0001",
+                role=Role.STATE_OFFICER,
+                name="प्रिया श्रीवास्तव",
+                email="state@mrittika.demo",
+                jurisdiction_id="LOC-STATE-UP",
+            ),
+            SyntheticUser(
+                user_id="USR-N-0001",
+                role=Role.CENTRAL_OFFICER,
+                name="विक्रम नायर",
+                email="central@mrittika.demo",
+                jurisdiction_id="LOC-IN",
+            ),
+            SyntheticUser(
+                user_id="USR-Y-0001",
+                role=Role.SURVEYOR,
+                name="दीपक यादव",
+                email="survey@mrittika.demo",
+                jurisdiction_id="LOC-DIST-DEMO",
+            ),
+            SyntheticUser(
+                user_id="USR-R-0001",
+                role=Role.RESEARCHER,
+                name="अनुराधा सेन",
+                email="research@mrittika.demo",
+                jurisdiction_id="LOC-IN",
+            ),
+            # Not a person: the account a state LRMS's API key acts as.
+            SyntheticUser(
+                user_id="USR-X-0001",
+                role=Role.INTEGRATION,
+                name="State LRMS (service account)",
+                email="lrms-service@mrittika.demo",
+                jurisdiction_id="LOC-STATE-UP",
+            ),
         ]
+
+    # ── second state ─────────────────────────────────────────────────────
+    def build_second_state(self, owners: list[Owner]):
+        """Bihar: one district, one anchal, two villages of parcels.
+
+        Built LAST and from its own random stream. The generator draws from one
+        sequence, so anything added earlier would shift every later draw -- and
+        with it every ownership history the rendered scans, the OCR cache and
+        the measured accuracy were made from. Built here, the first state's
+        world is byte-identical to what it was.
+
+        No documents are rendered for it: it is a state whose digitization has
+        not started, which is exactly what a progress comparison should show.
+        The demo citizens hold nothing here.
+        """
+        main_rng, self.rng = self.rng, random.Random(self.spec.seed + 1)
+        try:
+            state = Location(location_id="LOC-STATE-BR", name=pools.SECOND_STATE[1],
+                             name_devanagari=pools.SECOND_STATE[0], level="STATE",
+                             parent_id="LOC-IN")
+            district = Location(location_id="LOC-DIST-BR", name=pools.SECOND_DISTRICT[1],
+                                name_devanagari=pools.SECOND_DISTRICT[0], level="DISTRICT",
+                                parent_id=state.location_id)
+            tehsil = Location(location_id="LOC-TEH-BR", name=pools.SECOND_TEHSIL[1],
+                              name_devanagari=pools.SECOND_TEHSIL[0], level="TEHSIL",
+                              parent_id=district.location_id)
+            villages = [
+                Location(location_id=f"LOC-VIL-BR-{i:02d}", name=latin,
+                         name_devanagari=deva, level="VILLAGE",
+                         parent_id=tehsil.location_id)
+                for i, (deva, latin) in enumerate(pools.SECOND_VILLAGES, 1)
+            ]
+            parcels = self.build_parcels(villages, id_prefix="PARCEL-BR-DEMO", khasra_base=1)
+            pool = [o for o in owners if o.owner_id not in (DEMO_OWNER_A, DEMO_OWNER_B)]
+            ownership, mutations = self.build_history(parcels, pool)
+            records = self.build_land_records(parcels, id_prefix="LR-BR")
+        finally:
+            self.rng = main_rng
+        return [state, district, tehsil, *villages], parcels, ownership, mutations, records
 
     # ── entry point ──────────────────────────────────────────────────────
     def build(self) -> SyntheticWorld:
@@ -468,13 +565,19 @@ class WorldBuilder:
         owners = self.build_owners()
         parcels = self.build_parcels(villages)
         ownership, mutations = self.build_history(parcels, owners)
+        land_records = self.build_land_records(parcels)
+        users = self.build_users(owners)
+
+        more_places, more_parcels, more_ownership, more_mutations, more_records = (
+            self.build_second_state(owners)
+        )
         return SyntheticWorld(
             seed=self.spec.seed,
-            locations=locations,
+            locations=locations + more_places,
             owners=owners,
-            parcels=parcels,
-            ownership=ownership,
-            mutations=mutations,
-            land_records=self.build_land_records(parcels),
-            users=self.build_users(owners),
+            parcels=parcels + more_parcels,
+            ownership=ownership + more_ownership,
+            mutations=mutations + more_mutations,
+            land_records=land_records + more_records,
+            users=users,
         )

@@ -83,6 +83,14 @@ default).
 | Data Entry Operator | `deo@mrittika.demo` |
 | Verifier / Lekhpal | `lekhpal@mrittika.demo` |
 | Tehsildar | `tehsildar@mrittika.demo` |
+| State Revenue Officer (read-only, Uttar Pradesh) | `state@mrittika.demo` |
+| Central Ministry Officer (read-only, all states) | `central@mrittika.demo` |
+| Survey Department (read-only, map and inconsistencies) | `survey@mrittika.demo` |
+| Research Institution (anonymised export only) | `research@mrittika.demo` |
+
+Other government systems call the API with a key rather than a login:
+`python scripts/api_keys.py create --user lrms-service@mrittika.demo --name "UP LRMS"`,
+then send `X-API-Key: <key>`. The key acts as that service account.
 
 Two citizens exist so ownership isolation can be demonstrated rather than
 described.
@@ -135,7 +143,7 @@ Why each directory exists is documented in
 ## Tests
 
 ```bash
-.venv/bin/python -m pytest tests                  # 701 collected; 1 data-dependent skip
+.venv/bin/python -m pytest tests                  # 772 collected; 1 data-dependent skip
 npm test                                          # 38 web/mobile unit tests
 npm run lint && npm run typecheck                 # web + mobile
 npm run build && npm run build:mobile             # production web + mobile export

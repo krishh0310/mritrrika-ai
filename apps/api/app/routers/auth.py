@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import current_principal
@@ -104,3 +104,21 @@ def me(principal: Principal = Depends(current_principal)) -> MeResponse:
         jurisdiction_id=principal.jurisdiction_id,
         owner_id=principal.owner_id,
     )
+
+
+@router.put("/push-token", status_code=status.HTTP_204_NO_CONTENT)
+def set_push_token(
+    token: str | None = Body(
+        None, embed=True, max_length=255, pattern=r"^Expo(nent)?PushToken\[[A-Za-z0-9_-]+\]$"
+    ),
+    principal: Principal = Depends(current_principal),
+    session: Session = Depends(get_session),
+) -> Response:
+    """Register this phone for push notifications; null (or no token) clears it.
+
+    Only an Expo push token is accepted: anything else stored here would be
+    sent to Expo on every notification and rejected every time.
+    """
+    principal.user.push_token = token
+    session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

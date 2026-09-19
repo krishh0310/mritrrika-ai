@@ -64,15 +64,27 @@ export function clearSession(): void {
   }
 }
 
-/** The four roles (§12). Order is the order they appear on the role screen. */
-export const ROLES = ["CITIZEN", "DEO", "VERIFIER", "TEHSILDAR"] as const;
+/** The roles (§12). Order is the order they appear on the role screen. */
+export const ROLES = [
+  "CITIZEN", "DEO", "VERIFIER", "TEHSILDAR",
+  "STATE_OFFICER", "CENTRAL_OFFICER", "SURVEYOR", "RESEARCHER",
+] as const;
 export type Role = (typeof ROLES)[number];
+
+/** The read-only stakeholders. They share one section, /oversight. */
+export const OVERSIGHT_ROLES = [
+  "STATE_OFFICER", "CENTRAL_OFFICER", "SURVEYOR", "RESEARCHER",
+] as const satisfies readonly Role[];
 
 export const ROLE_LABELS: Record<Role, string> = {
   CITIZEN: "Citizen",
   DEO: "Data Entry Operator",
   VERIFIER: "Verifier / Lekhpal",
   TEHSILDAR: "Tehsildar",
+  STATE_OFFICER: "State Revenue Officer",
+  CENTRAL_OFFICER: "Central Ministry Officer",
+  SURVEYOR: "Survey Department",
+  RESEARCHER: "Research Institution",
 };
 
 /** Where each role lands after signing in. */
@@ -81,6 +93,10 @@ export const ROLE_HOME: Record<Role, string> = {
   DEO: "/deo/dashboard",
   VERIFIER: "/verifier/dashboard",
   TEHSILDAR: "/tehsildar/dashboard",
+  STATE_OFFICER: "/oversight/analytics",
+  CENTRAL_OFFICER: "/oversight/analytics",
+  SURVEYOR: "/oversight/map",
+  RESEARCHER: "/oversight/research",
 };
 
 /**

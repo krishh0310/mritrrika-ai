@@ -58,6 +58,8 @@ type RequestOptions = {
   signal?: AbortSignal;
   /** Skip the Authorization header. Only login and refresh set this. */
   anonymous?: boolean;
+  /** Return the body as text instead of parsing JSON (CSV exports). */
+  raw?: boolean;
 };
 
 async function toApiError(response: Response): Promise<ApiError> {
@@ -141,11 +143,15 @@ async function send<T>(path: string, options: RequestOptions, retry: boolean): P
 
   if (response.status === 204) return undefined as T;
   const text = await response.text();
+  if (options.raw) return text as T;
   return (text ? JSON.parse(text) : undefined) as T;
 }
 
 export const api = {
   get: <T>(path: string, signal?: AbortSignal) => send<T>(path, { signal }, true),
+
+  /** An authenticated download, as text. */
+  text: (path: string) => send<string>(path, { raw: true }, true),
 
   post: <T>(path: string, body?: unknown) => send<T>(path, { method: "POST", body }, true),
 

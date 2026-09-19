@@ -8,13 +8,24 @@ from enum import StrEnum
 
 
 class Role(StrEnum):
-    """The four roles (§12). Authorization is always decided from the role on
-    the authenticated user record -- never from anything the client sends."""
+    """The roles (§12). Authorization is always decided from the role on the
+    authenticated user record -- never from anything the client sends.
+
+    The first four run the workflow. The rest are read-only stakeholders:
+    state and central oversight, the survey department, and research
+    institutions, who get anonymised data only.
+    """
 
     CITIZEN = "CITIZEN"
     DEO = "DEO"
     VERIFIER = "VERIFIER"
     TEHSILDAR = "TEHSILDAR"
+    STATE_OFFICER = "STATE_OFFICER"
+    CENTRAL_OFFICER = "CENTRAL_OFFICER"
+    SURVEYOR = "SURVEYOR"
+    RESEARCHER = "RESEARCHER"
+    #: A service account for another government system; used with an API key.
+    INTEGRATION = "INTEGRATION"
 
 
 class DocumentType(StrEnum):
@@ -108,6 +119,7 @@ class FieldName(StrEnum):
     TEHSIL = "TEHSIL"
     DISTRICT = "DISTRICT"
     STATE = "STATE"
+    COUNTRY = "COUNTRY"
     AREA = "AREA"
     AREA_UNIT = "AREA_UNIT"
     LAND_CLASS = "LAND_CLASS"

@@ -12,6 +12,14 @@ records use -- not a translation of the Hindi form:
     te  Pahani / Adangal, 1-B ROR (AP, TG)    grama, mandalam, survey number
     ta  Chitta / Adangal (Tamil Nadu)         kiramam, vattam, pula en
     kn  Pahani / RTC (Karnataka)              grama, taluk, survey number
+    bn  Khatian / Parcha (West Bengal)        mouza, block, dag number
+    gu  7/12 Utara (Gujarat)                  gam, taluko, survey number
+    pa  Jamabandi (Punjab)                    pind, tehsil, khasra, khewat
+    or  Record of Rights (Odisha)             mouza, tahasil, plot number
+    ml  Thandaper (Kerala)                    village, taluk, survey number
+
+PaddleOCR has no recogniser for the last five scripts, so they are read by the
+Gemini vision provider; everything after OCR is the same for all nine.
 
 A survey number is what the south calls the parcel number the north calls a
 khasra, so both map to KHASRA; a patta number is the holding, so it maps to
@@ -83,6 +91,71 @@ LABELS_BY_LANGUAGE: dict[str, dict[str, list[str]]] = {
         "DATE": ["ದಿನಾಂಕ"],
         "GUARDIAN": ["ತಂದೆ / ಗಂಡ", "ತಂದೆಯ ಹೆಸರು", "ತಂದೆ", "ಗಂಡ"],
     },
+    "bn": {
+        "DISTRICT": ["জেলা"],
+        "TEHSIL": ["ব্লক", "থানা"],
+        "VILLAGE": ["মৌজা", "গ্রাম"],
+        "RECORD_YEAR": ["সাল", "বছর"],
+        "KHATA": ["খতিয়ান নং", "খতিয়ান"],
+        "KHASRA": ["দাগ নং", "দাগ"],
+        "AREA": ["জমির পরিমাণ", "পরিমাণ"],
+        "LAND_CLASS": ["জমির শ্রেণী", "শ্রেণী"],
+        "MUTATION": ["মিউটেশন নং"],
+        "DATE": ["তারিখ"],
+        "GUARDIAN": ["পিতা / স্বামী", "পিতা", "স্বামী"],
+    },
+    "gu": {
+        "DISTRICT": ["જિલ્લો"],
+        "TEHSIL": ["તાલુકો"],
+        "VILLAGE": ["ગામ"],
+        "RECORD_YEAR": ["વર્ષ"],
+        "KHATA": ["ખાતા નંબર", "ખાતા નં"],
+        "KHASRA": ["સર્વે નંબર", "સર્વે નં", "બ્લોક નંબર"],
+        "AREA": ["ક્ષેત્રફળ"],
+        "LAND_CLASS": ["જમીનનો પ્રકાર"],
+        "MUTATION": ["ફેરફાર નોંધ નં"],
+        "DATE": ["તારીખ"],
+        "GUARDIAN": ["પિતા / પતિ", "પિતા", "પતિ"],
+    },
+    "pa": {
+        "DISTRICT": ["ਜ਼ਿਲ੍ਹਾ", "ਜਿਲ੍ਹਾ"],
+        "TEHSIL": ["ਤਹਿਸੀਲ"],
+        "VILLAGE": ["ਪਿੰਡ"],
+        "RECORD_YEAR": ["ਸਾਲ"],
+        "KHATA": ["ਖੇਵਟ ਨੰ", "ਖੇਵਟ"],
+        "KHASRA": ["ਖਸਰਾ ਨੰ", "ਖਸਰਾ"],
+        "AREA": ["ਰਕਬਾ"],
+        "LAND_CLASS": ["ਕਿਸਮ ਜ਼ਮੀਨ"],
+        "MUTATION": ["ਇੰਤਕਾਲ ਨੰ"],
+        "DATE": ["ਮਿਤੀ"],
+        "GUARDIAN": ["ਪਿਤਾ / ਪਤੀ", "ਪਿਤਾ", "ਪਤੀ"],
+    },
+    "or": {
+        "DISTRICT": ["ଜିଲ୍ଲା"],
+        "TEHSIL": ["ତହସିଲ"],
+        "VILLAGE": ["ମୌଜା", "ଗ୍ରାମ"],
+        "RECORD_YEAR": ["ବର୍ଷ"],
+        "KHATA": ["ଖାତା ନଂ", "ଖାତା"],
+        "KHASRA": ["ପ୍ଲଟ ନଂ", "ପ୍ଲଟ"],
+        "AREA": ["ରକବା", "କ୍ଷେତ୍ରଫଳ"],
+        "LAND_CLASS": ["କିସମ"],
+        "MUTATION": ["ମ୍ୟୁଟେସନ ନଂ"],
+        "DATE": ["ତାରିଖ"],
+        "GUARDIAN": ["ପିତା / ସ୍ୱାମୀ", "ପିତା", "ସ୍ୱାମୀ"],
+    },
+    "ml": {
+        "DISTRICT": ["ജില്ല"],
+        "TEHSIL": ["താലൂക്ക്"],
+        "VILLAGE": ["വില്ലേജ്", "ഗ്രാമം"],
+        "RECORD_YEAR": ["വർഷം"],
+        "KHATA": ["തണ്ടപ്പേര് നമ്പർ", "തണ്ടപ്പേര്"],
+        "KHASRA": ["സർവ്വേ നമ്പർ", "സർവേ നമ്പർ", "റീസർവ്വേ നമ്പർ"],
+        "AREA": ["വിസ്തീർണ്ണം"],
+        "LAND_CLASS": ["ഭൂമിയുടെ തരം"],
+        "MUTATION": ["പോക്കുവരവ് നമ്പർ"],
+        "DATE": ["തീയതി"],
+        "GUARDIAN": ["പിതാവ് / ഭർത്താവ്", "പിതാവ്", "ഭർത്താവ്"],
+    },
 }
 
 #: Column headings that introduce a table of owners.
@@ -91,6 +164,11 @@ OWNER_COLUMN_LABELS_BY_LANGUAGE: dict[str, list[str]] = {
     "te": ["పట్టాదారు పేరు", "పట్టాదారుని పేరు", "పేరు"],
     "ta": ["உரிமையாளர் பெயர்", "பட்டாதாரர் பெயர்", "பெயர்"],
     "kn": ["ಖಾತೆದಾರರ ಹೆಸರು", "ಮಾಲೀಕರ ಹೆಸರು", "ಹೆಸರು"],
+    "bn": ["রায়তের নাম", "মালিকের নাম", "নাম"],
+    "gu": ["ખાતેદારનું નામ", "કબજેદારનું નામ", "નામ"],
+    "pa": ["ਮਾਲਕ ਦਾ ਨਾਮ", "ਨਾਮ"],
+    "or": ["ରୟତଙ୍କ ନାମ", "ନାମ"],
+    "ml": ["ഉടമയുടെ പേര്", "പേര്"],
 }
 
 SHARE_COLUMN_LABELS_BY_LANGUAGE: dict[str, list[str]] = {
@@ -98,6 +176,11 @@ SHARE_COLUMN_LABELS_BY_LANGUAGE: dict[str, list[str]] = {
     "te": ["వాటా"],
     "ta": ["பங்கு"],
     "kn": ["ಪಾಲು"],
+    "bn": ["অংশ"],
+    "gu": ["હિસ્સો"],
+    "pa": ["ਹਿੱਸਾ"],
+    "or": ["ଅଂଶ"],
+    "ml": ["ഓഹരി"],
 }
 
 GUARDIAN_COLUMN_LABELS_BY_LANGUAGE: dict[str, list[str]] = {
@@ -105,6 +188,11 @@ GUARDIAN_COLUMN_LABELS_BY_LANGUAGE: dict[str, list[str]] = {
     "te": ["తండ్రి / భర్త"],
     "ta": ["தந்தை / கணவர்"],
     "kn": ["ತಂದೆ / ಗಂಡ"],
+    "bn": ["পিতা / স্বামী"],
+    "gu": ["પિતા / પતિ"],
+    "pa": ["ਪਿਤਾ / ਪਤੀ"],
+    "or": ["ପିତା / ସ୍ୱାମୀ"],
+    "ml": ["പിതാവ് / ഭർത്താവ്"],
 }
 
 #: Blocks that are page furniture -- state names, form titles, signature and
@@ -126,6 +214,11 @@ CHROME_BY_LANGUAGE: dict[str, set[str]] = {
     "kn": {
         "ಕರ್ನಾಟಕ", "ಪಹಣಿ", "ಆರ್.ಟಿ.ಸಿ", "ಸಹಿ", "ಮುದ್ರೆ", "ಕ್ರ.ಸಂ", "ಷರಾ",
     },
+    "bn": {"পশ্চিমবঙ্গ", "পরচা", "স্বাক্ষর", "সীলমোহর", "মন্তব্য"},
+    "gu": {"ગુજરાત", "સહી", "સિક્કો", "નોંધ"},
+    "pa": {"ਪੰਜਾਬ", "ਜਮ੍ਹਾਬੰਦੀ", "ਦਸਤਖ਼ਤ", "ਮੋਹਰ", "ਕੈਫੀਅਤ"},
+    "or": {"ଓଡ଼ିଶା", "ସ୍ୱାକ୍ଷର", "ମୋହର", "ମନ୍ତବ୍ୟ"},
+    "ml": {"കേരളം", "ഒപ്പ്", "മുദ്ര", "കുറിപ്പ്"},
 }
 
 #: Words that open the line after the owners table -- the remark or the
@@ -135,6 +228,11 @@ TABLE_TERMINATORS_BY_LANGUAGE: dict[str, tuple[str, ...]] = {
     "te": ("గమనిక", "ధృవీకరించడమైనది"),
     "ta": ("குறிப்பு", "சான்றளிக்கப்படுகிறது"),
     "kn": ("ಷರಾ", "ಟಿಪ್ಪಣಿ", "ದೃಢೀಕರಿಸಲಾಗಿದೆ"),
+    "bn": ("মন্তব্য", "প্রত্যয়িত"),
+    "gu": ("નોંધ", "પ્રમાણિત"),
+    "pa": ("ਕੈਫੀਅਤ", "ਤਸਦੀਕ"),
+    "or": ("ମନ୍ତବ୍ୟ", "ପ୍ରମାଣିତ"),
+    "ml": ("കുറിപ്പ്", "സാക്ഷ്യപ്പെടുത്തുന്നു"),
 }
 
 LANGUAGES: tuple[str, ...] = tuple(LABELS_BY_LANGUAGE)

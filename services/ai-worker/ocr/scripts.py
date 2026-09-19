@@ -54,7 +54,9 @@ SCRIPT_TO_LANG: dict[str, str] = {
 #: Scripts this module can NAME but the engine cannot READ. Listed explicitly
 #: rather than omitted, so an unreadable page is reported as an unsupported
 #: script instead of being silently handed to whichever recogniser is loaded
-#: (§82). PP-OCRv5 ships no recogniser for these.
+#: (§82). PP-OCRv5 ships no recogniser for these. The Gemini vision provider
+#: does read them, and extraction has their form labels (extraction/labels.py),
+#: so a deployment receiving these pages runs with OCR_PROVIDER=gemini.
 UNSUPPORTED_SCRIPTS: frozenset[str] = frozenset(
     {"bengali", "gujarati", "gurmukhi", "odia", "malayalam"}
 )
@@ -137,8 +139,8 @@ def language_for_script(script: str | None) -> str:
         return SCRIPT_TO_LANG[script]
     if script in UNSUPPORTED_SCRIPTS:
         raise UnsupportedScript(
-            f"{script} is recognised as a script but no installed model reads "
-            f"it; the page needs manual entry"
+            f"{script} is recognised as a script but PaddleOCR has no model "
+            f"for it; read it with OCR_PROVIDER=gemini, or enter it manually"
         )
     raise UnsupportedScript(f"could not identify a supported script (saw {script!r})")
 
