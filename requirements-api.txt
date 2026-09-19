@@ -47,3 +47,5 @@ pypdfium2>=4.30          # renders uploaded PDFs to page images (upload gate + p
 pytest>=8.3
 pytest-asyncio>=0.24
 httpx>=0.28
+# Nightly retrain check (app/tasks/retrain_scheduler.py). <4: v4 is a rewrite.
+apscheduler>=3.10,<4

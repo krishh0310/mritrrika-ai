@@ -75,6 +75,29 @@ def get_layout_detector():
     return _detector
 
 
+_field_models: dict[str, object] = {}
+
+
+def active_extractor(session: Session) -> tuple[object | None, str]:
+    """The promoted field model (None = rules) and the version to record.
+
+    Read per document from model_registry, so a nightly promotion takes effect
+    without a restart; the checkpoint itself is loaded once per process.
+    """
+    from app.models import ModelRegistryEntry
+
+    row = session.execute(
+        select(ModelRegistryEntry).where(ModelRegistryEntry.is_active.is_(True))
+    ).scalar_one_or_none()
+    if row is None or row.model_path == "rules":
+        return None, get_settings().model_version_extractor
+    if row.model_path not in _field_models:
+        from extraction.model_extractor import ModelExtractor
+
+        _field_models[row.model_path] = ModelExtractor(row.model_path)
+    return _field_models[row.model_path], f"extractor-trained-{row.id[:8]}"
+
+
 def _update_job(session: Session, job: ProcessingJob, stage: str, progress: int,
                 message: str) -> None:
     job.stage = stage
@@ -123,7 +146,6 @@ def process_document(
     from extraction_pipeline import run as run_pipeline
     from ocr.provider import OcrUnavailable
 
-    settings = get_settings()
     pages = _pages_for(session, document)
     total = len(pages)
 
@@ -131,6 +153,7 @@ def process_document(
     job.started_at = datetime.now(UTC)
     session.commit()
 
+    field_model, extractor_version = active_extractor(session)
     results: list[tuple[DocumentPage, object]] = []
     current = pages[0]
     try:
@@ -154,6 +177,7 @@ def process_document(
                 declared_khasra=document.declared_khasra,
                 progress=progress,
                 layout_detector=get_layout_detector(),
+                field_model=field_model,
             )))
     except (OcrUnavailable, ValueError) as exc:
         detail = str(exc) if total == 1 else f"page {current.page_number} of {total}: {exc}"
@@ -240,7 +264,7 @@ def process_document(
                     confidence_breakdown=outcome.confidence_breakdown,
                     bbox_x1=x1, bbox_y1=y1, bbox_x2=x2, bbox_y2=y2,
                     status=outcome.status,
-                    model_version=settings.model_version_extractor,
+                    model_version=extractor_version,
                     row_index=outcome.row_index,
                 )
             )

@@ -177,7 +177,10 @@ class TestNearDuplicate:
         document_id = second.json()["document_id"]
         flags = client.get(
             "/api/v1/anomalies",
-            params={"status": "OPEN", "limit": 500},
+            # Filtered to this document: the shared database accumulates open
+            # flags across runs, and a score-ordered page of 500 stopped
+            # reaching a new low-score flag once there were more than 500.
+            params={"status": "OPEN", "limit": 500, "document_id": document_id},
             headers={"Authorization": f"Bearer {token_for(VERIFIER)}"},
         )
         assert flags.status_code == 200, flags.text

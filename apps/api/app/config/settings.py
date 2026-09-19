@@ -77,6 +77,10 @@ class Settings(BaseSettings):
     #: Scope extraction with the YOLO layout detector. Off: it measured +0.001
     #: F1 (docs/ai-pipeline.md), and costs a model load per worker.
     use_yolo: bool = False
+    #: Nightly retrain check (app/tasks/retrain_scheduler.py).
+    retrain_scheduler_enabled: bool = True
+    #: ACCEPTED corrections since the last run needed before retraining.
+    retrain_min_samples: int = 50
     #: pg_featureserv, reached only through /api/v1/geo/features.
     pg_featureserv_url: str = "http://localhost:9000"
 

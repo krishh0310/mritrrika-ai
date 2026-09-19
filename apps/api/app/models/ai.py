@@ -6,7 +6,7 @@ import os
 from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Index, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base, TimestampMixin, new_uuid
@@ -98,3 +98,27 @@ class Notification(Base, TimestampMixin):
     body: Mapped[str | None] = mapped_column(Text)
     link: Mapped[str | None] = mapped_column(String(512))
     is_read: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
+
+
+class ModelRegistryEntry(Base, TimestampMixin):
+    """Which field extractor is in production, and every candidate that tried.
+
+    `model_path` is "rules" for the deterministic extractor, else a checkpoint
+    path. A partial unique index allows at most one active row, and promotion
+    swaps rows in one transaction, so there is always exactly one.
+    """
+
+    __tablename__ = "model_registry"
+    __table_args__ = (
+        Index("uq_model_registry_one_active", "is_active", unique=True,
+              postgresql_where=text("is_active")),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    model_path: Mapped[str] = mapped_column(String(512), nullable=False)
+    #: Field-level F1 on the held-out split; NULL for a run that failed.
+    f1_score: Mapped[float | None] = mapped_column(Float)
+    promoted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    #: Why a candidate was kept or not, for the audit of each run.
+    notes: Mapped[str | None] = mapped_column(Text)

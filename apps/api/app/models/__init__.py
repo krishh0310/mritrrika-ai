@@ -2,7 +2,7 @@
 entire schema from a single import of Base.metadata.
 """
 
-from .ai import AiFeedback, Embedding, ModelVersion, Notification
+from .ai import AiFeedback, Embedding, ModelRegistryEntry, ModelVersion, Notification
 from .audit import AuditEvent
 from .base import Base
 from .documents import (
@@ -38,7 +38,7 @@ __all__ = [
     "AiFeedback", "AnomalyFlag", "ApiKey", "ApprovalAction", "AuditEvent", "Base",
     "CitizenProfile", "Document", "DocumentPage", "Embedding", "Extraction",
     "FieldCorrection", "Grievance", "LandRecord", "Location", "LrmsSyncRecord",
-    "ModelVersion",
+    "ModelRegistryEntry", "ModelVersion",
     "Mutation", "Notification", "OcrBlock", "Owner", "OwnershipRecord",
     "Parcel", "Permission", "ProcessingJob", "Role", "RolePermission", "User",
     "UserRole", "ValidationFinding", "VerificationAction", "VerificationTask",

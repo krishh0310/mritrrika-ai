@@ -12,6 +12,7 @@ import logging
 import re
 import time
 import uuid
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -43,7 +44,18 @@ logger = logging.getLogger("mrittika.access")
 
 REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """Start the nightly retrain check with the API (once per process)."""
+    if settings.retrain_scheduler_enabled:
+        from app.tasks import retrain_scheduler
+
+        _app.state.scheduler = retrain_scheduler.start()
+    yield
+
+
 app = FastAPI(
+    lifespan=lifespan,
     title="Mrittika AI",
     description=(
         "Intelligent digitization for India's land records. "

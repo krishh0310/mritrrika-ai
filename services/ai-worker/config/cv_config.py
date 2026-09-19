@@ -13,5 +13,6 @@ no effect until scripts/train_layout_detector.py is run again.
 #: docs/ai-pipeline.md.
 YOLO_MODEL = "yolo11n.pt"
 
-#: Run name under models/checkpoints/layout/ that inference loads.
-LAYOUT_CHECKPOINT = "layout-v1"
+#: Run name under models/checkpoints/layout/ that inference loads. layout-v11
+#: is the YOLO11n fine-tune; layout-v1 (YOLOv8n) measured the same.
+LAYOUT_CHECKPOINT = "layout-v11"

@@ -173,6 +173,24 @@ def render(session: Session) -> str:
             for stage, value in sorted(latencies.items())
         ]
 
+    # ── Retraining (app/tasks/retrain_scheduler.py) ─────────────────────────
+    from app.models import ModelRegistryEntry
+
+    retrains = session.execute(
+        select(func.count(ModelRegistryEntry.id)).where(ModelRegistryEntry.model_path != "rules")
+    ).scalar_one()
+    active_f1 = session.execute(
+        select(ModelRegistryEntry.f1_score).where(ModelRegistryEntry.is_active.is_(True))
+    ).scalar_one_or_none()
+    out += [
+        "# HELP mrittika_retrain_triggered_total Retrain runs started (any outcome).",
+        "# TYPE mrittika_retrain_triggered_total counter",
+        _line("mrittika_retrain_triggered_total", retrains),
+        "# HELP mrittika_extractor_f1 Held-out field F1 of the production extractor.",
+        "# TYPE mrittika_extractor_f1 gauge",
+        _line("mrittika_extractor_f1", round(active_f1 or 0.0, 4)),
+    ]
+
     # ── Quality and confidence ──────────────────────────────────────────────
     average_confidence = session.execute(
         select(func.avg(Extraction.final_confidence))

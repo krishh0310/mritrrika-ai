@@ -28,6 +28,7 @@ OFFICER_VERDICTS = ("RESOLVED", "DISMISSED")
 def list_flags(
     flag_status: str = Query("OPEN", alias="status"),
     limit: int = Query(100, ge=1, le=500),
+    document_id: str | None = Query(None, description="only flags on this document"),
     principal: Principal = Depends(require("anomaly:view")),
     session: Session = Depends(get_session),
 ) -> dict:
@@ -35,7 +36,7 @@ def list_flags(
     # parcel: an upload-time flag (a page that resembles one already stored)
     # names only a document, and reporting it with a null parcel and nothing
     # else leaves an officer a finding they cannot act on.
-    rows = session.execute(
+    query = (
         select(AnomalyFlag, Parcel, Document)
         .outerjoin(Parcel, Parcel.id == AnomalyFlag.parcel_id)
         .outerjoin(Document, Document.id == AnomalyFlag.document_id)
@@ -45,7 +46,10 @@ def list_flags(
         )
         .order_by(AnomalyFlag.score.desc())
         .limit(limit)
-    ).all()
+    )
+    if document_id is not None:
+        query = query.where(Document.external_id == document_id)
+    rows = session.execute(query).all()
 
     return {
         "count": len(rows),

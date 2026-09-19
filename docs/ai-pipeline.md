@@ -190,10 +190,18 @@ number in the evaluation section remains a Hindi number.
 ## Region detection: accurate, and it did not help
 
 `layout/detector.py` is a YOLO model fine-tuned on the generator's own structural
-ground truth. The base is now **YOLO11n** (`config/cv_config.py`); the numbers
-in the table below are the shipped `layout-v1` checkpoint, fine-tuned from
-**YOLOv8n**, and a YOLO11n run is reported separately rather than assumed to
-match. The detector is enabled with `USE_YOLO=true`. It is trained on the
+ground truth. The base is now **YOLO11n** (`config/cv_config.py`), and the
+inference checkpoint is its fine-tune, `layout-v11`. The upgrade changed
+nothing measurable on this corpus -- same data, split, epochs and settings:
+
+| mAP50-95 | all | header | table | mAP50 |
+|---|---|---|---|---|
+| YOLOv8n (`layout-v1`) | 0.958 | 0.970 | 0.945 | 0.995 |
+| YOLO11n (`layout-v11`) | 0.958 | 0.975 | 0.940 | 0.995 |
+
+Two classes on 500 synthetic pages is too easy a task to separate them; the
+vendor's small-object gains would need real, harder scans to show. The
+YOLOv8n table below is kept as the original measurement. The detector is enabled with `USE_YOLO=true`. It is trained on the
 generator's own structural ground truth — the `layout` boxes every annotation already carried. Two
 classes, header and table, 350 training pages, measured on the same grouped
 val split the extractor is measured on:
@@ -492,11 +500,22 @@ decision or an explicit command — never a background job (§67):
    validation, so runs with and without feedback stay comparable
    (`--no-feedback`). The run report lists the feedback rows it used.
 
-What this does not change: production extraction is the rules extractor, and
-the trained extractor is not in the pipeline (see above). The loop is complete
-up to a checkpoint; promoting one is a measured decision via
-`evaluate_extraction.py --extractor model`, not something a training run does
-by itself.
+5. **Nightly.** `app/tasks/retrain_scheduler.py` (APScheduler, started with
+   the API) checks at 02:00 whether `RETRAIN_MIN_SAMPLES` (default 50)
+   corrections have been ACCEPTED since the last run. If so it runs steps 3-4
+   on IndicBERT v2, evaluates the checkpoint on the held-out val split with the
+   same harness that measured the rules at F1 0.592, and **promotes it only if
+   its F1 is at least the active model's**. Every attempt -- promoted, kept or
+   failed -- is a row in `model_registry`; a partial unique index and a
+   single-transaction swap keep exactly one row active. The pipeline reads the
+   active row per document, so a promotion needs no restart, and records a
+   distinct `model_version` so live accuracy compares the two.
+   `mrittika_retrain_triggered_total` and `mrittika_extractor_f1` are on
+   `/metrics`.
+
+The registry starts with the rules extractor active. Until a trained model
+beats 0.592 on held-out pages, that is what runs; the MuRIL attempt scored
+0.000, so this gate is not a formality.
 
 ## What is NOT implemented
 

@@ -53,6 +53,8 @@ def main() -> None:
     parser.add_argument("--device", default=None,
                         help="'mps' on Apple Silicon, 'cpu', or a CUDA index")
     parser.add_argument("--name", default=LAYOUT_CHECKPOINT)
+    parser.add_argument("--eval-only", action="store_true",
+                        help="skip training; validate the run's existing best.pt")
     args = parser.parse_args()
 
     data_path = Path(args.data)
@@ -75,26 +77,37 @@ def main() -> None:
     print(f"training on device={device}")
 
     model = YOLO(args.model)
-    model.train(
-        data=str(data_path),
-        epochs=args.epochs,
-        imgsz=args.imgsz,
-        batch=args.batch,
-        device=device,
-        project=str(CHECKPOINTS / "layout"),
-        name=args.name,
-        exist_ok=True,
-        # The pages are already degraded by the generator with rotation,
-        # perspective and rescale. Letting Ultralytics add its own photometric
-        # and flip augmentation on top would train the detector on documents
-        # that cannot arrive: a land record is never mirrored.
-        fliplr=0.0,
-        flipud=0.0,
-        mosaic=0.0,
-        seed=42,
-    )
+    if not args.eval_only:
+        model.train(
+            data=str(data_path),
+            epochs=args.epochs,
+            imgsz=args.imgsz,
+            batch=args.batch,
+            device=device,
+            project=str(CHECKPOINTS / "layout"),
+            name=args.name,
+            exist_ok=True,
+            # The pages are already degraded by the generator with rotation,
+            # perspective and rescale. Letting Ultralytics add its own
+            # photometric and flip augmentation on top would train the detector
+            # on documents that cannot arrive: a land record is never mirrored.
+            fliplr=0.0,
+            flipud=0.0,
+            mosaic=0.0,
+            seed=42,
+        )
 
-    metrics = model.val(data=str(data_path), split="val", device=device)
+    # Validate the saved checkpoint from a temporary copy. Ultralytics strips
+    # an apostrophe from the path it re-derives after training ("PROTOTYPE'S"
+    # -> "PROTOTYPES"), so validating in place failed after a completed run.
+    import shutil
+    import tempfile
+
+    best = CHECKPOINTS / "layout" / args.name / "weights" / "best.pt"
+    with tempfile.TemporaryDirectory() as scratch:
+        copy = Path(scratch) / "best.pt"
+        shutil.copy(best, copy)
+        metrics = YOLO(str(copy)).val(data=str(data_path), split="val", device=device)
 
     run_dir = CHECKPOINTS / "layout" / args.name
     weights = run_dir / "weights" / "best.pt"

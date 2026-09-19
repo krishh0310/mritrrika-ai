@@ -117,6 +117,7 @@ def run(
     previous_area: float | None = None,
     progress=None,
     layout_detector=None,
+    field_model=None,
 ) -> PipelineResult:
     """Run every stage over one page."""
 
@@ -173,9 +174,18 @@ def run(
             ))
 
     report("extraction", 65, "Extracting record fields")
-    extraction = extract(
-        ocr.blocks, prepared.shape[1], table_rows=table_rows, regions=regions
-    )
+    if field_model is not None:
+        # A promoted trained extractor, with the rules underneath per field.
+        from extraction.model_extractor import extract as extract_with_model
+
+        extraction = extract_with_model(
+            ocr.blocks, prepared.shape[1], prepared.shape[0],
+            extractor=field_model, regions=regions, table_rows=table_rows,
+        )
+    else:
+        extraction = extract(
+            ocr.blocks, prepared.shape[1], table_rows=table_rows, regions=regions
+        )
     translated_from = None
     if not extraction.values:
         translated_from, extraction = _translated_fallback(
