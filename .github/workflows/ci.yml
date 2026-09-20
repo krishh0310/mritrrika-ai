@@ -65,33 +65,20 @@ jobs:
   backend:
     name: Backend — lint and tests
     runs-on: ubuntu-latest
-
-    services:
-      postgres:
-        # PostGIS and pgvector both required; app/main.py:/ready checks for them.
-        image: postgis/postgis:16-3.4
-        env:
-          POSTGRES_USER: mrittika
-          POSTGRES_PASSWORD: mrittika
-          POSTGRES_DB: mrittika
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U mrittika"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-
-      redis:
-        image: redis:7-alpine
-        ports: ["6379:6379"]
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
+    env:
+      POSTGRES_PASSWORD: mrittika
+      DATABASE_URL: postgresql+psycopg://mrittika:mrittika@localhost:5432/mrittika
+      REDIS_URL: redis://localhost:6379/0
+      JWT_SECRET_KEY: ci-only-secret-key-not-for-deployment
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Start PostGIS, pgvector and Redis
+        # The repository image deliberately contains both database extensions;
+        # the former service image contained PostGIS only, so CREATE EXTENSION
+        # vector made every clean CI run fail before tests started.
+        run: docker compose up -d --build --wait postgres redis
 
       - uses: actions/setup-python@v5
         with:
@@ -110,27 +97,15 @@ jobs:
       - name: Lint
         run: ruff check .
 
-      - name: Enable extensions
-        run: |
-          PGPASSWORD=mrittika psql -h localhost -U mrittika -d mrittika \
-            -c "CREATE EXTENSION IF NOT EXISTS postgis;" \
-            -c "CREATE EXTENSION IF NOT EXISTS vector;"
-
       - name: Migrate and seed
         run: |
           cp .env.example .env
           alembic -c apps/api/alembic.ini upgrade head
           python scripts/seed_demo.py
-        env:
-          DATABASE_URL: postgresql+psycopg://mrittika:mrittika@localhost:5432/mrittika
-          REDIS_URL: redis://localhost:6379/0
 
       - name: Tests
         # Deselect anything that loads an ML model or reaches the network.
         run: pytest tests -q -m "not slow"
-        env:
-          DATABASE_URL: postgresql+psycopg://mrittika:mrittika@localhost:5432/mrittika
-          REDIS_URL: redis://localhost:6379/0
 
   dataset:
     name: Dataset — schema QA

@@ -566,13 +566,20 @@ def build_default_engine(
     gemini_api_key: str | None = None,
     gemini_model: str = "gemini-3.6-flash",
     detection_model: str | None = DETECTION_MODEL,
+    model_version: str = "ocr-v1",
 ) -> OcrEngine:
     paddle: OcrProvider = (
-        RoutedPaddleProvider(detection_model=detection_model)
+        RoutedPaddleProvider(model_version=model_version, detection_model=detection_model)
         if lang == AUTO_LANG
-        else PaddleOcrProvider(lang=lang, detection_model=detection_model)
+        else PaddleOcrProvider(
+            lang=lang, model_version=model_version, detection_model=detection_model
+        )
     )
-    gemini = GeminiVisionOcrProvider(api_key=gemini_api_key, model=gemini_model)
+    gemini = GeminiVisionOcrProvider(
+        api_key=gemini_api_key,
+        model=gemini_model,
+        model_version=f"{model_version}-gemini",
+    )
     if provider == "gemini":
         # A Paddle native crash is a process-level SIGSEGV and cannot be
         # caught as OcrUnavailable, so it must never be an automatic fallback.

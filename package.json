@@ -26,14 +26,6 @@
     "esbuild@0.28.2": true,
     "unrs-resolver@1.12.2": true
   },
-  "overrides": {
-    "@react-navigation/core": {
-      "query-string": "9.5.1"
-    },
-    "xcode@3.0.1": {
-      "uuid": "11.1.1"
-    }
-  },
   "devDependencies": {
     "@playwright/test": "^1.50.1",
     "@types/react": "19.2.18",

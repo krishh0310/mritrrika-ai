@@ -23,8 +23,11 @@ RUN pip install -r requirements-api.txt
 
 COPY packages/domain ./packages/domain
 COPY services/ai-worker ./services/ai-worker
+COPY services/dataset-generator ./services/dataset-generator
 COPY apps/api ./apps/api
 COPY scripts ./scripts
+COPY models/registry ./models/registry
+COPY docs/asyncapi.yaml ./docs/asyncapi.yaml
 
 # Not root. A container that never needs to write to its own filesystem should
 # not be able to.

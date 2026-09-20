@@ -13,7 +13,7 @@ const config: NextConfig = {
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000",
   },
-    // Both workspace packages ship TypeScript source rather than a build step,
+  // Both workspace packages ship TypeScript source rather than a build step,
   // so Next has to compile them alongside the app.
   transpilePackages: ["@mrittika/shared-types", "@mrittika/ui"],
 };

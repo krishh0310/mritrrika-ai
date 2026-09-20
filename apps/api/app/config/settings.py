@@ -146,7 +146,6 @@ class Settings(BaseSettings):
     # macOS/ARM builds. Keep it opt-in; the Gemini provider fails normally and
     # is reported to the user instead of taking down the API process.
     ocr_provider: str = "gemini"
-    ocr_fallback_provider: str = "gemini"
     #: A PaddleOCR language code, or "auto" to pick the recogniser per page
     #: from hi/te/ta/ka (slower: one pass per candidate). Gemini reads every
     #: script and ignores this.
@@ -154,9 +153,7 @@ class Settings(BaseSettings):
 
     # ── model versions recorded on every prediction (§64) ─────────────────
     model_version_ocr: str = "ocr-v1"
-    model_version_layout: str = "layout-v1"
     model_version_extractor: str = "extractor-v1"
-    model_version_confidence: str = "confidence-v1"
     model_version_anomaly: str = "anomaly-v1"
 
     # ── uploads (§61) ─────────────────────────────────────────────────────

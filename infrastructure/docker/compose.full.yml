@@ -166,12 +166,11 @@ services:
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-mrittika-dev-secret}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set}
       OCR_PROVIDER: ${OCR_PROVIDER:-paddle}
-      OCR_FALLBACK_PROVIDER: ${OCR_FALLBACK_PROVIDER:-gemini}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_LLM_MODEL: ${GEMINI_LLM_MODEL:-gemini-3.6-flash}
     volumes:
       # Model weights survive a restart rather than being re-downloaded.
-      - modelcache:/models
+      - modelcache:/app/models
 
   web:
     build:

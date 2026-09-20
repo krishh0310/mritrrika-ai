@@ -15,7 +15,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     # Where PaddleOCR caches downloaded weights; mounted as a volume so a
     # restart does not re-download them.
-    PADDLE_HOME=/models
+    PADDLE_HOME=/app/models/paddle
 
 WORKDIR /app
 
@@ -33,8 +33,9 @@ COPY services ./services
 COPY apps/api ./apps/api
 
 RUN useradd --system --uid 10001 mrittika \
-    && mkdir -p /models && chown -R mrittika /app /models
+    && mkdir -p /app/models/paddle && chown -R mrittika /app
 USER mrittika
+WORKDIR /app/apps/api
 
 # --concurrency=1: each worker caches a model, and two copies of PaddleOCR in
 # one container is the fastest way to exhaust memory. Scale with replicas.

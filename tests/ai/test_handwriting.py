@@ -12,7 +12,14 @@ sys.path.insert(0, str(ROOT / "services" / "ai-worker"))
 sys.path.insert(0, str(ROOT / "packages" / "domain"))
 
 from ocr.handwriting import flag_blocks, is_handwritten
-from ocr.provider import OcrEngine, OcrResult, OcrUnavailable, PaddleOcrProvider, TextBlock
+from ocr.provider import (
+    OcrEngine,
+    OcrResult,
+    OcrUnavailable,
+    PaddleOcrProvider,
+    TextBlock,
+    build_default_engine,
+)
 
 
 def line(jitter=False):
@@ -77,6 +84,13 @@ def test_lazy_paddle_failure_uses_fallback():
             return OcrResult(provider=self.name)
 
     assert OcrEngine(primary, [Fallback()]).recognize(line()).provider == "test"
+
+
+def test_configured_ocr_version_reaches_predictions():
+    engine = build_default_engine(model_version="ocr-release-7")
+    assert engine.primary.model_version == "ocr-release-7"
+    hosted = build_default_engine(provider="gemini", model_version="ocr-release-7")
+    assert hosted.primary.model_version == "ocr-release-7-gemini"
 
 
 def test_deskew_and_scaling_are_undone_for_field_and_ocr_boxes(monkeypatch):

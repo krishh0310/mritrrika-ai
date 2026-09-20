@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -325,8 +326,11 @@ def main() -> int:
 
     world_path = REPO_ROOT / "datasets" / "metadata" / f"world.{args.profile}.json"
     if not world_path.exists():
-        print(f"missing {world_path}; run scripts/generate_dataset.py", file=sys.stderr)
-        return 1
+        subprocess.run(
+            [sys.executable, str(REPO_ROOT / "scripts" / "generate_dataset.py"),
+             "--profile", args.profile],
+            check=True,
+        )
 
     world = SyntheticWorld.model_validate_json(world_path.read_text())
     import os

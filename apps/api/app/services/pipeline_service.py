@@ -55,6 +55,7 @@ def get_engine():
             gemini_api_key=settings.gemini_api_key,
             gemini_model=settings.gemini_llm_model,
             detection_model=settings.ocr_detection_model,
+            model_version=settings.model_version_ocr,
         )
     return _engine
 
