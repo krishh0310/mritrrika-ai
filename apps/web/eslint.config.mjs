@@ -9,6 +9,7 @@ const config = defineConfig([
     ".next/**",
     "node_modules/**",
     "test-results/**",
+    "public/maplibre/**",
     "playwright-report/**",
   ]),
   {

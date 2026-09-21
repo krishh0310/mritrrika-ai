@@ -193,8 +193,14 @@ test.describe("the land-record lifecycle", () => {
     await expect(page.getByText(PARCEL)).toBeVisible();
 
     // §16 — and on the cadastral map.
+    // A canvas alone proves nothing: with MapLibre's worker missing, the map
+    // drew an empty canvas and no parcels, silently. The worker must load.
+    const worker = page.waitForResponse(
+      (response) => response.url().includes("/maplibre/maplibre-gl-worker.mjs") && response.ok(),
+    );
     await page.goto(`/citizen/map?parcel=${PARCEL}`);
     await expect(page.locator("canvas")).toBeVisible({ timeout: 30_000 });
+    await worker;
 
     // §25 / §40 — ownership history, with the mutation that caused each change.
     await page.goto(`/citizen/records/${PARCEL}`);

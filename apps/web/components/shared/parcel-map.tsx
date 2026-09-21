@@ -9,6 +9,9 @@ import { cn } from "@mrittika/ui";
 
 import "maplibre-gl/dist/maplibre-gl.css";
 
+// The bundled worker path 404s under Next; see scripts/copy-maplibre-worker.mjs.
+maplibregl.setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
+
 /**
  * The cadastral map (§16, §53).
  *

@@ -68,3 +68,6 @@ htmlcov/
 apps/web/shot.mjs
 apps/web/flow.mjs
 apps/web/test-results/
+
+# Copied from node_modules by apps/web/scripts/copy-maplibre-worker.mjs
+apps/web/public/maplibre/

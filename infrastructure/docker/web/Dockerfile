@@ -32,6 +32,8 @@ ENV NODE_ENV=production
 RUN addgroup -g 10001 mrittika && adduser -S -u 10001 -G mrittika mrittika
 
 COPY --from=build /repo/apps/web/.next ./.next
+# MapLibre's worker, copied there by the prebuild step (see parcel-map.tsx).
+COPY --from=build /repo/apps/web/public ./public
 COPY --from=build /repo/apps/web/package.json ./package.json
 COPY --from=build /repo/node_modules ./node_modules
 
