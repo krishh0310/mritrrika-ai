@@ -1,15 +1,31 @@
 # Mrittika AI
 
-**Intelligent digitization for India's land records.**
+**A human-in-the-loop platform for digitizing India's land records.**
 
-Mrittika AI converts legacy land documents into AI-extracted, human-verified,
-officer-approved, spatially linked digital records that authorized citizens and
-officials can securely search, inspect and query through a grounded AI
-assistant.
+Mrittika AI turns scanned land documents into structured, spatially linked
+records. AI performs quality checks, OCR, extraction, validation and anomaly
+detection; authorized staff verify the result before an officer approves it.
+Citizens can then search their own approved holdings, inspect parcel history and
+ask questions through a grounded assistant.
 
-> **Every record, owner, parcel and document in this repository is synthetic.**
-> It is a hackathon prototype. It holds no real citizen's land and is not
-> connected to any government system.
+> **Prototype boundary:** every record, owner, parcel and document is synthetic.
+> This repository is a hackathon prototype. It stores no real citizen data and
+> is not connected to DILRMP, BhuNaksha or any other government system.
+
+## At a glance
+
+| Area | Current implementation |
+|---|---|
+| Web | Next.js officer workstations and citizen portal |
+| API | FastAPI, PostgreSQL, PostGIS, pgvector and Redis |
+| AI pipeline | OpenCV, PaddleOCR, layout detection, deterministic extraction, validation and anomaly detection |
+| Mobile | Expo citizen and field-capture app |
+| Geospatial | PostGIS cadastre data with optional GeoServer publication |
+| Integrations | Mock LRMS/DILRMP connectors and API-key access |
+| Security model | Role-based access, jurisdiction scoping, audit hash chain and retrieval authorization |
+
+The project is designed to demonstrate an accountable workflow, not to replace
+an official land-records system.
 
 ---
 
@@ -38,38 +54,64 @@ Four roles, strictly separated and enforced server-side:
 
 ## Quick start
 
+### Prerequisites
+
+- Docker Desktop with Compose
+- Node.js 20+ and npm
+- Python 3.12
+- Git
+
+The Python version is pinned because the AI and document-processing dependencies
+are tested against it. Apple Silicon users can use
+`/opt/homebrew/bin/python3.12` when it is available; otherwise use the Python
+3.12 executable on their PATH.
+
 ```bash
-# 1. Infrastructure
+# Clone and enter the repository
+git clone https://github.com/krishh0310/mritrrika-ai.git
+cd mritrrika-ai
+
+# Install JavaScript workspace dependencies
+npm install
+
+# Start PostgreSQL/PostGIS, Redis, MinIO and pg_featureserv
 docker compose up -d
 
-# 2. Python (3.12 — see pyproject.toml for why it is pinned)
+# Create the Python environment and install API + AI dependencies
 /opt/homebrew/bin/python3.12 -m venv .venv
 .venv/bin/pip install -r requirements-api.txt -r requirements-ai.txt
 cp .env.example .env
 
-# 3. Database
+# Apply migrations and load the synthetic demo data
 .venv/bin/alembic -c apps/api/alembic.ini upgrade head
 .venv/bin/python scripts/seed_demo.py
 
-# 4. API
+# Start the API
 .venv/bin/python -m uvicorn app.main:app --app-dir apps/api --port 8000
 
-# 5. Worker (separate shell) — uploads stay queued without it
+# In a second shell, start the AI worker
 cd apps/api && ../../.venv/bin/celery -A app.worker.celery_app worker \
   --loglevel=info --concurrency=1
 
-# 6. Web
-npm install
+# In a third shell, start the web app
 npm run dev
 
-# Optional: Expo citizen/field app
+# Optional: start the Expo app
 npm run mobile
 ```
 
-Then open <http://localhost:3000> and follow **[docs/demo.md](docs/demo.md)**.
+Open <http://localhost:3000> and follow **[docs/demo.md](docs/demo.md)** for the
+role-by-role walkthrough. The API health endpoint is available at
+<http://localhost:8000/ready>; it checks that PostGIS and pgvector are present.
 
-Check <http://localhost:8000/ready> first — it verifies PostGIS and pgvector are
-actually present, which saves a confusing failure later.
+To stop local infrastructure:
+
+```bash
+docker compose down
+```
+
+Add `-v` only when you intentionally want to delete the local database, object
+storage and cache volumes.
 
 ### Demo accounts
 
@@ -89,8 +131,13 @@ default).
 | Research Institution (anonymised export only) | `research@mrittika.demo` |
 
 Other government systems call the API with a key rather than a login:
-`python scripts/api_keys.py create --user lrms-service@mrittika.demo --name "UP LRMS"`,
-then send `X-API-Key: <key>`. The key acts as that service account.
+
+```bash
+.venv/bin/python scripts/api_keys.py create \
+  --user lrms-service@mrittika.demo --name "UP LRMS"
+```
+
+Send the returned key in `X-API-Key`. It acts as the configured service account.
 
 Two citizens exist so ownership isolation can be demonstrated rather than
 described.
@@ -146,17 +193,19 @@ Why each directory exists is documented in
 ## Tests
 
 ```bash
-.venv/bin/python -m pytest tests                  # 816 collected; 1 data-dependent skip
-npm test                                          # 38 web/mobile unit tests
-npm run lint && npm run typecheck                 # web + mobile
-npm run build && npm run build:mobile             # production web + mobile export
-npx playwright test --config apps/web/playwright.config.ts  # 17 browser e2e
+.venv/bin/python -m pytest tests
 .venv/bin/python -m ruff check .
+npm test                                          # web + mobile unit tests
+npm run lint
+npm run typecheck
+npm run build && npm run build:mobile
+npm run e2e                                       # browser end-to-end tests
 ```
 
-The e2e suite is the one worth reading: `tests/e2e/lifecycle.spec.ts` follows
-one document and one parcel through every hand that touches them, which is §92's
-definition of done. Four disconnected screenshots would prove nothing.
+The end-to-end suite is the best place to understand the product workflow:
+`tests/e2e/lifecycle.spec.ts` follows one document and one parcel through every
+role that touches them. Test counts are intentionally omitted because they
+change as the prototype evolves.
 
 ## Regenerating the dataset
 
