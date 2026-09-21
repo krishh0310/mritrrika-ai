@@ -40,6 +40,10 @@ class UnsupportedFileType(Exception):
     """The bytes are not one of the accepted types, whatever was declared."""
 
 
+class UploadTooLarge(UnsupportedFileType):
+    """The upload exceeded the configured byte limit."""
+
+
 @dataclass
 class StoredObject:
     key: str
@@ -47,6 +51,19 @@ class StoredObject:
     size_bytes: int
     checksum_sha256: str
     detected_mime: str
+
+
+async def read_upload(upload) -> bytes:
+    """Read at most one byte beyond the upload limit.
+
+    Reading an untrusted multipart body without a bound lets one request fill
+    process memory before ``put_document`` gets a chance to reject it.
+    """
+    limit = get_settings().max_upload_bytes
+    data = await upload.read(limit + 1)
+    if len(data) > limit:
+        raise UploadTooLarge(f"file is larger than the {limit}-byte limit")
+    return data
 
 
 @lru_cache
@@ -119,7 +136,7 @@ def put_document(
     if not data:
         raise UnsupportedFileType("empty file")
     if len(data) > settings.max_upload_bytes:
-        raise UnsupportedFileType(
+        raise UploadTooLarge(
             f"file is {len(data)} bytes, limit is {settings.max_upload_bytes}"
         )
 

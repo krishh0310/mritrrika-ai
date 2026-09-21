@@ -81,11 +81,9 @@ class LayoutDetector:
         weights: Path | str | None = None,
         *,
         min_confidence: float = MIN_CONFIDENCE,
-        model_version: str = "layout-v1",
     ) -> None:
         self.weights = Path(weights) if weights else DEFAULT_WEIGHTS
         self.min_confidence = min_confidence
-        self.model_version = model_version
         self._model = None
         self._loaded = False
         self._reason: str | None = None

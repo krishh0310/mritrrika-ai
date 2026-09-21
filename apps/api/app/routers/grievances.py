@@ -28,7 +28,7 @@ from app.services import grievance_service, storage_service
 from app.services.auth_service import Principal, grievance_in_jurisdiction
 from app.services.citizen_service import ParcelAccessDenied
 from app.services.grievance_service import GrievanceError, GrievanceNotFound
-from app.services.storage_service import UnsupportedFileType
+from app.services.storage_service import UnsupportedFileType, UploadTooLarge
 
 router = APIRouter(prefix="/api/v1/grievances", tags=["grievances"])
 
@@ -50,9 +50,11 @@ async def create_grievance(
     principal: Principal = Depends(require("grievance:create")),
     session: Session = Depends(get_session),
 ) -> dict:
-    attachment = await supporting_document.read() if supporting_document else None
-
     try:
+        attachment = (
+            await storage_service.read_upload(supporting_document)
+            if supporting_document else None
+        )
         grievance = grievance_service.create(
             session,
             principal,
@@ -70,6 +72,8 @@ async def create_grievance(
             status.HTTP_403_FORBIDDEN,
             "You do not have access to this parcel",
         ) from None
+    except UploadTooLarge as exc:
+        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, str(exc)) from None
     except UnsupportedFileType as exc:
         raise HTTPException(
             status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, str(exc)

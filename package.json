@@ -26,6 +26,11 @@
     "esbuild@0.28.2": true,
     "unrs-resolver@1.12.2": true
   },
+  "overrides": {
+    "xcode": {
+      "uuid": "^11.1.1"
+    }
+  },
   "devDependencies": {
     "@playwright/test": "^1.50.1",
     "@types/react": "19.2.18",

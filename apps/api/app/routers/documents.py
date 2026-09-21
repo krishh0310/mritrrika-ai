@@ -28,7 +28,7 @@ from app.services import document_service, pipeline_service, storage_service
 from app.services.auth_service import Principal, document_in_jurisdiction
 from app.services.document_service import DocumentAccessDenied, DocumentNotFound
 from app.services.duplicate_service import DuplicateDocument
-from app.services.storage_service import UnsupportedFileType
+from app.services.storage_service import UnsupportedFileType, UploadTooLarge
 
 router = APIRouter(prefix="/api/v1/documents", tags=["documents"])
 
@@ -83,8 +83,8 @@ async def upload_document(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Choose the village this document belongs to, or link it to a parcel.",
         )
-    data = await file.read()
     try:
+        data = await storage_service.read_upload(file)
         document = document_service.upload(
             session,
             principal=principal,
@@ -106,6 +106,10 @@ async def upload_document(
             status_code=status.HTTP_409_CONFLICT,
             detail=str(exc),
             headers={"X-Existing-Document": exc.existing.external_id},
+        ) from None
+    except UploadTooLarge as exc:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE, detail=str(exc)
         ) from None
     except UnsupportedFileType as exc:
         # 415: the content is not an accepted document type. Determined by
@@ -170,7 +174,7 @@ async def upload_batch(
     for upload_file in files:
         name = upload_file.filename or "(unnamed)"
         try:
-            data = await upload_file.read()
+            data = await storage_service.read_upload(upload_file)
             document = document_service.upload(
                 session,
                 principal=principal,
@@ -187,6 +191,10 @@ async def upload_batch(
                 "code": "DUPLICATE",
                 "reason": str(exc),
                 "existing_document": exc.existing.external_id,
+            })
+        except UploadTooLarge as exc:
+            rejected.append({
+                "filename": name, "code": "TOO_LARGE", "reason": str(exc),
             })
         except UnsupportedFileType as exc:
             rejected.append({
