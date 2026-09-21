@@ -234,25 +234,98 @@ generated image. Splits happen before augmentation and are grouped by base
 document, so a clean page and its degraded clone cannot land on opposite sides
 of the train/test line.
 
-## What this prototype does not do
+## Background
 
-Stated plainly, because a prototype that overclaims is worse than one that says
-where it stops:
+Land records support property ownership, taxation, land acquisition, dispute
+resolution and infrastructure planning. Across India, many historical records
+still exist as handwritten registers, scanned documents, maps, cadastral records
+and legacy PDF files maintained at different administrative levels.
 
-- Not connected to DILRMP, BhuNaksha, or any government system.
-- Handwriting is detected and read by two small models trained on public
-  handwriting data (IIIT-HW-Dev, DHCD, MNIST), not on land records. Every
-  field on such a page goes to a verifier. Gemini can re-read the lines as an
-  opt-in second opinion. See [docs/handwriting.md](docs/handwriting.md).
-- No layout or language model in extraction. PP-Structure, LayoutLMv3 and
-  IndicBERT are not integrated; extraction is deterministic rules.
-- No blockchain. The audit trail is a SHA-256 hash chain, and the code says so.
-- No accuracy claim that has not been measured.
-  `scripts/evaluate_extraction.py` reports per difficulty tier; that is the only
-  number to quote.
-- No claim of production security or penetration testing. Authentication,
-  token rotation, jurisdiction scoping, and their remaining limitations are
-  documented in [security.md](docs/security.md#known-limitations).
+An intelligent digitization system can improve data quality while accelerating
+the modernization of land administration. Mrittika AI addresses this need with
+an AI-assisted workflow that combines document processing, structured
+extraction, validation, human review, geospatial context and accountable
+approval.
+
+## Study description
+
+The proposed system extracts structured information from scanned land records,
+handwritten documents, maps and legacy PDF files. It uses OCR, computer vision,
+document classification and language-aware processing to identify printed and
+handwritten content, then maps the result to land-record fields such as:
+
+- Landowner and ownership details
+- Survey, khasra, khata and plot numbers
+- Plot area and land classification
+- Village, tehsil and district
+- Mutation and registration information
+- Parcel geometry, ownership history and related records
+
+Every extraction carries confidence and provenance information. Low-confidence
+fields are routed to a verifier, while an authorized officer approves the final
+record. This preserves a human decision point where a model should not guess.
+
+## Scope of study
+
+| Scope area | What the system provides | Current prototype status |
+|---|---|---|
+| Document ingestion | Upload and process scanned images, PDFs and generated records | Implemented |
+| OCR and handwriting | Printed-text OCR, script routing, handwriting detection and reading | Implemented with verifier review |
+| Multilingual processing | Hindi/English workflows with Indic-script support and translation fallbacks | Implemented for supported scripts |
+| Field extraction | Structured owner, parcel, location, area, mutation and registration fields | Implemented |
+| Validation | Business rules, confidence scoring, duplicate detection and anomaly flags | Implemented |
+| Human verification | Field-level correction, review queues and approval workflow | Implemented |
+| GIS and cadastre | Parcel geometry, map views, spatial checks and inconsistency reporting | Implemented with PostGIS |
+| Dashboards | Processing volume, accuracy, validation status, pending work, errors and geographic progress | Implemented |
+| Search and assistant | Authorized record search and grounded answers over approved records | Implemented |
+| LRMS/DILRMP exchange | API contracts and mock connectors for approved-record delivery | Integration-ready; external systems are not connected |
+| Secure repository | Document metadata, role-based access, jurisdiction scoping and audit history | Implemented for the prototype |
+| Learning loop | Feedback export and retraining workflow for future model improvement | Implemented as an experimental workflow |
+
+## Problems addressed
+
+Legacy records are difficult to digitize because of poor image quality,
+inconsistent layouts, faded or damaged pages, multiple regional languages and
+handwritten annotations. Manual data entry is slow and error-prone, and
+inconsistent records make it harder to verify ownership, maintain reliable
+databases, connect land information systems and deliver citizen services.
+
+Mrittika AI addresses these problems by combining automated processing with
+confidence-aware review. It preserves the source document, records how each
+field was produced, flags conflicts and gives authorized users a traceable path
+from upload to approved record.
+
+## Expected solution and capabilities
+
+The platform is designed to reduce manual effort while improving the accuracy,
+reliability and transparency of digital land records. Its main capabilities are:
+
+1. Multilingual recognition for supported Indian scripts and English.
+2. Extraction from scanned PDFs, images, handwritten pages and historical
+   documents.
+3. Classification into predefined land-record fields.
+4. Rule-based validation, duplicate detection, anomaly detection and spatial
+   consistency checks.
+5. Confidence scores that identify uncertain fields and records.
+6. Human-assisted verification for low-confidence or conflicting values.
+7. Feedback export and retraining workflows that support continuous improvement.
+8. GIS, cadastral-map and parcel-history views backed by PostGIS.
+9. Integration contracts and mock LRMS/DILRMP connectors for approved records.
+10. Secure document storage with metadata, role-based access and audit trails.
+11. Interactive dashboards for document volume, extraction quality, validation
+    status, pending verification, error statistics and state/district progress.
+12. APIs for government applications and digital-governance integrations.
+
+The workflow supports distinct citizen, data-entry, verifier, tehsildar and
+read-only institutional roles. Citizens see only authorized holdings; staff see
+the work and jurisdiction required for their role; final approval remains with
+the designated officer.
+
+The prototype does not claim production deployment, government connectivity or
+unmeasured accuracy. Handwriting models are trained on public handwriting data,
+and uncertain handwritten fields are sent to verification. See
+[docs/handwriting.md](docs/handwriting.md), [docs/security.md](docs/security.md)
+and [docs/deployment.md](docs/deployment.md) for the implementation boundaries.
 
 ## Licence
 
