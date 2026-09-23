@@ -323,8 +323,7 @@ document and one parcel through every role.
 | [asyncapi.yaml](docs/asyncapi.yaml) | Event contract for `record.approved` and `record.flagged` |
 | [existing-system-study.md](docs/existing-system-study.md) | Today's manual process, its pain points, what Mrittika can claim |
 | [ai-ml.md](docs/ai-ml.md) · [database.md](docs/database.md) · [deployment.md](docs/deployment.md) · [monitoring.md](docs/monitoring.md) · [i18n.md](docs/i18n.md) | Model promotion, migrations, production target, metrics, languages |
-| [architecture-assessment.md](docs/architecture-assessment.md) · [handwriting-audit.md](docs/handwriting-audit.md) | Earlier audits, kept as a record |
-| [dossier.html](docs/dossier.html) | Technical report. **Out of date:** it predates YOLO11n, IndicBERT v2 and the handwriting models |
+| [handwriting-audit.md](docs/handwriting-audit.md) | The heuristic handwriting fallback, kept as a record |
 
 ## Regenerating the dataset
 

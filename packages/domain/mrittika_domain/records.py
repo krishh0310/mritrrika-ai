@@ -148,10 +148,6 @@ class CanonicalLandRecord(BaseModel):
     #: no screenshot can be mistaken for real citizen data (§83).
     is_synthetic: bool = True
 
-    def field_by_name(self, name: FieldName) -> ExtractedField | None:
-        """Look up provenance for one field, or None if it was not extracted."""
-        return next((f for f in self.fields if f.field == name), None)
-
     def low_confidence_fields(self, threshold: float = 0.60) -> list[ExtractedField]:
         """Fields that must be routed to human review (§8, §27)."""
         return [f for f in self.fields if f.final_confidence < threshold]

@@ -101,19 +101,6 @@ export type Grievance = {
   updated_at: string | null;
 };
 
-export type DocumentSummary = {
-  document_id: string;
-  document_type: string;
-  state: string;
-  quality_score: number | null;
-  quality_recommendation: string | null;
-  original_filename: string | null;
-  size_bytes: number | null;
-  record_year: string | null;
-  declared_khasra: string | null;
-  is_synthetic: boolean;
-};
-
 export type ProcessingStatus = {
   document_id: string;
   state: string;
@@ -241,13 +228,6 @@ export function useIssueTypes() {
 }
 
 // ── Documents ───────────────────────────────────────────────────────────────
-
-export function useDocument(documentId: string) {
-  return useQuery({
-    queryKey: ["document", documentId],
-    queryFn: () => api.get<DocumentSummary>(`/api/v1/documents/${documentId}`),
-  });
-}
 
 /**
  * Poll a document's pipeline progress (§24).

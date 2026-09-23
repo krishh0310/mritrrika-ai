@@ -8,7 +8,6 @@ collide with another tenant's object (§61).
 from __future__ import annotations
 
 import hashlib
-import io
 import mimetypes
 import re
 import uuid
@@ -108,16 +107,6 @@ def build_key(prefix: str, mime: str) -> str:
     return f"{prefix}/{uuid.uuid4().hex}{extension}"
 
 
-def ensure_buckets() -> None:
-    settings = get_settings()
-    client = _client()
-    for bucket in (settings.minio_bucket_documents, settings.minio_bucket_derived):
-        try:
-            client.head_bucket(Bucket=bucket)
-        except ClientError:
-            client.create_bucket(Bucket=bucket)
-
-
 def put_document(
     data: bytes,
     *,
@@ -148,9 +137,7 @@ def put_document(
         )
     if detected not in settings.allowed_mime_set:
         raise UnsupportedFileType(f"{detected} is not an accepted document type")
-    if declared_mime and declared_mime != detected:
-        # Not fatal on its own, but the sniffed type always wins.
-        pass
+    # A mismatched declared_mime is not fatal: the sniffed type always wins.
 
     target_bucket = bucket or settings.minio_bucket_documents
     key = build_key(prefix, detected)
@@ -200,10 +187,6 @@ def presigned_url(key: str, bucket: str | None = None, expires: int = 900) -> st
     return _client().generate_presigned_url(
         "get_object", Params={"Bucket": target, "Key": key}, ExpiresIn=expires
     )
-
-
-def open_stream(key: str, bucket: str | None = None) -> io.BytesIO:
-    return io.BytesIO(get_bytes(key, bucket))
 
 
 def derived_bucket() -> str:

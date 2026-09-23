@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, select
 from sqlalchemy.orm import Session
 
 from app.models import Location, Mutation, Owner, OwnershipRecord, Parcel
@@ -107,11 +107,3 @@ def get_parcel_by_external_id(session: Session, external_id: str) -> Parcel | No
     ).scalar_one_or_none()
 
 
-def count_holdings(session: Session, owner_id: str, on: date | None = None) -> int:
-    on = on or date.today()
-    stmt = _current(
-        select(func.count(func.distinct(OwnershipRecord.parcel_id)))
-        .where(OwnershipRecord.owner_id == owner_id),
-        on,
-    )
-    return session.execute(stmt).scalar_one()

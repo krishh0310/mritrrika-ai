@@ -70,7 +70,3 @@ def to_devanagari_digits(text: str) -> str:
     return "".join(DEVANAGARI_DIGITS[int(c)] if c.isdigit() else c for c in text)
 
 
-def from_devanagari_digits(text: str) -> str:
-    """'१४२/२' -> '142/2'. The normalization step the extractor must perform."""
-    table = {d: str(i) for i, d in enumerate(DEVANAGARI_DIGITS)}
-    return "".join(table.get(c, c) for c in text)

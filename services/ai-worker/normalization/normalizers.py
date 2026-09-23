@@ -191,20 +191,6 @@ def normalize_number(raw: str | None) -> float | None:
     return float(match.group(0)) if match else None
 
 
-def normalize_area(raw: str | None) -> tuple[float | None, str | None]:
-    """'२.७५ बीघा' -> (2.75, 'BIGHA')."""
-    text = normalize_text(raw)
-    if not text:
-        return None, None
-    value = normalize_number(text)
-    unit = None
-    for alias, canonical in UNIT_ALIASES.items():
-        if alias in text:
-            unit = canonical
-            break
-    return value, unit
-
-
 def normalize_unit(raw: str | None) -> str | None:
     text = normalize_text(raw)
     if not text:

@@ -18,15 +18,6 @@ from app.models import LandRecord, Location, Parcel
 MAX_RESULTS = 200
 
 
-def _village_lookup(session: Session) -> dict[str, Location]:
-    return {
-        loc.id: loc
-        for loc in session.execute(
-            select(Location).where(Location.level == "VILLAGE")
-        ).scalars()
-    }
-
-
 def search_public_records(
     session: Session,
     *,

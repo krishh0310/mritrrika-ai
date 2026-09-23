@@ -72,10 +72,6 @@ class User(Base, TimestampMixin, SyntheticMixin):
         back_populates="user", uselist=False, cascade="all, delete-orphan"
     )
 
-    @property
-    def role_codes(self) -> set[str]:
-        return {ur.role.code for ur in self.roles if ur.role}
-
 
 class UserRole(Base, TimestampMixin):
     __tablename__ = "user_roles"

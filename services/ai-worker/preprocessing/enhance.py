@@ -92,12 +92,6 @@ def flatten_illumination(gray: np.ndarray) -> np.ndarray:
     return normalized
 
 
-def sharpen(gray: np.ndarray) -> np.ndarray:
-    """Unsharp mask -- restores stroke definition lost to blur and rescaling."""
-    blurred = cv2.GaussianBlur(gray, (0, 0), 2.0)
-    return cv2.addWeighted(gray, 1.6, blurred, -0.6, 0)
-
-
 def upscale(gray: np.ndarray, min_long_edge: int = MIN_LONG_EDGE) -> np.ndarray:
     long_edge = max(gray.shape[:2])
     if long_edge >= min_long_edge:

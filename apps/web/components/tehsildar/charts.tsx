@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  Bar, BarChart, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Bar, BarChart, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 
 import { cn } from "@mrittika/ui";
@@ -221,4 +221,3 @@ export function toData(
   }));
 }
 
-export { Cell };
