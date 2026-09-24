@@ -14,7 +14,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "packages" / "domain"))
-sys.path.insert(0, str(REPO_ROOT / "services" / "gis"))
+sys.path.insert(0, str(REPO_ROOT / "packages" / "gis"))
 
 pytestmark = pytest.mark.integration
 

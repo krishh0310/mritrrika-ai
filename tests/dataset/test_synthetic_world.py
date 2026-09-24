@@ -14,7 +14,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "packages" / "domain"))
-sys.path.insert(0, str(REPO_ROOT / "services" / "dataset-generator"))
+sys.path.insert(0, str(REPO_ROOT / "packages" / "dataset-generator"))
 
 from mrittika_domain import Role, SyntheticWorld  # noqa: E402
 from qa.world_checks import ALL_CHECKS  # noqa: E402

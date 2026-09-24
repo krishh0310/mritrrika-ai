@@ -1,6 +1,6 @@
 """Area units and the one conversion table (§11).
 
-These constants used to live in services/gis alone, which was fine while only
+These constants used to live in packages/gis alone, which was fine while only
 the cadastre generator converted areas. Cross-referencing a document's stated
 area against the parcel it claims needs the same arithmetic on the API side,
 and a second copy of a constant like SQM_PER_BIGHA is a copy that can drift --

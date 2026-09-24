@@ -188,7 +188,7 @@ class TestRendering:
 
         assert features.check("raqm"), (
             "Pillow is not libraqm-linked; Devanagari will not shape correctly "
-            "(see requirements-ai.txt)"
+            "(see services/ai-worker/requirements.txt)"
         )
 
     def test_the_pdf_rasterises_to_a_page_with_ink(self, client, auth):

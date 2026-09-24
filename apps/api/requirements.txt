@@ -42,10 +42,7 @@ opencv-python-headless>=4.10
 numpy>=2.0
 Pillow>=11.0
 pypdfium2>=4.30          # renders uploaded PDFs to page images (upload gate + pipeline)
+httpx>=0.28                       # outbound DILRMP/LRMS/notification calls
 
-# Testing
-pytest>=8.3
-pytest-asyncio>=0.24
-httpx>=0.28
 # Nightly retrain check (app/tasks/retrain_scheduler.py). <4: v4 is a rewrite.
 apscheduler>=3.10,<4

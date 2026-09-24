@@ -18,7 +18,7 @@ from PIL import Image
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DATASETS = REPO_ROOT / "datasets"
 sys.path.insert(0, str(REPO_ROOT / "packages" / "domain"))
-sys.path.insert(0, str(REPO_ROOT / "services" / "dataset-generator"))
+sys.path.insert(0, str(REPO_ROOT / "packages" / "dataset-generator"))
 
 from degradation.engine import perspective, rescale, rotate  # noqa: E402
 from degradation.profiles import DIFFICULTY_MIX, TIERS, degrade  # noqa: E402

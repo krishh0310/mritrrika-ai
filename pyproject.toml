@@ -9,7 +9,7 @@ requires-python = ">=3.12,<3.13"
 # system Python 3.14 on the dev machine cannot run the AI worker.
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "apps/api/tests"]
+testpaths = ["tests"]
 markers = [
     "slow: loads an ML model or hits the network (deselect with '-m \"not slow\"')",
     "integration: requires postgres/redis/minio to be up",

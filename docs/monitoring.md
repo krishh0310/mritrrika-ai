@@ -55,7 +55,7 @@ credential.
 ```bash
 # 1. A token, and a file for Prometheus to read it from
 python -c "import secrets; print(secrets.token_urlsafe(32))"   # -> $TOKEN
-mkdir -p .monitoring && printf '%s' "$TOKEN" > .monitoring/scrape-token
+mkdir -p infrastructure/monitoring/secrets && printf '%s' "$TOKEN" > infrastructure/monitoring/secrets/scrape-token
 
 # 2. The API needs the same token
 METRICS_SCRAPE_TOKEN="$TOKEN" \

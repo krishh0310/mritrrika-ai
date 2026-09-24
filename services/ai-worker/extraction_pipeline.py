@@ -1,7 +1,7 @@
 """The AI extraction pipeline, end to end (§23).
 
 NAME: deliberately `extraction_pipeline`, not `pipeline`. Both this package and
-services/dataset-generator are placed on sys.path, and each previously exposed
+packages/dataset-generator are placed on sys.path, and each previously exposed
 a top-level module called `pipeline`. Whichever directory was inserted first
 won, so the API silently imported the DOCUMENT GENERATOR instead of the AI
 pipeline -- which surfaced only when test ordering changed. Top-level module

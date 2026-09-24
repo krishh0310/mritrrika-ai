@@ -4,7 +4,7 @@ name: CI
 # error does not hide a backend test failure behind it.
 #
 # The heavy AI dependencies (paddlepaddle, opencv) are deliberately NOT
-# installed here. The backend suite runs against requirements-api.txt and the
+# installed here. The backend suite runs against apps/api/requirements.txt and the
 # pipeline is exercised by tests that do not load a model; installing 2GB of
 # wheels to run the same assertions would make every push slow enough that
 # people stop reading the result.
@@ -88,11 +88,10 @@ jobs:
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements-api.txt
-          pip install ruff pytest pip-audit
+          pip install -r apps/api/requirements-dev.txt
 
       - name: Audit installed Python dependencies
-        run: pip-audit -r requirements-api.txt
+        run: pip-audit -r apps/api/requirements.txt
 
       - name: Lint
         run: ruff check .
@@ -121,8 +120,7 @@ jobs:
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements-api.txt
-          pip install pytest
+          pip install -r apps/api/requirements-dev.txt
 
       - name: Domain and dataset schema tests
         # These are pure — they check the canonical record shape, the state

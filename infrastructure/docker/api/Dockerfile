@@ -1,6 +1,6 @@
 # The FastAPI service (§75).
 #
-# Installs requirements-api.txt only — NOT requirements-ai.txt. The API never
+# Installs apps/api/requirements.txt only — NOT services/ai-worker/requirements.txt. The API never
 # loads an OCR model; it hands work to the worker. Keeping the AI wheels out
 # takes the image from ~2.5GB to ~400MB and makes it start in seconds.
 
@@ -18,12 +18,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Dependencies in their own layer, so a source edit does not reinstall them.
-COPY requirements-api.txt ./
-RUN pip install -r requirements-api.txt
+COPY apps/api/requirements.txt ./apps/api/
+RUN pip install -r apps/api/requirements.txt
 
 COPY packages/domain ./packages/domain
 COPY services/ai-worker ./services/ai-worker
-COPY services/dataset-generator ./services/dataset-generator
+COPY packages/dataset-generator ./packages/dataset-generator
 COPY apps/api ./apps/api
 COPY scripts ./scripts
 COPY models/registry ./models/registry

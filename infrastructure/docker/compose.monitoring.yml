@@ -2,7 +2,7 @@
 #
 # An OVERLAY, like the GeoServer one:
 #
-#   echo -n "$METRICS_SCRAPE_TOKEN" > .monitoring/scrape-token
+#   echo -n "$METRICS_SCRAPE_TOKEN" > infrastructure/monitoring/secrets/scrape-token
 #   docker compose -f docker-compose.yml \
 #                  -f infrastructure/docker/compose.monitoring.yml up -d
 #
@@ -35,7 +35,7 @@ services:
       - ./infrastructure/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       # The scrape token, mounted from a gitignored file rather than baked into
       # the committed config.
-      - ./.monitoring/scrape-token:/etc/prometheus/scrape-token:ro
+      - ./infrastructure/monitoring/secrets/scrape-token:/etc/prometheus/scrape-token:ro
       - prometheusdata:/prometheus
     extra_hosts:
       # Docker Desktop provides this automatically; Linux does not.

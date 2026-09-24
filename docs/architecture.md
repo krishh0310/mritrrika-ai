@@ -28,8 +28,8 @@ officials can search, inspect and query through a grounded AI assistant.
 
 Run once, offline, via `scripts/` — never on the request path:
 
-- `services/dataset-generator` — structured ground truth → render → degrade → annotate
-- `services/gis` — Voronoi cadastre → PostGIS
+- `packages/dataset-generator` — structured ground truth → render → degrade → annotate
+- `packages/gis` — Voronoi cadastre → PostGIS
 
 ### Why the AI worker runs natively
 

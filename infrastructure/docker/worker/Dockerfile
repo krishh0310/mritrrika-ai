@@ -25,8 +25,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libraqm0 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements-api.txt requirements-ai.txt ./
-RUN pip install -r requirements-api.txt -r requirements-ai.txt
+COPY apps/api/requirements.txt ./apps/api/
+COPY services/ai-worker/requirements.txt ./services/ai-worker/
+RUN pip install -r apps/api/requirements.txt -r services/ai-worker/requirements.txt
 
 COPY packages/domain ./packages/domain
 COPY services ./services

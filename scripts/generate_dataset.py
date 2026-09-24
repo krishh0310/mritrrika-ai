@@ -17,7 +17,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "packages" / "domain"))
-sys.path.insert(0, str(REPO_ROOT / "services" / "dataset-generator"))
+sys.path.insert(0, str(REPO_ROOT / "packages" / "dataset-generator"))
 
 from qa.world_checks import run_all  # noqa: E402
 from records.world_builder import WorldBuilder, WorldSpec  # noqa: E402

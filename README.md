@@ -167,7 +167,7 @@ docker compose up -d
 
 # 2. Python environment (3.12 is pinned; see pyproject.toml)
 python3.12 -m venv .venv
-.venv/bin/python -m pip install -r requirements-api.txt -r requirements-ai.txt
+.venv/bin/python -m pip install -r apps/api/requirements-dev.txt -r services/ai-worker/requirements.txt
 cp .env.example .env            # add GEMINI_API_KEY for Gemini OCR and the assistant
 
 # 3. Schema and synthetic demo data
@@ -268,28 +268,40 @@ says where it stops:
 
 ---
 
-## Repository layout
+## Project structure
+
+| Area | Folders | Role |
+|---|---|---|
+| Frontend | `apps/web`, `apps/mobile`, `packages/ui`, `packages/shared-types` | Next.js officer and citizen portal, Expo app, shared components and generated types |
+| Backend | `apps/api` | FastAPI: auth, records, workflow, search, GIS, integrations. The single authoritative backend |
+| AI/ML | `services/ai-worker`, `models/` | Celery worker (quality, OCR, handwriting, extraction, validation, anomaly) and model registry and checkpoints |
+| Shared | `packages/domain`, `packages/gis`, `packages/dataset-generator` | Python domain schema and state machine, cadastre generation, synthetic document generator |
+| Infra | `infrastructure/`, `docker-compose.yml` | Dockerfiles, compose overlays, Postgres image, Prometheus and Grafana, GeoServer role |
+| Data and tooling | `datasets/`, `scripts/`, `tests/`, `docs/` | Generated data (mostly untracked), reproducible commands, all tests, design docs |
 
 ```
 apps/
-  api/                FastAPI — the single authoritative backend
-  web/                Next.js — officer workstations and the citizen portal
-  mobile/             Expo — citizen app and DEO field capture
+  api/                FastAPI + Alembic; requirements.txt, requirements-dev.txt
+  web/                Next.js 16
+  mobile/             Expo
 services/
   ai-worker/          quality, preprocessing, OCR, handwriting, extraction,
-                      normalisation, validation, anomaly
-  dataset-generator/  synthetic records → templates → rendering → degradation
-  gis/                village boundaries, Voronoi cadastre, PostGIS loading
+                      normalisation, validation, anomaly; requirements.txt
 packages/
   domain/             canonical record, confidence fusion, state machine
-  ui/                 shared interface components
-  shared-types/       generated from packages/domain — do not hand-edit
+  dataset-generator/  synthetic records → templates → rendering → degradation
+  gis/                village boundaries, Voronoi cadastre, PostGIS loading
+  ui/                 shared React components and i18n catalogues
+  shared-types/       generated from packages/domain; do not hand-edit
+models/               registry (tracked) and checkpoints (untracked)
 datasets/             generated data, annotations, splits, reports (mostly untracked)
-models/               model configuration; weights are untracked
-scripts/              reproducible commands: seed, generate, train, evaluate
-tests/                backend, AI, dataset, integration, browser end-to-end
+infrastructure/       docker/, monitoring/, geoserver/
+scripts/              seed, generate, train, evaluate
+tests/                ai/, backend/, dataset/, integration/, e2e/
 docs/                 design, pipeline, security, integration, demo
 ```
+
+Every top-level folder has a short README saying what belongs in it.
 
 ## Tests
 

@@ -1,0 +1,6 @@
+# Test and lint tooling. Not installed into the API image.
+-r requirements.txt
+pytest>=8.3
+pytest-asyncio>=0.24
+ruff
+pip-audit

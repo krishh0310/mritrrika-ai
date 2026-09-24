@@ -6,7 +6,7 @@
 #
 # Install into a python3.12 venv:
 #   /opt/homebrew/bin/python3.12 -m venv .venv
-#   .venv/bin/pip install -r requirements-ai.txt
+#   .venv/bin/pip install -r services/ai-worker/requirements.txt
 #
 # IMPORTANT — Devanagari rendering prerequisite:
 #   Pillow must be linked against libraqm or Devanagari shaping is wrong and

@@ -34,7 +34,7 @@ target_metadata = Base.metadata
 EXTENSION_TABLES = {"spatial_ref_sys", "geography_columns", "geometry_columns",
                     "raster_columns", "raster_overviews"}
 
-#: Scratch tables created by offline QA tooling (services/gis). They are
+#: Scratch tables created by offline QA tooling (packages/gis). They are
 #: deliberately outside the migrated schema; without this Alembic emits a DROP
 #: for them on every autogenerate.
 NON_MIGRATED_TABLES = {"cadastre_staging"}

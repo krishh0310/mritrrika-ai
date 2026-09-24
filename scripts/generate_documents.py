@@ -18,7 +18,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "packages" / "domain"))
-sys.path.insert(0, str(REPO_ROOT / "services" / "dataset-generator"))
+sys.path.insert(0, str(REPO_ROOT / "packages" / "dataset-generator"))
 
 from degradation.profiles import DIFFICULTY_MIX  # noqa: E402
 from document_pipeline import generate_document  # noqa: E402

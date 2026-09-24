@@ -14,8 +14,8 @@ from shapely.geometry import Polygon
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "packages" / "domain"))
-sys.path.insert(0, str(REPO_ROOT / "services" / "gis"))
-sys.path.insert(0, str(REPO_ROOT / "services" / "dataset-generator"))
+sys.path.insert(0, str(REPO_ROOT / "packages" / "gis"))
+sys.path.insert(0, str(REPO_ROOT / "packages" / "dataset-generator"))
 
 import cadastre_checks as checks  # noqa: E402
 from boundaries.village_boundaries import (  # noqa: E402
@@ -85,7 +85,7 @@ class TestDeterminism:
     def test_stable_seed_is_process_independent(self):
         """Regression: builtin hash() on str is randomised per process, so
         seeding from it produced a different cadastre on every run."""
-        gis_path = str(REPO_ROOT / "services" / "gis")
+        gis_path = str(REPO_ROOT / "packages" / "gis")
         code = (
             f"import sys; sys.path.insert(0, {gis_path!r});"
             "from boundaries.village_boundaries import stable_seed;"

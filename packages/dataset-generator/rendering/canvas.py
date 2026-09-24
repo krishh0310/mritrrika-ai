@@ -67,7 +67,7 @@ class RecordingCanvas:
             raise RuntimeError(
                 "Pillow is not linked against libraqm; Devanagari would render "
                 "with misplaced matras and every annotation would be wrong. "
-                "See requirements-ai.txt for the fix."
+                "See services/ai-worker/requirements.txt for the fix."
             )
         self.image = Image.new("RGB", (width, height), background)
         self.draw = ImageDraw.Draw(self.image)

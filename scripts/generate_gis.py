@@ -20,7 +20,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "packages" / "domain"))
-sys.path.insert(0, str(REPO_ROOT / "services" / "gis"))
+sys.path.insert(0, str(REPO_ROOT / "packages" / "gis"))
 
 from boundaries.village_boundaries import (  # noqa: E402
     SQM_PER_BIGHA,
