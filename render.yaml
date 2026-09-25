@@ -1,0 +1,64 @@
+# Render Blueprint -- free tier: the API plus a Key Value (Redis) instance.
+# Postgres and object storage live on Supabase (Render's free Postgres expires
+# after 30 days, and Render has no object storage). Render's free tier has no
+# background workers, so PROCESS_INLINE runs the pipeline in the API request.
+# The web app is on Vercel. Values marked sync: false are entered in the
+# dashboard when the Blueprint is created.
+
+services:
+  - type: web
+    name: mrittika-api
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./infrastructure/docker/api/Dockerfile
+    dockerContext: .
+    # Free instances have no pre-deploy step, so migrate on start.
+    dockerCommand: >-
+      sh -c "python -m alembic -c apps/api/alembic.ini upgrade head &&
+      exec uvicorn app.main:app --app-dir apps/api --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /ready
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: AUTH_STATE_REDIS_URL
+        fromService: { type: keyvalue, name: mrittika-redis, property: connectionString }
+      - key: CELERY_BROKER_URL
+        fromService: { type: keyvalue, name: mrittika-redis, property: connectionString }
+      - key: CELERY_RESULT_BACKEND
+        fromService: { type: keyvalue, name: mrittika-redis, property: connectionString }
+      - key: PROCESS_INLINE
+        value: "true"
+      - key: MINIO_ENDPOINT
+        sync: false
+      - key: MINIO_ACCESS_KEY
+        sync: false
+      - key: MINIO_SECRET_KEY
+        sync: false
+      - key: MINIO_SECURE
+        value: "true"
+      - key: MINIO_REGION
+        value: ap-south-1
+      - key: CORS_ALLOW_ORIGINS
+        sync: false
+      - key: LLM_PROVIDER
+        value: gemini
+      - key: OCR_PROVIDER
+        value: gemini
+      - key: GEMINI_API_KEY
+        sync: false
+      # Neither fits a 512 MB free instance, and the API image has no torch.
+      - key: RETRAIN_SCHEDULER_ENABLED
+        value: "false"
+      - key: HANDWRITING_MODELS_ENABLED
+        value: "false"
+
+  - type: keyvalue
+    name: mrittika-redis
+    plan: free
+    region: singapore
+    ipAllowList: []

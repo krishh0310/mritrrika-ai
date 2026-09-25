@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 from sse_starlette.sse import EventSourceResponse
 
 from app.auth.dependencies import require
+from app.config.settings import get_settings
 from app.db import SessionLocal, get_session
 from app.models import DocumentPage
 from app.services import document_service, pipeline_service, storage_service
@@ -289,7 +290,7 @@ def reprocess_document(
 
 
 def _run_or_enqueue(session, document, job, principal, synchronous: bool) -> dict:
-    if synchronous:
+    if synchronous or get_settings().process_inline:
         outcome = pipeline_service.process_document(
             session, document, job, principal=principal
         )

@@ -52,10 +52,17 @@ class Settings(BaseSettings):
     minio_secure: bool = False
     minio_bucket_documents: str = "mrittika-documents"
     minio_bucket_derived: str = "mrittika-derived"
+    #: SigV4 signing region. MinIO ignores it; Supabase Storage wants the
+    #: project region (e.g. ap-south-1).
+    minio_region: str = "us-east-1"
 
     # ── queue ─────────────────────────────────────────────────────────────
     celery_broker_url: str = "redis://localhost:6379/0"
     celery_result_backend: str = "redis://localhost:6379/1"
+    #: Process every upload inside the API request, as synchronous=true
+    #: does, instead of queueing it for the worker. For hosts with no free
+    #: background worker (Render free); uploads block until processed.
+    process_inline: bool = False
     #: OCR processes the worker runs at once. Celery defaults to one per CPU --
     #: 14 on the development Mac -- and each process loads its own OCR model,
     #: which with the default detector peaks at 11-19 GB. With only two running,
@@ -208,6 +215,11 @@ class Settings(BaseSettings):
     @property
     def sqlalchemy_url(self) -> str:
         if self.database_url:
+            # Railway/Render hand out postgres:// or postgresql://, which
+            # SQLAlchemy maps to psycopg2 -- not installed; psycopg 3 is.
+            scheme, sep, rest = self.database_url.partition("://")
+            if scheme in ("postgres", "postgresql"):
+                return f"postgresql+psycopg{sep}{rest}"
             return self.database_url
         return (
             f"postgresql+psycopg://{self.postgres_user}:{self.postgres_password}"
