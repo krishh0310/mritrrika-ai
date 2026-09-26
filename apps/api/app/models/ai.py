@@ -122,3 +122,25 @@ class ModelRegistryEntry(Base, TimestampMixin):
     is_active: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     #: Why a candidate was kept or not, for the audit of each run.
     notes: Mapped[str | None] = mapped_column(Text)
+
+
+class ForensicReport(Base, TimestampMixin):
+    """One Gemini forensic check over a document (tamper, stamp, signature,
+    area, fraud). Advisory only: it never changes a document's state.
+
+    `verdict` is the check's headline field, copied out of `result` so the
+    verifier UI can colour a badge without knowing each check's schema;
+    UNABLE_TO_VERIFY when the model call failed.
+    """
+
+    __tablename__ = "forensic_reports"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    document_id: Mapped[str] = mapped_column(
+        ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    check: Mapped[str] = mapped_column(String(16), nullable=False)
+    verdict: Mapped[str] = mapped_column(String(32), nullable=False)
+    score: Mapped[float | None] = mapped_column(Float)
+    result: Mapped[dict] = mapped_column(JSON, nullable=False)
+    model_version: Mapped[str] = mapped_column(String(48), nullable=False)

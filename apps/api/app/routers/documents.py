@@ -25,7 +25,13 @@ from app.auth.dependencies import require
 from app.config.settings import get_settings
 from app.db import SessionLocal, get_session
 from app.models import DocumentPage
-from app.services import document_service, pipeline_service, storage_service
+from app.services import (
+    audit_service,
+    document_service,
+    forensic_service,
+    pipeline_service,
+    storage_service,
+)
 from app.services.auth_service import Principal, document_in_jurisdiction
 from app.services.document_service import DocumentAccessDenied, DocumentNotFound
 from app.services.duplicate_service import DuplicateDocument
@@ -409,3 +415,38 @@ def document_file(
         "url": url,
         "expires_in": 900,
     }
+
+
+@router.get("/{document_id}/forensics")
+def forensic_reports(
+    document_id: str,
+    principal: Principal = Depends(require("ocr:view")),
+    session: Session = Depends(get_session),
+) -> dict:
+    """The newest Gemini forensic report per check (empty until one is run)."""
+    document = _document_or_404(session, document_id, principal)
+    return {"reports": [forensic_service.to_dict(r)
+                        for r in forensic_service.latest(session, document)]}
+
+
+@router.post("/{document_id}/forensics")
+def run_forensics(
+    document_id: str,
+    principal: Principal = Depends(require("document:verify")),
+    session: Session = Depends(get_session),
+) -> dict:
+    """Run the five forensic checks now. Sends the scan to Gemini; blocks for
+    roughly the length of five model calls."""
+    document = _document_or_404(session, document_id, principal)
+    reports = forensic_service.run(session, document)
+    audit_service.record(
+        session,
+        action="document.forensics",
+        entity_type="document",
+        entity_id=document.id,
+        actor_id=principal.id,
+        actor_role=principal.primary_role,
+        after_state={r.check: r.verdict for r in reports},
+    )
+    session.commit()
+    return {"reports": [forensic_service.to_dict(r) for r in reports]}

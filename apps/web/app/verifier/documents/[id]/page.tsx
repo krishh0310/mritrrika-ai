@@ -8,6 +8,7 @@ import { AlertTriangle, ArrowLeft, RotateCw, Send } from "lucide-react";
 import { QueryBoundary } from "@/components/shared/query-boundary";
 import { DocumentViewer } from "@/components/verifier/document-viewer";
 import { FieldEditor } from "@/components/verifier/field-editor";
+import { ForensicsPanel } from "@/components/verifier/forensics-panel";
 import { ApiError, api } from "@/lib/api-client";
 import { useProcessingStatus, useVerificationWorkspace } from "@/lib/queries";
 import {
@@ -274,6 +275,8 @@ export default function VerificationWorkspacePage({
                 Verification submitted. This document is now with the tehsildar.
               </p>
             ) : null}
+
+            <ForensicsPanel documentId={id} />
 
             <div className="grid gap-4 lg:grid-cols-2">
               <div className="flex flex-col gap-2">

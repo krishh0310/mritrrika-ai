@@ -2,7 +2,14 @@
 entire schema from a single import of Base.metadata.
 """
 
-from .ai import AiFeedback, Embedding, ModelRegistryEntry, ModelVersion, Notification
+from .ai import (
+    AiFeedback,
+    Embedding,
+    ForensicReport,
+    ModelRegistryEntry,
+    ModelVersion,
+    Notification,
+)
 from .audit import AuditEvent
 from .base import Base
 from .documents import (
@@ -37,7 +44,8 @@ from .workflow import (
 __all__ = [
     "AiFeedback", "AnomalyFlag", "ApiKey", "ApprovalAction", "AuditEvent", "Base",
     "CitizenProfile", "Document", "DocumentPage", "Embedding", "Extraction",
-    "FieldCorrection", "Grievance", "IntegrationLog", "LandRecord", "Location", "LrmsSyncRecord",
+    "FieldCorrection", "ForensicReport", "Grievance", "IntegrationLog", "LandRecord",
+    "Location", "LrmsSyncRecord",
     "ModelRegistryEntry", "ModelVersion",
     "Mutation", "Notification", "OcrBlock", "Owner", "OwnershipRecord",
     "Parcel", "Permission", "ProcessingJob", "Role", "RolePermission", "User",
