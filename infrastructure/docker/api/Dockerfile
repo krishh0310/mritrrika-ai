@@ -4,6 +4,12 @@
 # loads an OCR model; it hands work to the worker. Keeping the AI wheels out
 # takes the image from ~2.5GB to ~400MB and makes it start in seconds.
 
+FROM python:3.12-slim AS pillow
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      build-essential pkg-config libraqm-dev libfreetype6-dev libjpeg62-turbo-dev zlib1g-dev \
+    && rm -rf /var/lib/apt/lists/*
+RUN pip wheel --no-cache-dir --no-binary Pillow --no-deps -w /wheels 'Pillow>=11,<13'
+
 FROM python:3.12-slim AS base
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -14,12 +20,15 @@ WORKDIR /app
 
 # libpq for psycopg, and the GEOS/PROJ pair GeoAlchemy2 needs to parse geometry.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      libpq5 libgeos-c1v5 libproj25 curl \
+      libpq5 libgeos-c1v5 libproj25 curl fonts-noto-core libraqm0 \
     && rm -rf /var/lib/apt/lists/*
 
 # Dependencies in their own layer, so a source edit does not reinstall them.
 COPY apps/api/requirements.txt ./apps/api/
-RUN pip install -r apps/api/requirements.txt
+COPY --from=pillow /wheels /wheels
+RUN pip install -r apps/api/requirements.txt \
+    && pip install --force-reinstall --no-deps /wheels/Pillow*.whl \
+    && rm -rf /wheels
 
 COPY packages/domain ./packages/domain
 COPY services/ai-worker ./services/ai-worker

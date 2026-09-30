@@ -39,7 +39,11 @@ def test_no_key_and_failures_store_unable_to_verify(monkeypatch):
     monkeypatch.setattr(fs, "RUNNERS", {
         **fs.RUNNERS,
         "tamper": lambda s, d, v: fs.ask_gemini("p"),
-        "fraud": lambda s, d, v: {"risk_level": "high", "risk_score": 81},
+        "fraud": lambda s, d, v: {
+            "risk_level": "HIGH", "risk_score": 81,
+            "patterns_detected": [], "suspicious_entities": [],
+            "recommended_action": "REVIEW", "confidence": "LOW",
+        },
     })
     added = []
     session = SimpleNamespace(add=added.append, flush=lambda: None)
@@ -51,3 +55,20 @@ def test_no_key_and_failures_store_unable_to_verify(monkeypatch):
     assert tamper.result["error"] == "forensic analysis is not configured"
     assert (fraud.verdict, fraud.score) == ("HIGH", 81.0)
     assert added == [tamper, fraud]
+
+
+@pytest.mark.parametrize("reply", [
+    {"risk_level": "FORGED", "risk_score": 12},
+    {"risk_level": "HIGH", "risk_score": 101},
+    {"risk_level": "HIGH", "risk_score": -1},
+    {"risk_level": "HIGH", "risk_score": "90"},
+    {"risk_level": "HIGH", "risk_score": 90, "secret": "echo this"},
+])
+def test_fraud_reply_rejects_malformed_or_injected_fields(reply):
+    valid = {
+        "risk_level": "HIGH", "risk_score": 81,
+        "patterns_detected": [], "suspicious_entities": [],
+        "recommended_action": "REVIEW", "confidence": "LOW",
+    }
+    with pytest.raises(fs.Unverifiable, match="invalid result"):
+        fs.validate_reply("fraud", valid | reply)

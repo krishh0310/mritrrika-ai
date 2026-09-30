@@ -23,9 +23,8 @@ a note in a README:
 
 import numpy as np
 import pytest
+from mrittika_domain.fonts import find_font
 from PIL import Image, ImageDraw, ImageFont, features
-
-DEVANAGARI_FONT = "/System/Library/Fonts/Supplemental/Devanagari Sangam MN.ttc"
 
 # Realistic land-record values (spec §45): conjuncts, matras, Devanagari digits.
 GOLDEN_SAMPLES = [
@@ -38,7 +37,7 @@ GOLDEN_SAMPLES = [
 
 
 def _render(text: str, size: int = 44) -> Image.Image:
-    font = ImageFont.truetype(DEVANAGARI_FONT, size)
+    font = ImageFont.truetype(find_font(), size)
     img = Image.new("RGB", (900, 120), "white")
     ImageDraw.Draw(img).text((30, 25), text, fill="black", font=font)
     return img
@@ -115,7 +114,7 @@ def test_devanagari_matra_reorders_left():
     leading ink column-profile of 'कि' is the matra, so 'कि' is *narrower*
     than the naive concatenation width of क followed by ि.
     """
-    font = ImageFont.truetype(DEVANAGARI_FONT, 80)
+    font = ImageFont.truetype(find_font(), 80)
 
     def ink_width(text: str) -> int:
         img = Image.new("L", (600, 200), 255)

@@ -29,19 +29,11 @@ import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
+from mrittika_domain.fonts import find_font
 from sqlalchemy.orm import Session
 
 from app.models import Parcel
 from app.repositories import ownership_repository
-
-#: The libraqm-shaped Devanagari faces the dataset generator already uses.
-#: Listed in preference order; the first that loads wins.
-DEVANAGARI_FONTS = (
-    "/System/Library/Fonts/Supplemental/Devanagari Sangam MN.ttc",
-    "/System/Library/Fonts/Supplemental/Kohinoor.ttc",
-    "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf",
-    "/usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf",
-)
 
 #: A4 at 150 dpi. Big enough that the QR survives a phone camera, small enough
 #: that the PDF stays well under a megabyte.
@@ -77,19 +69,10 @@ class Certificate:
 def _font(size: int, bold: bool = False):
     from PIL import ImageFont
 
-    candidates = DEVANAGARI_FONTS[::-1] if bold else DEVANAGARI_FONTS
-    for path in candidates:
-        try:
-            return ImageFont.truetype(path, size)
-        except OSError:
-            continue
-    # Pillow's default bitmap font cannot draw Devanagari at all. Falling back
-    # to it silently would produce a certificate of empty boxes, so this is an
-    # error the caller must see.
-    raise CertificateError(
-        "no Devanagari-capable font found; install Noto Sans Devanagari "
-        "(see DEVANAGARI_FONTS)"
-    )
+    try:
+        return ImageFont.truetype(find_font(bold=bold), size)
+    except (FileNotFoundError, OSError) as exc:
+        raise CertificateError("no usable Devanagari font; install fonts-noto-core") from exc
 
 
 def content_of(session: Session, parcel: Parcel) -> dict:

@@ -10,6 +10,7 @@ requires-python = ">=3.12,<3.13"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = [".", "apps/api", "packages/domain", "packages/dataset-generator", "services/ai-worker"]
 markers = [
     "slow: loads an ML model or hits the network (deselect with '-m \"not slow\"')",
     "integration: requires postgres/redis/minio to be up",

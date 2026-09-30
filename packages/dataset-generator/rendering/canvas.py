@@ -15,10 +15,8 @@ from dataclasses import dataclass
 from dataclasses import field as dc_field
 from pathlib import Path
 
+from mrittika_domain.fonts import find_font
 from PIL import Image, ImageDraw, ImageFont, features
-
-DEVANAGARI_FONT = "/System/Library/Fonts/Supplemental/Devanagari Sangam MN.ttc"
-DEVANAGARI_FONT_BOLD = "/System/Library/Fonts/Supplemental/Kohinoor.ttc"
 
 #: Land-record extract slips are typically shorter than A4. Sizing the page to
 #: the content means degradation lands ON the text rather than on blank paper,
@@ -76,7 +74,8 @@ class RecordingCanvas:
 
     # ── fonts ────────────────────────────────────────────────────────────
     @classmethod
-    def font(cls, size: int, path: str = DEVANAGARI_FONT) -> ImageFont.FreeTypeFont:
+    def font(cls, size: int, path: str | None = None) -> ImageFont.FreeTypeFont:
+        path = path or find_font()
         key = (path, size)
         if key not in cls._font_cache:
             cls._font_cache[key] = ImageFont.truetype(path, size)
@@ -91,7 +90,7 @@ class RecordingCanvas:
         field: str | None = None,
         normalized: str | None = None,
         fill: str = "#1A1A1A",
-        font_path: str = DEVANAGARI_FONT,
+        font_path: str | None = None,
         anchor: str | None = None,
         is_handwritten: bool = False,
         row: int | None = None,

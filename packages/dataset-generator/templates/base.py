@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from mrittika_domain.fonts import find_font
 from records.names import to_devanagari_digits
 from rendering.canvas import RecordingCanvas
 
@@ -65,7 +66,7 @@ def _header_two_column(c: RecordingCanvas, ctx: DocumentContext, title: str) -> 
 
     c.centered_text(top, ctx.state, size=30)
     c.centered_text(top + 44, title, size=42,
-                    font_path="/System/Library/Fonts/Supplemental/Kohinoor.ttc")
+                    font_path=find_font(bold=True))
 
     y = top + 118
     left = MARGIN + 10
@@ -103,7 +104,7 @@ def _header_stacked(c: RecordingCanvas, ctx: DocumentContext, title: str) -> int
     """
     top = MARGIN
     c.text((MARGIN, top), title, size=44,
-           font_path="/System/Library/Fonts/Supplemental/Kohinoor.ttc")
+           font_path=find_font(bold=True))
     c.text((c.image.width - MARGIN, top + 12), ctx.state, size=26, anchor="ra")
     c.line((MARGIN, top + 62), (c.image.width - MARGIN, top + 62), width=3)
     c.add_layout_box("header", (MARGIN, top, c.image.width - MARGIN, top + 210))
@@ -136,7 +137,7 @@ def _header_grid(c: RecordingCanvas, ctx: DocumentContext, title: str) -> int:
     """Variant C -- ruled grid with labels ABOVE their values."""
     top = MARGIN
     c.centered_text(top, title, size=40,
-                    font_path="/System/Library/Fonts/Supplemental/Kohinoor.ttc")
+                    font_path=find_font(bold=True))
     c.centered_text(top + 52, ctx.state, size=24)
 
     grid_top = top + 96
@@ -189,7 +190,7 @@ def draw_footer(c: RecordingCanvas, ctx: DocumentContext) -> None:
         size=18,
         fill="#9A6B4A",
         anchor="ma",
-        font_path="/System/Library/Fonts/Supplemental/Devanagari Sangam MN.ttc",
+        font_path=find_font(),
     )
 
 

@@ -19,8 +19,10 @@ from __future__ import annotations
 import base64
 import json
 import logging
+import math
 import threading
 import time
+from typing import Literal
 
 import httpx
 from geoalchemy2 import Geography
@@ -30,6 +32,7 @@ from mrittika_domain.area import (
     relative_difference,
     to_square_metres,
 )
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from sqlalchemy import cast, func, select
 from sqlalchemy.orm import Session
 
@@ -60,6 +63,108 @@ VERDICT_KEYS = {
     "area": ("tolerance_assessment", "difference_percent"),
     "fraud": ("risk_level", "risk_score"),
 }
+
+
+class _Reply(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+
+Confidence = Literal["HIGH", "MEDIUM", "LOW"]
+
+
+class _Finding(_Reply):
+    issue: str
+    severity: Literal["CRITICAL", "WARNING", "INFO"]
+    location: str
+
+
+class _Tamper(_Reply):
+    tamper_score: float = Field(ge=0, le=100)
+    confidence: Confidence
+    findings: list[_Finding]
+    authenticity_verdict: Literal["AUTHENTIC", "SUSPICIOUS", "FORGED"]
+    explanation: str
+
+
+class _StampItem(_Reply):
+    type: Literal["circular_rubber", "rectangular_seal", "embossed", "wet_signature", "unknown"]
+    quality: Literal["CLEAR", "FADED", "PARTIAL", "MISSING"]
+    readable_text: str | None
+    suspicious: bool
+    suspicion_reason: str
+
+
+class _Stamp(_Reply):
+    stamp_count: int = Field(ge=0)
+    stamps: list[_StampItem]
+    overall_assessment: Literal["AUTHENTIC", "REVIEW", "SUSPICIOUS"]
+    confidence: Confidence
+
+
+class _SignatureItem(_Reply):
+    location: str
+    quality: Literal["CLEAR", "FADED", "PARTIAL"]
+    naturalness_score: float = Field(ge=0, le=100)
+    suspicious_indicators: list[str]
+    verdict: Literal["AUTHENTIC", "REVIEW", "FORGED"]
+
+
+class _Signature(_Reply):
+    signature_count: int = Field(ge=0)
+    signatures: list[_SignatureItem]
+    name_match_assessment: Literal["MATCHES", "UNCLEAR", "MISMATCH"]
+    overall_verdict: Literal["AUTHENTIC", "REVIEW", "FORGED"]
+    confidence: Confidence
+
+
+class _Area(_Reply):
+    claimed_area_ha: float = Field(ge=0)
+    gis_area_ha: float = Field(ge=0)
+    difference_percent: float = Field(ge=0)
+    tolerance_assessment: Literal[
+        "WITHIN_TOLERANCE", "MINOR_DEVIATION", "SIGNIFICANT_MISMATCH", "CRITICAL_MISMATCH"
+    ]
+    likely_cause: Literal[
+        "SURVEY_VARIANCE", "DATA_ENTRY_ERROR", "BOUNDARY_CHANGE", "FRAUD_SUSPECTED", "UNKNOWN"
+    ]
+    recommended_action: Literal["NONE", "NOTE", "VERIFY", "ESCALATE"]
+    confidence: Confidence
+
+
+class _Pattern(_Reply):
+    pattern: str
+    description: str
+    severity: Literal["LOW", "MEDIUM", "HIGH"]
+
+
+class _Fraud(_Reply):
+    risk_score: float = Field(ge=0, le=100)
+    risk_level: Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+    patterns_detected: list[_Pattern]
+    suspicious_entities: list[str]
+    recommended_action: Literal["NONE", "MONITOR", "REVIEW", "INVESTIGATE"]
+    confidence: Confidence
+
+
+SCHEMAS = {
+    "tamper": _Tamper,
+    "stamp": _Stamp,
+    "signature": _Signature,
+    "area": _Area,
+    "fraud": _Fraud,
+}
+
+
+def validate_reply(check: str, result: dict) -> dict:
+    """Accept only the advertised provider contract, with finite numbers."""
+    try:
+        validated = SCHEMAS[check].model_validate(result)
+    except (KeyError, ValidationError) as exc:
+        raise Unverifiable("analysis returned an invalid result") from exc
+    values = validated.model_dump()
+    if any(not math.isfinite(v) for v in values.values() if isinstance(v, float)):
+        raise Unverifiable("analysis returned an invalid result")
+    return values
 
 # ── prompts ──────────────────────────────────────────────────────────────
 
@@ -209,7 +314,7 @@ def parse_json(text: str) -> dict:
     try:
         parsed = json.loads(text[start:end + 1])
     except json.JSONDecodeError as exc:
-        raise Unverifiable(f"analysis returned an unreadable result: {exc}") from exc
+        raise Unverifiable("analysis returned an unreadable result") from exc
     if not isinstance(parsed, dict):
         raise Unverifiable("analysis returned an unreadable result")
     return parsed
@@ -238,13 +343,13 @@ def ask_gemini(prompt: str, image: tuple[bytes, str] | None = None) -> dict:
                 "https://generativelanguage.googleapis.com/v1beta/interactions",
                 headers={"x-goog-api-key": settings.gemini_api_key},
                 json={"model": settings.gemini_llm_model, "input": parts},
-                timeout=90,
+                timeout=httpx.Timeout(45.0, connect=5.0),
             )
             if response.is_error:  # Google's message says why (bad key, quota...)
-                logger.warning("forensic model call failed: %s", response.text[:500])
+                logger.warning("forensic model call failed: HTTP %s", response.status_code)
                 raise Unverifiable(f"analysis service error {response.status_code}")
         except httpx.HTTPError as exc:
-            raise Unverifiable(f"analysis service unreachable: {exc}") from exc
+            raise Unverifiable("analysis service unreachable") from exc
         finally:
             _last_call = time.monotonic()
 
@@ -428,12 +533,14 @@ def run(session: Session, document: Document, checks: tuple[str, ...] = CHECKS
     for check in checks:
         verdict_key, score_key = VERDICT_KEYS[check]
         try:
-            result = RUNNERS[check](session, document, values)
-            verdict = str(result.get(verdict_key) or UNABLE).upper()
-        except Exception as exc:  # any failure is a visible UNABLE_TO_VERIFY
-            logger.warning("forensic %s check failed for %s: %s",
-                           check, document.external_id, exc)
+            result = validate_reply(check, RUNNERS[check](session, document, values))
+            verdict = result[verdict_key]
+        except Unverifiable as exc:
+            logger.warning("forensic %s check unavailable for %s", check, document.external_id)
             result, verdict = {"error": str(exc)}, UNABLE
+        except Exception:
+            logger.warning("forensic %s check failed for %s", check, document.external_id)
+            result, verdict = {"error": "analysis could not be completed"}, UNABLE
         score = result.get(score_key) if score_key else None
         report = ForensicReport(
             document_id=document.id, check=check, verdict=verdict[:32],

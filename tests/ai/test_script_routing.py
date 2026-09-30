@@ -19,6 +19,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from mrittika_domain.fonts import find_font
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "services" / "ai-worker"))
@@ -38,13 +39,6 @@ from ocr.scripts import (  # noqa: E402
     language_for_script,
     profile,
 )
-
-FONTS = {
-    "telugu": "/System/Library/Fonts/Supplemental/Telugu MN.ttc",
-    "tamil": "/System/Library/Fonts/Supplemental/Tamil MN.ttc",
-    "kannada": "/System/Library/Fonts/Supplemental/Kannada MN.ttc",
-    "devanagari": "/System/Library/Fonts/Supplemental/Devanagari Sangam MN.ttc",
-}
 
 SAMPLES = {
     "devanagari": "ग्राम रामपुर खसरा १४२",
@@ -152,9 +146,7 @@ class TestRoutingOnRealImages:
 
     @pytest.mark.parametrize("script", ["devanagari", "telugu", "tamil"])
     def test_the_right_language_wins(self, script):
-        font = FONTS[script]
-        if not Path(font).exists():
-            pytest.skip(f"missing font {font}")
+        font = find_font(script)
 
         from ocr.provider import route
 
@@ -164,9 +156,7 @@ class TestRoutingOnRealImages:
 
     def test_the_losing_candidates_are_recorded(self):
         """An audit trail for a routing decision, not just its winner (§64)."""
-        font = FONTS["telugu"]
-        if not Path(font).exists():
-            pytest.skip("missing Telugu font")
+        font = find_font("telugu")
 
         from ocr.provider import route
 
@@ -175,9 +165,7 @@ class TestRoutingOnRealImages:
         assert decision.considered["te"] > decision.considered["hi"]
 
     def test_telugu_text_is_actually_read(self):
-        font = FONTS["telugu"]
-        if not Path(font).exists():
-            pytest.skip("missing Telugu font")
+        font = find_font("telugu")
 
         from ocr.provider import route
 

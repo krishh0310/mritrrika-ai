@@ -1,5 +1,9 @@
 # Audit report
 
+> Historical audit at commit `2d77f49`. Its 35-concept mapping does not prove
+> resolution of the evaluator's unenumerated 67 terms or the subsequently
+> supplied IEEE CIS track requirements. See [current evaluation readiness](evaluation-readiness.md).
+
 ## Phase 1 — declaration and artifact audit (2026-09-30)
 
 Scope: feature and domain claims in `README.md` and `docs/*.md`. A term is verified only when a callable function, class, route, model, or UI component implements it; prose and comments are not evidence. The earlier score's list of 67 terms was not supplied, so its exact numerator cannot be reproduced. This inventory uses the actual declarations in this checkout.

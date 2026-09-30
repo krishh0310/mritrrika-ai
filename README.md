@@ -1,5 +1,7 @@
 # Mrittika AI
 
+> [Current evaluation readiness and track traceability](docs/evaluation-readiness.md)
+
 **Turning India's paper land records into verified, map-linked digital records — with a human signing off on every one.**
 
 ## Problem statement
