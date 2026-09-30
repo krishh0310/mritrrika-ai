@@ -11,9 +11,9 @@ therefore not proof that those 67 findings are closed.
 | Citizen access by authorization | `citizen_service`, auth dependencies | Citizen record and certificate routes | Existing authorization suites | Cross-jurisdiction browser pass pending |
 | Indic document rendering | `mrittika_domain.fonts.find_font`, `RecordingCanvas`, certificate renderer | Synthetic pages and certificate download | Linux Python 3.12: 2 passed after source-building Pillow with libraqm | Full certificate rendering on Linux not independently run |
 | Advisory forensic checks | `forensic_service.validate_reply` | Verifier forensic panel | `test_forensics.py` checks invalid verdicts, scores, injected fields | Queue/progress and independent validity study pending; interface localization and keyboard consent now tested |
-| Multi-objective heuristic | `optimization/multi_objective.py:pareto_front`, `select_configuration` | Offline `benchmarks/compare_pipeline.py` recommendation | `test_multi_objective.py`; measured server/mobile operating points | Small synthetic corpus; broad validation and evolutionary search remain pending |
-| Deep evolutionary network | None | None | None | **Required track mechanism unimplemented**; needs a defined search space and labeled grouped splits |
-| OOD generalization and fair calibration | Existing extraction evaluation scripts | Review queue | Synthetic evaluation reports only | Grouped OOD and subgroup calibration evaluation pending |
+| Multi-objective heuristic | `optimization/multi_objective.py:pareto_front`, `select_configuration` | Offline `benchmarks/compare_pipeline.py` recommendation | `test_multi_objective.py`; measured server/mobile operating points | Small synthetic corpus; real-register validation remains pending |
+| Deep evolutionary network | `optimization/deep_evolutionary_network.py:evolve_deep_network` | Offline benchmark evidence | `test_deep_evolutionary_network.py`, `test_evolutionary_benchmark.py`; deterministic generation trace and Pareto report | Synthetic evidence only; independent evaluator rerun remains pending |
+| OOD generalization and fair calibration | `make_nonstationary_classification`, `BinaryMetrics`, `GenerationEvidence` | Review and benchmark evidence | Shifted validation/test splits, per-group calibration, held-out selection-isolation test | Real-register and broader subgroup validation remain pending |
 | Local document pipeline latency | `benchmarks/document_pipeline.py` | Real Paddle OCR through validation and confidence, PNG/PDF | Raw timings and exact field outcomes in `benchmarks/document-pipeline/` | API, queue, DB/storage, concurrency, and multilingual timed runs pending |
 | SDG 9 resource efficiency | `impact.ImpactReporter`, `pipeline_metrics` | CLI/report | `tests/ai/test_impact.py`; measured runtime, memory, and flagged-field counts | Human effort and energy not measured; no real-world impact inference |
 
@@ -84,7 +84,6 @@ confirm whether any category clears the target.
 - Pareto selection: measured latency, peak process memory, and field F1;
   rejects incompatible runs and returns no solution if hard budgets conflict.
 
-Unresolved: deep evolutionary learning, OOD generalization guarantees,
-sub-population calibration, full-stack concurrency measurements, queued
-forensics, browser-wide accessibility verification, and the unenumerated
-54-term evaluator inventory. Current changes do not establish >85 everywhere.
+Unresolved: real-register generalization guarantees, full-stack concurrency
+measurements, queued forensics, browser-wide accessibility verification, and the
+unenumerated evaluator inventory. Current changes do not establish >85 everywhere.

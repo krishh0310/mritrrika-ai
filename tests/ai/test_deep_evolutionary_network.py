@@ -33,6 +33,10 @@ def test_evolution_is_deterministic_and_respects_the_deployment_budget():
     assert first.selected.parameter_count <= FAST_CONFIG.parameter_budget
     assert len(first.selected.genome.hidden_layers) == 2
     assert first.validation_metrics.accuracy >= first.fixed_baseline_metrics.accuracy
+    assert len(first.generation_evidence) == FAST_CONFIG.generations + 1
+    assert first.generation_evidence[-1].evaluated_genomes == first.evaluated_genomes
+    assert first.validation_metrics.group_calibration_errors
+    assert sum(error for _, error in first.validation_metrics.group_calibration_errors) >= 0.0
     probabilities = first.predict_proba(data.test.features[:5])
     assert probabilities.shape == (5,)
     assert np.all((0.0 <= probabilities) & (probabilities <= 1.0))

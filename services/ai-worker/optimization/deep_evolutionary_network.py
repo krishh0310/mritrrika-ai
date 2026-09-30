@@ -76,6 +76,18 @@ class BinaryMetrics:
     calibration_error: float
     worst_group_calibration_error: float
     group_calibration_gap: float
+    group_calibration_errors: tuple[tuple[int, float], ...]
+
+
+@dataclass(frozen=True)
+class GenerationEvidence:
+    """Auditable validation evidence collected during evolutionary search."""
+
+    generation: int
+    evaluated_genomes: int
+    pareto_size: int
+    best_accuracy: float
+    worst_group_calibration_error: float
 
 
 @dataclass(frozen=True)
@@ -132,6 +144,7 @@ class EvolutionResult:
     regularization_ablation_test_metrics: BinaryMetrics
     pareto_front: tuple[Candidate, ...]
     evaluated_genomes: int
+    generation_evidence: tuple[GenerationEvidence, ...]
     _network: _Network
 
     def predict_proba(self, features: FloatArray) -> FloatArray:
@@ -235,6 +248,7 @@ def _search(
             population.append(candidate)
 
     cache: dict[Genome, tuple[Candidate, _Network]] = {}
+    generation_evidence: list[GenerationEvidence] = []
 
     def evaluate(genome: Genome) -> tuple[Candidate, _Network]:
         if genome not in cache:
@@ -252,6 +266,7 @@ def _search(
 
     for _ in range(config.generations if evolutionary else 0):
         evaluated = [evaluate(genome)[0] for genome in population]
+        generation_evidence.append(_generation_evidence(len(generation_evidence), evaluated, len(cache)))
         parents = _ranked_parents(evaluated, max(2, config.population_size // 2))
         population = [candidate.genome for candidate in parents]
         while len(population) < config.population_size:
@@ -260,6 +275,7 @@ def _search(
             population.append(child)
 
     evaluated = [evaluate(genome)[0] for genome in population]
+    generation_evidence.append(_generation_evidence(len(generation_evidence), evaluated, len(cache)))
     all_candidates = [pair[0] for pair in cache.values()]
     frontier = tuple(_pareto_front(all_candidates))
     selected = max(
@@ -298,6 +314,7 @@ def _search(
         regularization_ablation_test_metrics=ablation_test_metrics,
         pareto_front=frontier,
         evaluated_genomes=search_evaluated_genomes,
+        generation_evidence=tuple(generation_evidence),
         _network=network,
     )
 
@@ -379,16 +396,42 @@ def _calibration_error(labels: FloatArray, probabilities: FloatArray, bins: int 
 
 
 def _metrics(labels: FloatArray, probabilities: FloatArray, groups: NDArray[np.int64]) -> BinaryMetrics:
-    group_errors = [
-        _calibration_error(labels[groups == group], probabilities[groups == group])
+    group_errors = tuple(
+        (
+            int(group),
+            _calibration_error(labels[groups == group], probabilities[groups == group]),
+        )
         for group in np.unique(groups)
-    ]
+    )
+    errors = tuple(error for _, error in group_errors)
     return BinaryMetrics(
         accuracy=float(np.mean((probabilities >= 0.5) == labels)),
         brier_score=float(np.mean(np.square(probabilities - labels))),
         calibration_error=_calibration_error(labels, probabilities),
-        worst_group_calibration_error=max(group_errors),
-        group_calibration_gap=max(group_errors) - min(group_errors),
+        worst_group_calibration_error=max(errors),
+        group_calibration_gap=max(errors) - min(errors),
+        group_calibration_errors=group_errors,
+    )
+
+
+def _generation_evidence(
+    generation: int, candidates: list[Candidate], evaluated_genomes: int
+) -> GenerationEvidence:
+    """Summarize validation results; held-out test data never enters this trace."""
+    best = max(
+        candidates,
+        key=lambda candidate: (
+            candidate.validation_metrics.accuracy,
+            -candidate.validation_metrics.worst_group_calibration_error,
+            -candidate.parameter_count,
+        ),
+    )
+    return GenerationEvidence(
+        generation=generation,
+        evaluated_genomes=evaluated_genomes,
+        pareto_size=len(_pareto_front(candidates)),
+        best_accuracy=best.validation_metrics.accuracy,
+        worst_group_calibration_error=best.validation_metrics.worst_group_calibration_error,
     )
 
 
