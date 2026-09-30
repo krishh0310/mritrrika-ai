@@ -1,0 +1,306 @@
+{
+  "scope": "local production document pipeline; synthetic printed pages",
+  "excluded": [
+    "API",
+    "queue",
+    "database",
+    "object storage",
+    "concurrency",
+    "handwritten scans"
+  ],
+  "environment": {
+    "python": "3.12.14",
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "dependencies": {
+      "paddleocr": "3.7.0",
+      "paddlepaddle": "3.3.1",
+      "Pillow": "12.3.0",
+      "numpy": "2.3.5"
+    }
+  },
+  "workload": {
+    "repeats": 1,
+    "documents": [
+      {
+        "language": "hi",
+        "quality": "clean",
+        "format": "PNG",
+        "pages": 1,
+        "pixels": [
+          1200,
+          900
+        ],
+        "sha256": "2ba5eb6ffd15056440c9e21279f6dc71a30f02a0a0a512f83b06df2906594c96",
+        "font_sha256": "aa26617121bda473948944563b7aae9b155236ec31340d3062ebad4d0b54d79b"
+      },
+      {
+        "language": "hi",
+        "quality": "clean",
+        "format": "PDF",
+        "pages": 2,
+        "pixels": [
+          1200,
+          900
+        ],
+        "sha256": "35feb7c48f833a385fd332a94912a3e2dbb9d00d937b68a6f49d96c4b03349c8",
+        "font_sha256": "aa26617121bda473948944563b7aae9b155236ec31340d3062ebad4d0b54d79b"
+      },
+      {
+        "language": "hi",
+        "quality": "blurred",
+        "format": "PNG",
+        "pages": 1,
+        "pixels": [
+          1200,
+          900
+        ],
+        "sha256": "35d14ddb097b71a2cb3b03fc4cad9395e8405540a2cf5a13429a762bb4bb1474",
+        "font_sha256": "aa26617121bda473948944563b7aae9b155236ec31340d3062ebad4d0b54d79b"
+      },
+      {
+        "language": "hi",
+        "quality": "blurred",
+        "format": "PDF",
+        "pages": 2,
+        "pixels": [
+          1200,
+          900
+        ],
+        "sha256": "0b467f7043148aabcf8bba96ff6111452d4f2e9d53696b753eee995409753273",
+        "font_sha256": "aa26617121bda473948944563b7aae9b155236ec31340d3062ebad4d0b54d79b"
+      }
+    ]
+  },
+  "detector": "PP-OCRv5_server_det",
+  "quality": {
+    "precision": 1.0,
+    "recall": 0.25,
+    "f1": 0.4,
+    "true_positive": 6,
+    "false_positive": 0,
+    "false_negative": 18
+  },
+  "model_loading": {
+    "hi": {
+      "cold_seconds": 11.833529708001151,
+      "warm_seconds": 4.5900014811195433e-07
+    }
+  },
+  "total_latency": {
+    "count": 4,
+    "p50_ms": 10622.916,
+    "p95_ms": 15132.38,
+    "p99_ms": 15141.948
+  },
+  "stages": {
+    "ingestion": {
+      "count": 4,
+      "p50_ms": 14.159,
+      "p95_ms": 22.713,
+      "p99_ms": 22.779
+    },
+    "page_encoding": {
+      "count": 4,
+      "p50_ms": 6.371,
+      "p95_ms": 10.624,
+      "p99_ms": 10.689
+    },
+    "image_decode": {
+      "count": 4,
+      "p50_ms": 11.772,
+      "p95_ms": 20.991,
+      "p99_ms": 21.441
+    },
+    "quality": {
+      "count": 4,
+      "p50_ms": 28.37,
+      "p95_ms": 45.638,
+      "p99_ms": 46.378
+    },
+    "preprocessing": {
+      "count": 4,
+      "p50_ms": 27.957,
+      "p95_ms": 170.359,
+      "p99_ms": 186.52
+    },
+    "ocr": {
+      "count": 4,
+      "p50_ms": 10475.981,
+      "p95_ms": 14949.298,
+      "p99_ms": 14962.331
+    },
+    "layout": {
+      "count": 4,
+      "p50_ms": 0.275,
+      "p95_ms": 0.294,
+      "p99_ms": 0.295
+    },
+    "extraction": {
+      "count": 4,
+      "p50_ms": 1.048,
+      "p95_ms": 1.376,
+      "p99_ms": 1.422
+    },
+    "normalization": {
+      "count": 4,
+      "p50_ms": 0.014,
+      "p95_ms": 0.017,
+      "p99_ms": 0.017
+    },
+    "validation": {
+      "count": 4,
+      "p50_ms": 0.027,
+      "p95_ms": 0.038,
+      "p99_ms": 0.038
+    },
+    "confidence": {
+      "count": 4,
+      "p50_ms": 0.114,
+      "p95_ms": 0.15,
+      "p99_ms": 0.151
+    }
+  },
+  "documents_per_second": 0.09820150199136883,
+  "peak_process_rss_mib": 16043.03125,
+  "failure_rate": 0.0,
+  "empty_pages": 0,
+  "observations": [
+    {
+      "language": "hi",
+      "quality": "clean",
+      "format": "PNG",
+      "pages": 1,
+      "pixels": [
+        1200,
+        900
+      ],
+      "sha256": "2ba5eb6ffd15056440c9e21279f6dc71a30f02a0a0a512f83b06df2906594c96",
+      "font_sha256": "aa26617121bda473948944563b7aae9b155236ec31340d3062ebad4d0b54d79b",
+      "repeat": 0,
+      "stages_seconds": {
+        "ingestion": 0.0042397500001243316,
+        "page_encoding": 0.002190874998632353,
+        "image_decode": 0.004211915998894256,
+        "quality": 0.016344834002666175,
+        "preprocessing": 2.024999776040204e-05,
+        "ocr": 4.31345391600189,
+        "layout": 0.00026612500005285256,
+        "extraction": 0.001433375000488013,
+        "normalization": 1.2083997717127204e-05,
+        "validation": 1.6583002434344962e-05,
+        "confidence": 7.795799683663063e-05
+      },
+      "fields": 1,
+      "review_fields": 1,
+      "empty_pages": 0,
+      "true_positive": 1,
+      "false_positive": 0,
+      "false_negative": 3,
+      "error": null,
+      "total_seconds": 4.342359207999834
+    },
+    {
+      "language": "hi",
+      "quality": "clean",
+      "format": "PDF",
+      "pages": 2,
+      "pixels": [
+        1200,
+        900
+      ],
+      "sha256": "35feb7c48f833a385fd332a94912a3e2dbb9d00d937b68a6f49d96c4b03349c8",
+      "font_sha256": "aa26617121bda473948944563b7aae9b155236ec31340d3062ebad4d0b54d79b",
+      "repeat": 0,
+      "stages_seconds": {
+        "ingestion": 0.022795124998083338,
+        "page_encoding": 0.010164458999497583,
+        "image_decode": 0.017801792000682326,
+        "quality": 0.04656279200207791,
+        "preprocessing": 2.6832996809389442e-05,
+        "ocr": 14.965589666000596,
+        "layout": 0.00028479200045694597,
+        "extraction": 0.0010480830023880117,
+        "normalization": 1.6458998288726434e-05,
+        "validation": 3.825000021606684e-05,
+        "confidence": 0.00014708300295751542
+      },
+      "fields": 2,
+      "review_fields": 2,
+      "empty_pages": 0,
+      "true_positive": 2,
+      "false_positive": 0,
+      "false_negative": 6,
+      "error": null,
+      "total_seconds": 15.064608833999955
+    },
+    {
+      "language": "hi",
+      "quality": "blurred",
+      "format": "PNG",
+      "pages": 1,
+      "pixels": [
+        1200,
+        900
+      ],
+      "sha256": "35d14ddb097b71a2cb3b03fc4cad9395e8405540a2cf5a13429a762bb4bb1474",
+      "font_sha256": "aa26617121bda473948944563b7aae9b155236ec31340d3062ebad4d0b54d79b",
+      "repeat": 0,
+      "stages_seconds": {
+        "ingestion": 0.006068250000680564,
+        "page_encoding": 0.00257716699707089,
+        "image_decode": 0.005741708999266848,
+        "quality": 0.015224958002363564,
+        "preprocessing": 0.05588674999671639,
+        "ocr": 6.0949840000030235,
+        "layout": 0.0001782079998520203,
+        "extraction": 0.0003810419984802138,
+        "normalization": 6.54199902783148e-06,
+        "validation": 1.620799957890995e-05,
+        "confidence": 8.079200051724911e-05
+      },
+      "fields": 1,
+      "review_fields": 1,
+      "empty_pages": 0,
+      "true_positive": 1,
+      "false_positive": 0,
+      "false_negative": 3,
+      "error": null,
+      "total_seconds": 6.181223750001664
+    },
+    {
+      "language": "hi",
+      "quality": "blurred",
+      "format": "PDF",
+      "pages": 2,
+      "pixels": [
+        1200,
+        900
+      ],
+      "sha256": "0b467f7043148aabcf8bba96ff6111452d4f2e9d53696b753eee995409753273",
+      "font_sha256": "aa26617121bda473948944563b7aae9b155236ec31340d3062ebad4d0b54d79b",
+      "repeat": 0,
+      "stages_seconds": {
+        "ingestion": 0.022250166999583598,
+        "page_encoding": 0.010705292002967326,
+        "image_decode": 0.021553665999817895,
+        "quality": 0.04039537499920698,
+        "preprocessing": 0.1905604579987994,
+        "ocr": 14.856978208001237,
+        "layout": 0.000295583999104565,
+        "extraction": 0.0010472920002939645,
+        "normalization": 1.6583002434344962e-05,
+        "validation": 3.679099972941913e-05,
+        "confidence": 0.0001507499982835725
+      },
+      "fields": 2,
+      "review_fields": 2,
+      "empty_pages": 0,
+      "true_positive": 2,
+      "false_positive": 0,
+      "false_negative": 6,
+      "error": null,
+      "total_seconds": 15.144339750000654
+    }
+  ],
+  "limits": "Stage percentiles are per-document totals. Small runs do not estimate tail latency reliably. RSS includes models and fixture generation. Review counts are not human time saved."
+}

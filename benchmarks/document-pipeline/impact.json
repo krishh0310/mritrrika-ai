@@ -1,0 +1,14 @@
+{
+  "scope": "local production document pipeline; synthetic printed pages",
+  "documents": 4,
+  "successful_documents": 4,
+  "processing_seconds": 9.555545374001667,
+  "successful_documents_per_second": 0.4186050971913162,
+  "extracted_fields": 24,
+  "fields_flagged_for_review": 24,
+  "flagged_fraction_of_extracted_fields": 1.0,
+  "empty_pages": 0,
+  "measured_peak_process_rss_mib": 1964.3125,
+  "human_review_seconds_saved": null,
+  "energy_saved": null
+}

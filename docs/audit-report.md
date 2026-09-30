@@ -94,3 +94,22 @@ Complete. `gitleaks git` scanned 81 commits with 0 findings; `gitleaks dir` scan
 | Placeholder marker search | 0 matches outside dependencies |
 
 The earlier 76.19/100 rubric and its 67-term list were not supplied as reproducible inputs. This audit therefore cannot assert a new score of 95+ or equivalence to that exact list. External live integration and real-record accuracy remain explicitly out of scope for this synthetic prototype.
+
+## Current remediation verification (2026-09-30)
+
+Implemented: explicit merged-label extraction across nine language fixtures; real local image/PDF OCR benchmarking; budget-constrained Pareto selection; computed pipeline impact; forensic UI disclosure, keyboard consent, advisory labels, Hindi parity and announced errors. Raw measurements: `benchmarks/document-pipeline/`. Requirements and remaining gaps: [evaluation-readiness.md](evaluation-readiness.md).
+
+| Command | Result |
+|---|---|
+| `.venv/bin/ruff check .` | Passed |
+| `.venv/bin/python -m pytest tests/ai -q -m 'not slow'` | 260 passed, 6 deselected; 17.56 s |
+| `npm run lint` | Passed |
+| `npm run typecheck` | Web/mobile passed |
+| `npm test` | 35 web + 6 mobile passed |
+| `npm run build` | Production web build passed |
+| `npm run build:mobile` | Expo web export passed; native builds not run |
+| `.venv/bin/python scripts/check_i18n.py` | 192 English/Hindi keys in parity |
+| `.venv/bin/python scripts/scan_secrets.py` | 0 pattern findings in tracked/new nonignored files; not a git-history audit |
+| `benchmarks/compare_pipeline.py` with committed after reports | Reproduced feasible mobile recommendation for F1 ≥0.90 and 4096 MiB |
+
+This pass did not run the six slow model tests, full backend/integration suite, empty-database migrations, browser-wide accessibility checks, dependency/history security audits or a coverage measurement. Local selected checks do not establish full-stack readiness. Deep evolutionary networks, held-out OOD/generalization/calibration evidence and the evaluator's unenumerated 54 terms remain unresolved. No new LoopCode score is asserted.

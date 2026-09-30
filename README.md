@@ -430,3 +430,13 @@ Handwriting training data:
 
 OCR by [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR). Language models
 by [AI4Bharat](https://ai4bharat.iitm.ac.in/).
+
+## Pipeline benchmark evidence and evaluation status
+
+The real local OCR benchmark covers synthetic Hindi images and PDFs, clean and blurred scans. After fixing merged label:value extraction, the server detector measured **10.578 s median / F1 1.0000**; mobile measured **2.394 s / F1 0.9167**, with peak process RSS **15386 / 1964 MiB** respectively. This four-document development corpus does not establish real-world accuracy or service latency.
+
+- [Reproduce benchmarks](benchmarks/README.md), [raw results](benchmarks/document-pipeline/), [method and before/after table](docs/performance.md).
+- [Measured multi-objective selection](docs/innovation.md) and [computed impact](docs/impact.md).
+- [Requirements, evaluator baseline and remaining gaps](docs/evaluation-readiness.md).
+
+The offline selector enforces a minimum measured F1 and maximum memory budget; it does not automatically change production or bypass review. Deep evolutionary networks and the track's broader generalization/calibration claims remain unvalidated. No updated evaluator score is claimed.

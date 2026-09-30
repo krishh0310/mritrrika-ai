@@ -1,10 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ShieldCheck } from "lucide-react";
 
-import { ApiError, api } from "@/lib/api-client";
-import { Button, cn } from "@mrittika/ui";
+import { api } from "../../lib/api-client";
+import { Button, cn, en, useT, type MessageKey } from "@mrittika/ui";
 
 type Report = {
   check: "tamper" | "stamp" | "signature" | "area" | "fraud";
@@ -14,47 +15,47 @@ type Report = {
   created_at: string | null;
 };
 
-const LABEL: Record<Report["check"], string> = {
-  tamper: "Tampering",
-  stamp: "Stamps & seals",
-  signature: "Signatures",
-  area: "Area vs map",
-  fraud: "Transaction history",
-};
+type Translate = (key: MessageKey) => string;
 
-const GOOD = new Set(["AUTHENTIC", "WITHIN_TOLERANCE", "LOW"]);
-const BAD = new Set(["FORGED", "SIGNIFICANT_MISMATCH", "CRITICAL_MISMATCH", "HIGH", "CRITICAL"]);
+function codeLabel(code: unknown, t: Translate): string {
+  const key = `forensics.code.${String(code)}`;
+  return Object.hasOwn(en, key) ? t(key as MessageKey) : t("forensics.unknown");
+}
 
 function tone(verdict: string) {
   if (verdict === "UNABLE_TO_VERIFY") return "border-sand-300 bg-sand-50 text-sand-700";
-  if (GOOD.has(verdict)) return "border-high/30 bg-high-bg text-high";
-  if (BAD.has(verdict)) return "border-low/30 bg-low-bg text-low";
-  return "border-medium/40 bg-medium-bg text-[#7a5210]";
+  if (["FORGED", "SIGNIFICANT_MISMATCH", "CRITICAL_MISMATCH", "HIGH", "CRITICAL"].includes(verdict)) {
+    return "border-low/30 bg-low-bg text-low";
+  }
+  // Neutral treatment avoids presenting an unvalidated AI result as a certification.
+  return "border-sand-300 bg-sand-50 text-sand-700";
 }
 
-/** The human-readable lines out of each check's JSON. */
-function highlights(r: Record<string, unknown>): string[] {
-  const list = (key: string) => (Array.isArray(r[key]) ? (r[key] as Record<string, unknown>[]) : []);
+function highlights(r: Record<string, unknown>, t: Translate): string[] {
+  const list = (key: string): Record<string, unknown>[] => Array.isArray(r[key])
+    ? r[key].filter((v): v is Record<string, unknown> => !!v && typeof v === "object") : [];
+  const strings = (value: unknown): string[] => Array.isArray(value)
+    ? value.filter((v): v is string => typeof v === "string") : [];
   return [
-    r.error && `Could not run: ${r.error}`,
+    r.error && t("forensics.failed"),
     r.explanation,
-    ...list("findings").map((f) => `${f.severity}: ${f.issue} (${f.location})`),
-    ...list("stamps").filter((s) => s.suspicious).map((s) => `Stamp: ${s.suspicion_reason}`),
-    ...list("signatures").flatMap((s) => (s.suspicious_indicators as string[]) ?? []),
-    r.name_match_assessment && `Name match: ${r.name_match_assessment}`,
-    r.likely_cause && `Likely cause: ${r.likely_cause}`,
-    ...list("patterns_detected").map((p) => `${p.severity}: ${p.pattern} — ${p.description}`),
-    (r.suspicious_entities as string[] | undefined)?.length &&
-      `Investigate: ${(r.suspicious_entities as string[]).join(", ")}`,
-    r.recommended_action && `Recommended: ${r.recommended_action}`,
+    ...list("findings").map((f) => `${codeLabel(f.severity, t)}: ${f.issue} (${f.location})`),
+    ...list("stamps").filter((s) => s.suspicious).map((s) => `${t("forensics.stampLabel")}: ${s.suspicion_reason}`),
+    ...list("signatures").flatMap((s) => strings(s.suspicious_indicators)),
+    r.name_match_assessment && `${t("forensics.nameLabel")}: ${codeLabel(r.name_match_assessment, t)}`,
+    r.likely_cause && `${t("forensics.causeLabel")}: ${codeLabel(r.likely_cause, t)}`,
+    ...list("patterns_detected").map((p) => `${codeLabel(p.severity, t)}: ${p.pattern} — ${p.description}`),
+    strings(r.suspicious_entities).length > 0 &&
+      `${t("forensics.entitiesLabel")}: ${strings(r.suspicious_entities).join(", ")}`,
+    r.recommended_action && `${t("forensics.actionLabel")}: ${codeLabel(r.recommended_action, t)}`,
   ].filter((line): line is string => typeof line === "string" && line.length > 0);
 }
 
-/**
- * Gemini forensic checks (advisory). Run on demand because each run sends
- * the scan to Google; results are leads for the verifier, not findings.
- */
+/** Advisory provider checks require an explicit, visible external-processing opt-in. */
 export function ForensicsPanel({ documentId }: { documentId: string }) {
+  const t = useT();
+  const [consentDocument, setConsentDocument] = useState<string | null>(null);
+  const consent = consentDocument === documentId;
   const queryClient = useQueryClient();
   const key = ["document", documentId, "forensics"];
   const reports = useQuery({
@@ -68,60 +69,59 @@ export function ForensicsPanel({ documentId }: { documentId: string }) {
   const rows = reports.data?.reports ?? [];
 
   return (
-    <section
-      aria-label="Forensic checks"
-      className="mb-4 rounded-card border border-sand-200 bg-white px-4 py-3"
-    >
+    <section aria-label={t("forensics.title")} className="mb-4 rounded-card border border-sand-200 bg-white px-4 py-3">
+      <h2 className="text-sm font-semibold text-navy-900">{t("forensics.title")}</h2>
+      <p className="mt-2 text-sm text-sand-700">{t("forensics.notice")}</p>
+      <label className="my-3 flex items-start gap-2 text-sm text-sand-700">
+        <input
+          type="checkbox"
+          checked={consent}
+          disabled={run.isPending}
+          onChange={(e) => setConsentDocument(e.target.checked ? documentId : null)}
+          className="mt-1 size-4 shrink-0 accent-navy-900"
+        />
+        {t("forensics.consent")}
+      </label>
       <div className="flex flex-wrap items-center gap-2">
-        <h2 className="mr-1 text-sm font-semibold text-navy-900">Forensic checks</h2>
         {rows.map((r) => (
-          <span
-            key={r.check}
-            className={cn("rounded-chip border px-2 py-0.5 text-xs font-medium", tone(r.verdict))}
-          >
-            {LABEL[r.check]}: {r.verdict.replaceAll("_", " ").toLowerCase()}
+          <span key={r.check} className={cn("rounded-chip border px-2 py-0.5 text-xs font-medium", tone(r.verdict))}>
+            {t(`forensics.${r.check}`)}: {codeLabel(r.verdict, t)}
             {r.score != null ? ` (${r.score})` : null}
           </span>
         ))}
-        {rows.length === 0 && !reports.isLoading ? (
-          <span className="text-xs text-sand-500">Not run yet.</span>
-        ) : null}
         <Button
-          className="ml-auto"
-          size="sm"
-          variant="outline"
-          busy={run.isPending}
-          disabled={run.isPending}
-          onClick={() => run.mutate()}
+          className="ml-auto" size="sm" variant="outline"
+          busy={run.isPending} disabled={!consent || run.isPending}
+          onClick={() => { if (consent) run.mutate(); }}
         >
           <ShieldCheck aria-hidden />
-          {run.isPending ? "Checking…" : rows.length ? "Re-run checks" : "Run checks"}
+          {t(run.isPending ? "forensics.running" : rows.length ? "forensics.rerun" : "forensics.run")}
         </Button>
       </div>
-
-      {run.isError ? (
-        <p role="alert" className="mt-2 text-xs text-low">
-          {run.error instanceof ApiError ? run.error.message : "The checks could not be run."}
-        </p>
-      ) : null}
-
-      {rows.length ? (
-        <details className="mt-2 text-xs text-sand-700">
-          <summary className="cursor-pointer text-sand-500">
-            Details (AI-generated, advisory — confirm before acting)
-          </summary>
+      <p role="status" aria-live="polite" className="mt-2 text-sm text-sand-700">
+        {run.isPending ? t("forensics.running") : run.isSuccess ? t("forensics.complete") :
+          reports.isLoading ? t("state.loading") : !rows.length && !reports.isError ? t("forensics.empty") : ""}
+      </p>
+      {reports.isError && (
+        <div role="alert" className="mt-2 text-sm text-low">
+          <p>{t("forensics.loadFailed")}</p>
+          <Button size="sm" variant="outline" onClick={() => reports.refetch()}>{t("state.retry")}</Button>
+        </div>
+      )}
+      {run.isError && <p role="alert" className="mt-2 text-sm text-low">{t("forensics.failed")}</p>}
+      {rows.length > 0 && (
+        <details className="mt-2 text-sm text-sand-700">
+          <summary className="cursor-pointer">{t("forensics.details")}</summary>
           <dl className="mt-2 space-y-2">
             {rows.map((r) => (
               <div key={r.check}>
-                <dt className="font-semibold text-navy-900">{LABEL[r.check]}</dt>
-                {highlights(r.result).map((line, i) => (
-                  <dd key={i} className="ml-3">{line}</dd>
-                ))}
+                <dt className="font-semibold text-navy-900">{t(`forensics.${r.check}`)}</dt>
+                {highlights(r.result, t).map((line, i) => <dd key={i} className="ml-3">{line}</dd>)}
               </div>
             ))}
           </dl>
         </details>
-      ) : null}
+      )}
     </section>
   );
 }

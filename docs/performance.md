@@ -22,3 +22,20 @@ The repeated-page speedup reflects cache reuse. The varied-page figure is the be
 | S3 I/O | Bounded by 5 s connect and 30 s read timeout | One cached boto3 client with a 20-connection pool per process. |
 
 The API's SQLAlchemy engine already pools connections and pre-pings stale ones. OCR and handwriting models are lazily loaded once per worker process. Upload processing is queued through Celery so the request does not wait for model inference.
+
+## Real OCR pipeline: measured development corpus
+
+Raw observations and environment versions are in [`benchmarks/document-pipeline/`](../benchmarks/document-pipeline/). Each run used the same four synthetic Hindi documents (six pages): clean and blurred scans, PNG and two-page PDF, four expected fields per page. One repeat per workload on macOS arm64, Python 3.12.14, PaddleOCR 3.7.0, Paddle 3.3.1. Font and document hashes are recorded.
+
+| Detector / extraction | p50 document ms | p95 ms | p99 ms | Documents/s | Peak RSS MiB | Field F1 | Failures |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Server / before | 10622.916 | 15132.380 | 15141.948 | 0.09820 | 16043.03 | 0.4000 | 0/4 |
+| Server / after | 10577.812 | 15301.038 | 15344.185 | 0.09807 | 15386.47 | 1.0000 | 0/4 |
+| Mobile / before | 2438.471 | 3334.059 | 3339.937 | 0.41263 | 1959.33 | 0.2857 | 0/4 |
+| Mobile / after | 2393.768 | 3284.949 | 3290.281 | 0.41860 | 1964.31 | 0.9167 | 0/4 |
+
+Profiling exposed merged label:value blocks being rejected by the label-length guard. The shared extractor now scores the explicit label prefix and preserves its attached value. This improves this regression corpus's extraction quality; it does not demonstrate a material OCR latency improvement. The mobile detector offers a latency/memory trade-off at lower measured field accuracy. The production detector default is unchanged.
+
+Model cold loads after the fix were 11.761 s (server) and 11.976 s (mobile). Warm model access reuses the loaded instance; this is not warm inference latency. Per-stage raw timings cover decoding, preprocessing, OCR, layout, extraction, normalization, validation and confidence. Peak RSS includes fixture generation and models. Four documents cannot establish reliable tail latency. This development corpus is neither held-out evaluation nor evidence of real-scan accuracy. API response, queue wait, database, object storage and concurrent backpressure remain unmeasured by this harness.
+
+The offline Pareto selector is O(C²) for C measured configurations. It preserves accuracy and memory constraints and abstains when none qualify; it is intended for a small configuration sweep. See [benchmark commands](../benchmarks/README.md).

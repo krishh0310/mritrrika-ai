@@ -11,3 +11,11 @@ The extractor scores every block against the multilingual label vocabulary once 
 Forms repeat printed labels across documents. `_cached_label_score` retains 8,192 recent text/vocabulary scores; `_chrome_text` retains 4,096 page-furniture decisions. `_different_scripts` avoids fuzzy comparisons between Unicode scripts that cannot be the same printed label. This preserves fuzzy matching *within* a script for imperfect OCR. After these changes, the ten-call profile measured **0.1265 s**, a **96.5%** reduction from the intermediate 3.614 s. For **30 distinct pages**, median extraction latency was **31.743 ms**; this is the more conservative operating figure because most body text cannot reuse the cache.
 
 The measurements are CPU-only and use synthetic OCR blocks. See [performance.md](performance.md), `benchmarks/baseline.json`, and `benchmarks/results.json` for method and limits.
+
+## 3. Measured, budget-constrained OCR operating point
+
+`services/ai-worker/optimization/multi_objective.py` computes a Pareto frontier over field F1, document latency and peak memory. `benchmarks/compare_pipeline.py` consumes matching real pipeline reports and selects the fastest configuration satisfying explicit quality and memory budgets, returning no recommendation if none qualify. Unlike choosing the fastest detector alone, accuracy and memory remain hard constraints. Behavioral checks are in `tests/ai/test_multi_objective.py`.
+
+On the four-document Hindi development corpus, server and mobile remain Pareto alternatives: server F1 1.0000 at 10577.812 ms median and 15386.47 MiB; mobile F1 0.9167 at 2393.768 ms and 1964.31 MiB. A 0.90 minimum F1 / 4096 MiB budget selects mobile. These measurements expose a trade-off rather than proving general improvement. Selection is offline and does not alter production settings or human approval.
+
+This is a project-specific multi-objective selection mechanism, **not deep evolutionary learning**. The supplied IEEE CIS track additionally requires deep evolutionary networks, nonstationary validation, deterministic convergence evidence and fair subgroup calibration. Those requirements remain unverified/unimplemented as recorded in [evaluation-readiness.md](evaluation-readiness.md).

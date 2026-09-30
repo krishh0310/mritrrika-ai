@@ -1,0 +1,51 @@
+{
+  "objectives": {
+    "maximize": [
+      "extraction_f1"
+    ],
+    "minimize": [
+      "latency_ms",
+      "memory_mib"
+    ]
+  },
+  "budget": {
+    "min_f1": 0.9,
+    "max_memory_mib": 4096.0
+  },
+  "operating_points": [
+    {
+      "name": "PP-OCRv5_server_det",
+      "f1": 1.0,
+      "latency_ms": 10577.812,
+      "memory_mib": 15386.46875
+    },
+    {
+      "name": "PP-OCRv5_mobile_det",
+      "f1": 0.9166666666666666,
+      "latency_ms": 2393.768,
+      "memory_mib": 1964.3125
+    }
+  ],
+  "pareto_front": [
+    {
+      "name": "PP-OCRv5_mobile_det",
+      "f1": 0.9166666666666666,
+      "latency_ms": 2393.768,
+      "memory_mib": 1964.3125
+    },
+    {
+      "name": "PP-OCRv5_server_det",
+      "f1": 1.0,
+      "latency_ms": 10577.812,
+      "memory_mib": 15386.46875
+    }
+  ],
+  "recommendation": {
+    "name": "PP-OCRv5_mobile_det",
+    "f1": 0.9166666666666666,
+    "latency_ms": 2393.768,
+    "memory_mib": 1964.3125
+  },
+  "status": "feasible",
+  "limits": "Offline synthetic workload only; this does not change production configuration, authorize records, or establish OOD fairness or accuracy."
+}

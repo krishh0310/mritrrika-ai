@@ -110,7 +110,10 @@ def _label_score(text: str, variants: list[str]) -> float:
 
 @lru_cache(maxsize=8192)
 def _cached_label_score(text: str, variants: tuple[str, ...]) -> float:
-    normalized = _norm(text)
+    # OCR often merges a complete labelled line. Score its label, not the
+    # value's length; otherwise the length guard below makes inline parsing
+    # unreachable for names and most parcel identifiers.
+    normalized = _norm(re.split(r"[:：]", text, maxsplit=1)[0])
     if not normalized:
         return 0.0
     best = 0.0
@@ -159,6 +162,10 @@ def _split_inline_value(block: TextBlock, variants: list[str]) -> str | None:
     the value.
     """
     text = block.text.strip()
+    parts = re.split(r"[:：]", text, maxsplit=1)
+    if len(parts) == 2 and _label_score(parts[0], variants) >= LABEL_SIMILARITY:
+        tail = parts[1].strip()
+        return tail if _plausible_value(tail) and not _is_label_fragment(tail, variants) else None
     for variant in variants:
         candidate = _norm(variant)
         if not candidate:
@@ -205,7 +212,7 @@ def _plausible_value(text: str) -> bool:
     # value. Without this the footer notice ("टिप्पणी: अभिलेख ...") was picked
     # up as an OWNER and auto-accepted at 0.90 -- a high-confidence false
     # positive is worse than a missing field, because nobody reviews it.
-    if ":" in cleaned or "\uff1a" in cleaned:
+    if ":" in text or "\uff1a" in text:
         return False
     # Must contain a digit or a letter in some script, not only marks. Vowel
     # signs and viramas are combining marks (category M), so a fragment made
@@ -300,6 +307,9 @@ def extract_scalar_fields(
         2. inline          -- label and value fused into one OCR block
         3. below-label     -- grid layouts where headings sit above values
 
+    An explicit colon with a usable inline value takes precedence over a
+    neighboring block, which may belong to another form cell.
+
     Falling through matters: on the grid template, strategy 1 finds the NEXT
     HEADING to the right. Rejecting it and abandoning the field left the whole
     header unextracted; rejecting it and continuing to strategy 3 reads it
@@ -339,7 +349,10 @@ def extract_scalar_fields(
                 continue
 
             # 1. value to the right
-            found = _value_to_the_right(label_block, blocks, max_right_gap, excluded)
+            inline = (_split_inline_value(label_block, variants)
+                      if re.search(r"[:：]", label_block.text) else None)
+            found = (None if inline else
+                     _value_to_the_right(label_block, blocks, max_right_gap, excluded))
             if found is not None and found[1] not in claimed:
                 value_block, index = found
                 claimed.add(index)
@@ -357,7 +370,7 @@ def extract_scalar_fields(
                 break
 
             # 2. value fused into the label's own block
-            inline = _split_inline_value(label_block, variants)
+            inline = inline or _split_inline_value(label_block, variants)
             if inline:
                 values.append(
                     ExtractedValue(

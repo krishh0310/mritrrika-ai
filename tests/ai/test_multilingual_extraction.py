@@ -298,3 +298,24 @@ def test_auto_routing_picks_the_recogniser_that_reads_its_own_script():
 
     assert result.provider == "paddle:te"
     assert provider.last_decision.lang == "te"
+
+
+@pytest.mark.parametrize("language", CASES)
+def test_ocr_merged_district_label_and_value_is_not_lost(language):
+    blocks, expected, _owners, _shares = CASES[language]
+    label, value = blocks[:2]
+    merged = TextBlock(f"{label.text} : {value.text}", 0.95,
+                       (label.bbox[0], label.bbox[1], value.bbox[2], value.bbox[3]))
+    result = extract([merged], page_width=1240)
+    assert normalised(result, "DISTRICT") == [expected["DISTRICT"]]
+
+
+def test_explicit_inline_value_wins_over_unrelated_neighbor():
+    from extraction.field_extractor import _plausible_value
+
+    result = extract([
+        TextBlock("जिला : लखनऊ", 0.96, (10, 20, 200, 55)),
+        TextBlock("सीतापुर", 0.99, (210, 20, 300, 55)),
+    ], page_width=1240)
+    assert normalised(result, "DISTRICT") == ["लखनऊ"]
+    assert not _plausible_value("संदर्भ: अलग अभिलेख")

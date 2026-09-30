@@ -12,3 +12,5 @@ Start with the root [README](../README.md) for setup and the workflow. Run comma
 | Decisions | [Extractor hot path](decisions/0001-extraction-hot-path.md), [authorization before retrieval](decisions/0002-authorize-before-retrieval.md) |
 
 Measured benchmark inputs and output stay in [`benchmarks/`](../benchmarks/). The runnable impact calculator is in [`impact/`](../impact/).
+
+- [Evaluation readiness and requirements evidence](evaluation-readiness.md): latest supplied evaluator baseline, implemented behavior, verification limits and remaining track gaps.
