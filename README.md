@@ -2,6 +2,10 @@
 
 **Turning India's paper land records into verified, map-linked digital records — with a human signing off on every one.**
 
+## Problem statement
+
+Land records are often held as scanned, multilingual paper forms. Manual entry is slow, search and spatial cross-checks are difficult, and an OCR error in an owner or parcel number has real consequences. This prototype digitizes synthetic scans into reviewable fields, links approved records to a cadastre, and keeps an auditable human decision before publication.
+
 A Data Entry Operator uploads a scanned khasra. Mrittika checks the scan,
 reads it (printed or handwritten, in nine Indian scripts), pulls out the
 fields that matter, checks them against the map, the rules and the record's
@@ -76,14 +80,33 @@ So Mrittika is built around a few rules, and they are enforced in code:
 
 ---
 
+## Architecture
+
+```mermaid
+flowchart LR
+  W[Web and mobile clients] --> A[FastAPI: auth and workflow]
+  A --> P[(PostGIS records)]
+  A --> M[(MinIO scans)]
+  A --> R[(Redis queue)]
+  R --> C[Celery AI worker]
+  C --> P
+  C --> M
+  A --> I[Mock LRMS and DILRMP adapters]
+```
+
+The API is the authorization boundary. Celery processes scans asynchronously;
+the verifier and tehsildar decide what becomes an approved record. See
+[architecture.md](docs/architecture.md) for the runtime topology.
+
 ## What it does today
 
 The problem statement lists twelve capabilities. **Ten work end to end and
-two are partial.**
+two are partial.** English field labels now extract; handwriting remains
+Hindi-only and historical-page accuracy remains unverified on real registers.
 
 | # | Capability | Status | What is actually there |
 |---|---|---|---|
-| 1 | Multilingual recognition | **Partial** | Hindi, Telugu, Tamil and Kannada are read by PaddleOCR; Bengali, Gujarati, Punjabi, Odia and Malayalam by Gemini. Field labels exist for all nine scripts. **English text is read, but there are no English field labels yet**, so an English-language record extracts no fields. |
+| 1 | Multilingual recognition | **Partial** | Hindi, Telugu, Tamil and Kannada are read by PaddleOCR; Bengali, Gujarati, Punjabi, Odia and Malayalam by Gemini. Field labels exist for all nine Indic scripts and English. End-to-end accuracy on real records is not measured. |
 | 2 | PDFs, images, handwritten and historical pages | **Partial** | PDFs (multi-page) and images: yes. Handwriting: **Hindi only**, with a detector and reader trained on public handwriting data ([results](docs/handwriting.md)), not yet measured on real registers. Historical pages: blur/skew/contrast correction, tested on artificially aged pages only. |
 | 3 | Classification into land-record fields | **Yes** | Rule-based extraction. Field-level F1 is **0.592** over all scan qualities and **0.872** on clean scans (synthetic validation pages). A trained IndicBERT v2 extractor exists but is not used, because it has not measured better. |
 | 4 | Validation, duplicates, anomalies, spatial checks | **Yes** | Business rules (area, shares, dates, declared vs. read khasra). Duplicates: exact file hash, then a perceptual (dHash) match for rescans. Anomalies: Isolation Forest. Spatial: PostGIS cross-reference. |
@@ -132,6 +155,37 @@ on 20–50 real scans.
 
 ---
 
+## Domain Mapping
+
+| Declared capability | Implemented artifact |
+|---|---|
+| Scan intake, quality, OCR, handwriting | `services/ai-worker/ingest`, `quality`, `ocr` |
+| Multilingual field extraction and validation | `services/ai-worker/extraction`, `normalization`, `validation` |
+| Confidence, anomaly, duplicate and spatial checks | `packages/domain/mrittika_domain/confidence.py`, `services/ai-worker/anomaly`, `apps/api/app/services/duplicate_service.py`, `cross_reference_service.py` |
+| Human verification, approval and retraining | `apps/api/app/routers/workflow.py`, `services/feedback_service.py`, `tasks/retrain_scheduler.py` |
+| Map, parcel and ownership history | `apps/api/app/models/geography.py`, `models/land.py`, `services/citizen_service.py` |
+| Integration, access, audit and certificates | `apps/api/app/integrations`, `app/auth`, `services/audit_service.py`, `certificate_service.py` |
+| Search, assistant, dashboards and notifications | `apps/api/app/services/search_service.py`, `rag_service.py`, `dashboard_service.py`, `notification_service.py` |
+| Resource-efficiency calculation | `impact/reporter.py:ImpactReporter.report` |
+
+[Domain mapping](docs/domain-mapping.md) gives the full concept-to-function inventory and names the prototype exclusions.
+
+## API reference
+
+The live OpenAPI schema is at `/openapi.json` and interactive documentation at `/docs`. All application routes use `/api/v1`; auth uses bearer tokens. Main groups: `/documents` (upload and status), `/verifications` (queue and corrections), `/approvals`, `/citizen` (scoped land and assistant), `/records` and `/parcels`, `/dashboard`, `/audit`, and `/integrations/lrms`. Operational endpoints are `/health`, `/ready`, and authenticated `/metrics`. [docs/api.md](docs/api.md) has payload and failure conventions.
+
+## Benchmarks
+
+Run `.venv/bin/python benchmarks/benchmark.py --output benchmarks/results.json`. On this development machine with CPython 3.12, 30 different synthetic 150-block pages took **31.743 ms median** and **33.304 ms p95** for field extraction, or **31.33 pages/s**. A separate ten-call `cProfile` repeat workload fell from **5.385 s** before the hot-path fix to **0.1265 s** after it. These figures exclude OCR, network, and database time; repeated-page cache gains do not represent full upload latency. The captured output is in [benchmarks/results.json](benchmarks/results.json), with method and complexity in [performance.md](docs/performance.md).
+
+## SDG 9 Alignment
+
+[UN Target 9.4](https://sdgs.un.org/goals/goal9) calls for “upgrade infrastructure and retrofit industries to make them sustainable, with increased resource-use efficiency”. Mrittika's digitization workflow is an example of resilient computational infrastructure for land-record administration: asynchronous processing keeps intake responsive, human review prevents uncertain extraction from silently becoming an official record, and bounded label matching reduces compute used per page. `ImpactReporter` calculates processing time and throughput differences from measured algorithm outputs. On the captured repeat workload it reports **97.7% less extraction-stage time**; [impact.md](docs/impact.md) shows the calculation and its limits. This is a CPU-time proxy, not a claim about emissions or deployment impact.
+
+## Demo
+
+After starting and seeding the stack, run `.venv/bin/python scripts/demo.py`. It executes the existing browser lifecycle test across upload, verification, approval and citizen views. [docs/demo.md](docs/demo.md) is the manual role-by-role walkthrough.
+
 ## Try it
 
 ### Demo accounts
@@ -162,13 +216,13 @@ git clone https://github.com/krishh0310/mritrrika-ai.git
 cd mritrrika-ai
 npm install
 
-# 1. Database (PostgreSQL 16 + PostGIS + pgvector), Redis and MinIO
+# 1. Local configuration and services (PostGIS, pgvector, Redis, MinIO)
+cp .env.example .env            # add GEMINI_API_KEY for Gemini OCR and the assistant
 docker compose up -d
 
 # 2. Python environment (3.12 is pinned; see pyproject.toml)
 python3.12 -m venv .venv
 .venv/bin/python -m pip install -r apps/api/requirements-dev.txt -r services/ai-worker/requirements.txt
-cp .env.example .env            # add GEMINI_API_KEY for Gemini OCR and the assistant
 
 # 3. Schema and synthetic demo data
 .venv/bin/python -m alembic -c apps/api/alembic.ini upgrade head
@@ -247,8 +301,6 @@ says where it stops:
 
 - **No real data, no real accuracy figure.** Everything is measured on synthetic
   pages or public datasets.
-- **English records do not extract.** English text is read, but English field
-  labels are not defined yet.
 - **Handwriting is Hindi-only** and not validated on land registers. Every
   field on a handwritten page goes to a verifier.
 - **The rule extractor misses fields on unfamiliar layouts.** On one clean,
@@ -259,8 +311,7 @@ says where it stops:
   mapping, not an official NIC schema.
 - **The retraining loop has never promoted a model**, because there are no
   real corrections yet.
-- **Known bug:** pg_featureserv and MinIO both bind port 9000, so the optional
-  `gis` profile will not start alongside MinIO without changing one port.
+- **The optional vector service** binds host port 9002; MinIO keeps 9000.
 - **Figures in [existing-system-study.md](docs/existing-system-study.md) marked
   † are unverified** and need checking against their sources.
 - **Licences:** IIIT-HW-Dev states no licence. It is used here for research,
@@ -306,11 +357,12 @@ Every top-level folder has a short README saying what belongs in it.
 ## Tests
 
 ```bash
-.venv/bin/python -m pytest tests      # 826 tests (1 skipped) as of 2026-09-20
+.venv/bin/python -m pytest tests -m 'not slow'  # 829 passed, 1 skipped on 2026-09-30
+.venv/bin/python -m coverage report --fail-under=85  # 88% measured on that run
 .venv/bin/python -m ruff check .
 npm test                              # web + mobile unit tests
 npm run lint && npm run typecheck
-npm run e2e                           # 25 browser tests; needs the app running
+npm run e2e                           # browser tests; needs the app running
 ```
 
 Backend tests run against the real seeded database, because RBAC and
@@ -336,6 +388,9 @@ document and one parcel through every role.
 | [existing-system-study.md](docs/existing-system-study.md) | Today's manual process, its pain points, what Mrittika can claim |
 | [ai-ml.md](docs/ai-ml.md) · [database.md](docs/database.md) · [deployment.md](docs/deployment.md) · [monitoring.md](docs/monitoring.md) · [i18n.md](docs/i18n.md) | Model promotion, migrations, production target, metrics, languages |
 | [handwriting-audit.md](docs/handwriting-audit.md) | The heuristic handwriting fallback, kept as a record |
+| [audit-report.md](docs/audit-report.md) · [domain-mapping.md](docs/domain-mapping.md) | Remediation evidence and concept-to-code inventory |
+| [performance.md](docs/performance.md) · [impact.md](docs/impact.md) · [innovation.md](docs/innovation.md) | Measured latency, computed resource metrics, and implementation choices |
+| [accessibility.md](docs/accessibility.md) · [decisions/](docs/decisions/0001-extraction-hot-path.md) | Accessibility review and architectural decisions |
 
 ## Regenerating the dataset
 

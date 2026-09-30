@@ -1,0 +1,10 @@
+title = "Mrittika tracked-source secret scan"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Documented demo and test credentials are intentionally public"
+paths = [
+  '''^\.env\.example$''',
+]

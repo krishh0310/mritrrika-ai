@@ -27,7 +27,7 @@
 @theme {
   /* §57 -- the specified identity. Do not add to this set. */
   --color-navy: #1e3a5f;
-  --color-burnt: #d2691e;
+  --color-burnt: #9a4512;
   --color-warm: #f4a460;
   --color-cream: #fdf6e3;
   --color-offwhite: #f7f5ef;
@@ -48,7 +48,7 @@
   --color-sand-100: #f0ece1;
   --color-sand-200: #e2dccd;
   --color-sand-300: #cdc5b2;
-  --color-sand-500: #8b8272;
+  --color-sand-500: #6b6254;
   --color-sand-700: #4f4a40;
 
   /* §8 confidence bands, and the status palette everywhere else.
@@ -65,7 +65,7 @@
      icon (§86). The colour is the third signal, not the only one. */
   --color-high: #14663d;
   --color-high-bg: #e6f1eb;
-  --color-medium: #c4841a;
+  --color-medium: #805309;
   --color-medium-bg: #fbf1dd;
   --color-low: #a61d18;
   --color-low-bg: #faeae8;
@@ -108,6 +108,10 @@
     outline: 2px solid var(--color-burnt);
     outline-offset: 2px;
     border-radius: 2px;
+  }
+
+  header :focus-visible {
+    outline-color: var(--color-warm);
   }
 
   ::selection {

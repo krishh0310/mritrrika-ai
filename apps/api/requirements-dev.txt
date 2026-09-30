@@ -2,5 +2,6 @@
 -r requirements.txt
 pytest>=8.3
 pytest-asyncio>=0.24
+coverage>=7,<8
 ruff
 pip-audit

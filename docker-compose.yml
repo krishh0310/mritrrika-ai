@@ -99,7 +99,7 @@ services:
     environment:
       DATABASE_URL: postgresql://geoserver_reader:${GEOSERVER_READER_PASSWORD:-change_me_locally}@postgres:5432/${POSTGRES_DB:-mrittika}
     ports:
-      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9002:9000"
     depends_on:
       postgres:
         condition: service_healthy

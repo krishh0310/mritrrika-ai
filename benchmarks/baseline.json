@@ -1,0 +1,6 @@
+{
+  "method": "cProfile, CPython 3.12, 10 calls, same 150-block synthetic page, before remediation",
+  "iterations": 10,
+  "blocks_per_page": 150,
+  "total_seconds": 5.385
+}

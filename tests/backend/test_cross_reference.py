@@ -13,6 +13,7 @@ saying it also fails to match the cadastre is the same fact twice.
 
 import sys
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 from demo_users import VERIFIER
@@ -73,6 +74,16 @@ class TestKhata:
 
     def test_no_parcel_means_no_finding(self):
         assert xref.check_khata({"KHATA": "164"}, None) == []
+
+
+def test_exact_parcel_lookup_stops_after_indexed_query():
+    """The common match must not load every parcel in the village."""
+    parcel = _Parcel()
+    session = Mock()
+    session.execute.return_value.scalar_one_or_none.return_value = parcel
+    found, findings = xref.check_parcel_exists(session, {"KHASRA": "140"}, _Location())
+    assert found is parcel and findings == []
+    session.execute.assert_called_once()
 
 
 class TestArea:

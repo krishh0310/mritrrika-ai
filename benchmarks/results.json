@@ -1,0 +1,25 @@
+{
+  "warm": {
+    "iterations": 30,
+    "blocks_per_page": 150,
+    "cache": "warm",
+    "median_ms": 31.743,
+    "p95_ms": 33.304,
+    "pages_per_second": 31.33,
+    "total_seconds": 0.9577
+  },
+  "cold": {
+    "iterations": 30,
+    "blocks_per_page": 150,
+    "cache": "cold",
+    "median_ms": 31.509,
+    "p95_ms": 32.427,
+    "pages_per_second": 31.61,
+    "total_seconds": 0.949
+  },
+  "profiled_repeat": {
+    "iterations": 10,
+    "blocks_per_page": 150,
+    "total_seconds": 0.1265
+  }
+}

@@ -39,6 +39,19 @@ from __future__ import annotations
 #: because forms genuinely vary (जिला vs जनपद, ग्राम vs मौजा) and because
 #: fuzzy matching is anchored on the closest one.
 LABELS_BY_LANGUAGE: dict[str, dict[str, list[str]]] = {
+    "en": {
+        "DISTRICT": ["District"],
+        "TEHSIL": ["Tehsil", "Taluk", "Subdistrict"],
+        "VILLAGE": ["Village"],
+        "RECORD_YEAR": ["Record year", "Year"],
+        "KHATA": ["Khata number", "Khata no", "Holding number"],
+        "KHASRA": ["Khasra number", "Khasra no", "Survey number", "Plot number"],
+        "AREA": ["Area"],
+        "LAND_CLASS": ["Land class", "Land type"],
+        "MUTATION": ["Mutation number"],
+        "DATE": ["Date"],
+        "GUARDIAN": ["Father / Husband", "Guardian"],
+    },
     "hi": {
         "DISTRICT": ["जिला", "जनपद"],
         "TEHSIL": ["तहसील"],
@@ -160,6 +173,7 @@ LABELS_BY_LANGUAGE: dict[str, dict[str, list[str]]] = {
 
 #: Column headings that introduce a table of owners.
 OWNER_COLUMN_LABELS_BY_LANGUAGE: dict[str, list[str]] = {
+    "en": ["Owner name", "Landholder name"],
     "hi": ["खातेदार का नाम", "नाम", "नवीन खातेदार"],
     "te": ["పట్టాదారు పేరు", "పట్టాదారుని పేరు", "పేరు"],
     "ta": ["உரிமையாளர் பெயர்", "பட்டாதாரர் பெயர்", "பெயர்"],
@@ -172,6 +186,7 @@ OWNER_COLUMN_LABELS_BY_LANGUAGE: dict[str, list[str]] = {
 }
 
 SHARE_COLUMN_LABELS_BY_LANGUAGE: dict[str, list[str]] = {
+    "en": ["Share"],
     "hi": ["अंश"],
     "te": ["వాటా"],
     "ta": ["பங்கு"],
@@ -184,6 +199,7 @@ SHARE_COLUMN_LABELS_BY_LANGUAGE: dict[str, list[str]] = {
 }
 
 GUARDIAN_COLUMN_LABELS_BY_LANGUAGE: dict[str, list[str]] = {
+    "en": ["Father / Husband", "Guardian"],
     "hi": ["पिता / पति"],
     "te": ["తండ్రి / భర్త"],
     "ta": ["தந்தை / கணவர்"],
@@ -198,6 +214,7 @@ GUARDIAN_COLUMN_LABELS_BY_LANGUAGE: dict[str, list[str]] = {
 #: Blocks that are page furniture -- state names, form titles, signature and
 #: seal captions -- and never a field value.
 CHROME_BY_LANGUAGE: dict[str, set[str]] = {
+    "en": {"Signature", "Seal", "Remarks", "Certified", "Synthetic"},
     "hi": {
         "उत्तर प्रदेश", "खसरा", "खतौनी", "नामांतरण पंजिका", "भूमि विवरण",
         "खातेदारों का विवरण", "प्रमाणित किया जाता है", "हस्ताक्षर / लेखपाल",
@@ -224,6 +241,7 @@ CHROME_BY_LANGUAGE: dict[str, set[str]] = {
 #: Words that open the line after the owners table -- the remark or the
 #: certification footer. The table stops there.
 TABLE_TERMINATORS_BY_LANGUAGE: dict[str, tuple[str, ...]] = {
+    "en": ("Remarks", "Certified"),
     "hi": ("टिप्पणी", "प्रमाणित"),
     "te": ("గమనిక", "ధృవీకరించడమైనది"),
     "ta": ("குறிப்பு", "சான்றளிக்கப்படுகிறது"),

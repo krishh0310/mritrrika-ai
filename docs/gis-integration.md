@@ -153,7 +153,7 @@ Start it after creating the reader role:
 
 | env var | default | |
 |---|---|---|
-| `PG_FEATURESERV_URL` | `http://localhost:9000` | `http://pg_featureserv:9000` when the API runs in Docker |
+| `PG_FEATURESERV_URL` | `http://localhost:9002` | `http://pg_featureserv:9000` when the API runs in Docker |
 | `GEOSERVER_READER_PASSWORD` | `change_me_locally` | the reader role's password, used by the container |
 
 ## What is NOT done

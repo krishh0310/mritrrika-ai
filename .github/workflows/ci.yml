@@ -78,7 +78,10 @@ jobs:
         # The repository image deliberately contains both database extensions;
         # the former service image contained PostGIS only, so CREATE EXTENSION
         # vector made every clean CI run fail before tests started.
-        run: docker compose up -d --build --wait postgres redis
+        run: |
+          cp .env.example .env
+          docker compose up -d --build --wait postgres redis minio
+          docker compose run --rm minio-init
 
       - uses: actions/setup-python@v5
         with:
@@ -96,9 +99,14 @@ jobs:
       - name: Lint
         run: ruff check .
 
+      - name: Scan tracked source for secrets
+        run: python scripts/scan_secrets.py
+
+      - name: Verify declared domain mapping
+        run: python scripts/audit_domain_mapping.py
+
       - name: Migrate and seed
         run: |
-          cp .env.example .env
           alembic -c apps/api/alembic.ini upgrade head
           python scripts/seed_demo.py
 

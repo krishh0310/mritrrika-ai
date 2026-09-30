@@ -161,6 +161,15 @@ def check_parcel_exists(
     if not khasra or village is None:
         return None, []
 
+    match = session.execute(
+        select(Parcel).where(
+            Parcel.village_id == village.id, Parcel.khasra_number == khasra
+        ).limit(1)
+    ).scalar_one_or_none()
+    if match is not None:
+        return match, []
+    # Historical spellings can differ only by spacing or punctuation. Keep
+    # that fallback on misses; the common exact case uses the existing index.
     parcels = session.execute(
         select(Parcel).where(Parcel.village_id == village.id)
     ).scalars().all()

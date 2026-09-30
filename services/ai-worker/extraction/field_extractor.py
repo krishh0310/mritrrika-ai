@@ -21,9 +21,11 @@ came from (§26).
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass
 from dataclasses import field as dc_field
 from difflib import SequenceMatcher
+from functools import lru_cache
 
 from ocr.provider import TextBlock, group_lines
 
@@ -77,6 +79,18 @@ def _similar(a: str, b: str) -> float:
     return SequenceMatcher(None, a, b).ratio()
 
 
+@lru_cache(maxsize=512)
+def _variant_norm(value: str) -> str:
+    return _norm(value)
+
+
+def _different_scripts(a: str, b: str) -> bool:
+    """Reject impossible cross-script label matches before fuzzy comparison."""
+    return bool(a and b and a[0].isalpha() and b[0].isalpha()
+                and unicodedata.name(a[0], "").split(" ", 1)[0]
+                != unicodedata.name(b[0], "").split(" ", 1)[0])
+
+
 #: Fuzzy-match floor for label recognition.
 #:
 #: Exact matching does not survive real OCR. On a 'hard' page the engine
@@ -91,12 +105,19 @@ LABEL_SIMILARITY = 0.66
 
 def _label_score(text: str, variants: list[str]) -> float:
     """How strongly `text` reads as one of `variants` (0..1)."""
+    return _cached_label_score(text, tuple(variants))
+
+
+@lru_cache(maxsize=8192)
+def _cached_label_score(text: str, variants: tuple[str, ...]) -> float:
     normalized = _norm(text)
     if not normalized:
         return 0.0
     best = 0.0
     for variant in variants:
-        candidate = _norm(variant)
+        candidate = _variant_norm(variant)
+        if _different_scripts(normalized, candidate):
+            continue
         if normalized == candidate:
             return 1.0
         # A label may carry a trailing fragment ('खसरासं' for 'खसरा सं').
@@ -200,10 +221,16 @@ def _vertical_overlap(a: TextBlock, b: TextBlock) -> float:
 
 
 def _is_chrome(block: TextBlock) -> bool:
-    text = _norm(block.text)
-    if SYNTHETIC_NOTICE in block.text.upper():
+    return _chrome_text(block.text)
+
+
+@lru_cache(maxsize=4096)
+def _chrome_text(raw: str) -> bool:
+    text = _norm(raw)
+    if SYNTHETIC_NOTICE in raw.upper():
         return True
-    if any(_similar(text, _norm(c)) >= 0.85 for c in CHROME):
+    if any(not _different_scripts(text, _variant_norm(c))
+           and _similar(text, _variant_norm(c)) >= 0.85 for c in CHROME):
         return True
     # Whole-block similarity misses a chrome term that OPENS a long line: the
     # footer "टिप्पणी: अभिलेख डिजिटलीकरण ..." scores far below 0.85 against
@@ -212,7 +239,7 @@ def _is_chrome(block: TextBlock) -> bool:
     # values that merely begin with a chrome word ("डेमो जिला" starts with
     # "डेमो"), which zeroed DISTRICT and TEHSIL outright.
     for term in CHROME:
-        head = _norm(term)
+        head = _variant_norm(term)
         if len(head) >= 4 and text.startswith(head):
             rest = text[len(head):].lstrip()
             if rest[:1] in {":", "\uff1a"}:
@@ -221,12 +248,14 @@ def _is_chrome(block: TextBlock) -> bool:
 
 
 def _value_to_the_right(
-    label: TextBlock, blocks: list[TextBlock], max_gap: int
+    label: TextBlock, blocks: list[TextBlock], max_gap: int,
+    excluded: set[int] | None = None,
 ) -> tuple[TextBlock, int] | None:
     """Nearest non-label block on the same visual line, right of the label."""
     best, best_index, best_gap = None, -1, max_gap + 1
     for index, block in enumerate(blocks):
-        if block is label or _is_chrome(block) or _is_any_label(block):
+        if block is label or (id(block) in excluded if excluded is not None
+                              else _is_chrome(block) or _is_any_label(block)):
             continue
         if _vertical_overlap(label, block) < 0.5:
             continue
@@ -237,14 +266,16 @@ def _value_to_the_right(
 
 
 def _value_below(
-    label: TextBlock, blocks: list[TextBlock], max_gap: int
+    label: TextBlock, blocks: list[TextBlock], max_gap: int,
+    excluded: set[int] | None = None,
 ) -> tuple[TextBlock, int] | None:
     """Nearest non-label block directly beneath the label (grid layout)."""
     label_centre = (label.bbox[0] + label.bbox[2]) / 2
     label_width = label.bbox[2] - label.bbox[0]
     best, best_index, best_gap = None, -1, max_gap + 1
     for index, block in enumerate(blocks):
-        if block is label or _is_chrome(block) or _is_any_label(block):
+        if block is label or (id(block) in excluded if excluded is not None
+                              else _is_chrome(block) or _is_any_label(block)):
             continue
         gap = block.bbox[1] - label.bbox[3]
         if not (0 <= gap < best_gap):
@@ -281,10 +312,21 @@ def extract_scalar_fields(
 
     # Longest labels first so 'खसरा सं' wins over the bare 'खसरा'.
     ordered_fields = sorted(LABELS.items(), key=lambda kv: -max(len(v) for v in kv[1]))
+    scores = {
+        id(block): {name: _label_score(block.text, variants)
+                    for name, variants in ordered_fields}
+        for block in blocks
+    }
+    excluded = {
+        id(block) for block in blocks
+        if _is_chrome(block) or max(scores[id(block)].values(), default=0) >= LABEL_SIMILARITY
+        or _label_score(block.text, OWNER_COLUMN_LABELS) >= LABEL_SIMILARITY
+        or _label_score(block.text, SHARE_COLUMN_LABELS) >= LABEL_SIMILARITY
+    }
 
     for field_name, variants in ordered_fields:
         candidates = sorted(
-            ((b, _label_score(b.text, variants)) for b in blocks),
+            ((b, scores[id(b)][field_name]) for b in blocks),
             key=lambda pair: -pair[1],
         )
         for label_block, score in candidates:
@@ -293,11 +335,11 @@ def extract_scalar_fields(
 
             # A fuzzy match must not claim a value belonging to a stronger
             # label match (e.g. KHATA used to steal an exact KHASRA label).
-            if score < max(_label_score(label_block.text, v) for v in LABELS.values()):
+            if score < max(scores[id(label_block)].values()):
                 continue
 
             # 1. value to the right
-            found = _value_to_the_right(label_block, blocks, max_right_gap)
+            found = _value_to_the_right(label_block, blocks, max_right_gap, excluded)
             if found is not None and found[1] not in claimed:
                 value_block, index = found
                 claimed.add(index)
@@ -333,7 +375,7 @@ def extract_scalar_fields(
                 break
 
             # 3. value beneath the label
-            found = _value_below(label_block, blocks, max_below_gap)
+            found = _value_below(label_block, blocks, max_below_gap, excluded)
             if found is not None and found[1] not in claimed:
                 value_block, index = found
                 claimed.add(index)

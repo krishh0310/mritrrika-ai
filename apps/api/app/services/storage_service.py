@@ -74,7 +74,8 @@ def _client():
         endpoint_url=f"{scheme}://{settings.minio_endpoint}",
         aws_access_key_id=settings.minio_access_key,
         aws_secret_access_key=settings.minio_secret_key,
-        config=Config(signature_version="s3v4"),
+        config=Config(signature_version="s3v4", connect_timeout=5, read_timeout=30,
+                      max_pool_connections=20),
         region_name=settings.minio_region,
     )
 

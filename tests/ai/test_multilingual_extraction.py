@@ -129,7 +129,20 @@ MALAYALAM = page(
     footer="കുറിപ്പ്: ഡിജിറ്റൈസേഷനായി",
 )
 
+ENGLISH = page(
+    header=[("District", "Lucknow"), ("Tehsil", "Mohanlalganj"),
+            ("Village", "Rampur"), ("Khata number", "164"),
+            ("Khasra number", "140/2"), ("Area", "0.89 hectare")],
+    owner_heading="Owner name", share_heading="Share",
+    owners=[("Ram Singh", "1/2"), ("Sita Singh", "1/2")],
+    footer="Remarks: digitized for demonstration",
+)
+
 CASES = {
+    "english": (ENGLISH, {
+        "DISTRICT": "Lucknow", "TEHSIL": "Mohanlalganj", "VILLAGE": "Rampur",
+        "KHATA": "164", "KHASRA": "140/2", "AREA": "0.89",
+    }, ["Ram Singh", "Sita Singh"], ["1/2", "1/2"]),
     "telugu": (TELUGU, {
         # The zero-width non-joiner in the page's spelling is canonicalised
         # away, exactly as the Hindi path already does -- see below.

@@ -92,7 +92,7 @@ class Settings(BaseSettings):
     #: ACCEPTED corrections since the last run needed before retraining.
     retrain_min_samples: int = 50
     #: pg_featureserv, reached only through /api/v1/geo/features.
-    pg_featureserv_url: str = "http://localhost:9000"
+    pg_featureserv_url: str = "http://localhost:9002"
 
     # ── providers (§81) ───────────────────────────────────────────────────
     # Monitoring (§74). A scrape token, because Prometheus cannot hold a JWT:
