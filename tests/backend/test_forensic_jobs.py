@@ -41,14 +41,14 @@ def test_queue_admission_progress_and_current_jurisdiction(require_postgres, mon
     from app.models import ForensicJob
     from app.worker import forensic_task
     from sqlalchemy import delete
-    from staged_documents import principal, stage
+    from staged_documents import Field, principal, stage
 
     dispatch = Mock()
     monkeypatch.setattr(forensic_task, "apply_async", dispatch)
     calls = []
     monkeypatch.setattr(fs, "run", lambda session, document, checks: calls.extend(checks))
     with SessionLocal() as session:
-        doc = stage(session, [])
+        doc = stage(session, [Field("KHASRA_NUMBER", "142/2")])
         actor = principal(session, "lekhpal@mrittika.demo")
         original_state = doc.state
         try:
@@ -84,10 +84,10 @@ def test_queue_backpressure_and_broker_failure(require_postgres, monkeypatch):
     from app.worker import forensic_task
     from fastapi import HTTPException
     from sqlalchemy import delete
-    from staged_documents import principal, stage
+    from staged_documents import Field, principal, stage
 
     with SessionLocal() as session:
-        doc = stage(session, [])
+        doc = stage(session, [Field("KHASRA_NUMBER", "142/2")])
         actor = principal(session, "lekhpal@mrittika.demo")
         try:
             monkeypatch.setattr(fs, "MAX_PENDING_JOBS", 0)
@@ -95,7 +95,9 @@ def test_queue_backpressure_and_broker_failure(require_postgres, monkeypatch):
                 fs.enqueue_job(session, doc, actor)
             assert full.value.status_code == 429
             monkeypatch.setattr(fs, "MAX_PENDING_JOBS", 32)
-            monkeypatch.setattr(forensic_task, "apply_async", Mock(side_effect=RuntimeError("secret")))
+            monkeypatch.setattr(
+                forensic_task, "apply_async", Mock(side_effect=RuntimeError("secret"))
+            )
             with pytest.raises(HTTPException) as offline:
                 fs.enqueue_job(session, doc, actor)
             assert offline.value.status_code == 503
