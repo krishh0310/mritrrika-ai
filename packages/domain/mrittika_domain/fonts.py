@@ -40,6 +40,8 @@ def find_font(script: str = "devanagari", *, bold: bool = False) -> str:
     for path in candidates:
         if path.is_file():
             return str(path)
+    if bold:
+        return find_font(script)
     raise FileNotFoundError(
         f"no {script} font installed; install fonts-noto-core or set "
         f"MRITTIKA_FONT_{script.upper()}{suffix}"

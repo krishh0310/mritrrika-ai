@@ -58,15 +58,19 @@ export function ForensicsPanel({ documentId }: { documentId: string }) {
   const consent = consentDocument === documentId;
   const queryClient = useQueryClient();
   const key = ["document", documentId, "forensics"];
+  type Result = { reports: Report[]; job?: { status: string; progress: number } | null };
   const reports = useQuery({
     queryKey: key,
-    queryFn: () => api.get<{ reports: Report[] }>(`/api/v1/documents/${documentId}/forensics`),
+    queryFn: () => api.get<Result>(`/api/v1/documents/${documentId}/forensics`),
+    refetchInterval: (query) => ["QUEUED", "RUNNING"].includes(query.state.data?.job?.status ?? "") ? 1000 : false,
   });
   const run = useMutation({
-    mutationFn: () => api.post<{ reports: Report[] }>(`/api/v1/documents/${documentId}/forensics`, {}),
+    mutationFn: () => api.post<Result>(`/api/v1/documents/${documentId}/forensics`, { consent: true }),
     onSuccess: (data) => queryClient.setQueryData(key, data),
   });
   const rows = reports.data?.reports ?? [];
+  const job = reports.data?.job;
+  const busy = run.isPending || ["QUEUED", "RUNNING"].includes(job?.status ?? "");
 
   return (
     <section aria-label={t("forensics.title")} className="mb-4 rounded-card border border-sand-200 bg-white px-4 py-3">
@@ -76,7 +80,7 @@ export function ForensicsPanel({ documentId }: { documentId: string }) {
         <input
           type="checkbox"
           checked={consent}
-          disabled={run.isPending}
+          disabled={busy}
           onChange={(e) => setConsentDocument(e.target.checked ? documentId : null)}
           className="mt-1 size-4 shrink-0 accent-navy-900"
         />
@@ -91,15 +95,15 @@ export function ForensicsPanel({ documentId }: { documentId: string }) {
         ))}
         <Button
           className="ml-auto" size="sm" variant="outline"
-          busy={run.isPending} disabled={!consent || run.isPending}
+          busy={busy} disabled={!consent || busy}
           onClick={() => { if (consent) run.mutate(); }}
         >
           <ShieldCheck aria-hidden />
-          {t(run.isPending ? "forensics.running" : rows.length ? "forensics.rerun" : "forensics.run")}
+          {t(busy ? "forensics.running" : rows.length ? "forensics.rerun" : "forensics.run")}
         </Button>
       </div>
       <p role="status" aria-live="polite" className="mt-2 text-sm text-sand-700">
-        {run.isPending ? t("forensics.running") : run.isSuccess ? t("forensics.complete") :
+        {busy ? `${t("forensics.running")} ${job?.progress ?? 0}%` : job?.status === "COMPLETED" ? t("forensics.complete") :
           reports.isLoading ? t("state.loading") : !rows.length && !reports.isError ? t("forensics.empty") : ""}
       </p>
       {reports.isError && (
@@ -108,7 +112,7 @@ export function ForensicsPanel({ documentId }: { documentId: string }) {
           <Button size="sm" variant="outline" onClick={() => reports.refetch()}>{t("state.retry")}</Button>
         </div>
       )}
-      {run.isError && <p role="alert" className="mt-2 text-sm text-low">{t("forensics.failed")}</p>}
+      {(run.isError || job?.status === "FAILED") && <p role="alert" className="mt-2 text-sm text-low">{t("forensics.failed")}</p>}
       {rows.length > 0 && (
         <details className="mt-2 text-sm text-sand-700">
           <summary className="cursor-pointer">{t("forensics.details")}</summary>

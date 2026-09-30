@@ -74,6 +74,8 @@ celery_app.conf.update(
     result_serializer="json",
     accept_content=["json"],
     task_track_started=True,
+    broker_connection_timeout=5,
+    broker_transport_options={"socket_connect_timeout": 5, "socket_timeout": 5},
     # OCR on a degraded page takes seconds, not minutes; a bounded limit stops
     # one pathological document occupying a worker indefinitely.
     task_time_limit=600,
@@ -147,3 +149,12 @@ def recover_orphaned_jobs(**_kwargs) -> None:
         recovered = pipeline_service.recover_stale_jobs(session, enqueue=_enqueue)
     if recovered:
         logger.warning("re-queued %d orphaned job(s): %s", len(recovered), ", ".join(recovered))
+
+
+@celery_app.task(name="mrittika.forensics", time_limit=300, soft_time_limit=280)
+def forensic_task(job_id: str) -> dict:
+    """Execute an authorized advisory job with bounded worker occupancy."""
+    from app.services import forensic_service
+    with SessionLocal() as session:
+        forensic_service.execute_job(session, job_id)
+    return {"job_id": job_id}

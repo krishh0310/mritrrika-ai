@@ -6,7 +6,18 @@ import os
 from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Index, String, Text, text
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base, TimestampMixin, new_uuid
@@ -144,3 +155,16 @@ class ForensicReport(Base, TimestampMixin):
     score: Mapped[float | None] = mapped_column(Float)
     result: Mapped[dict] = mapped_column(JSON, nullable=False)
     model_version: Mapped[str] = mapped_column(String(48), nullable=False)
+
+
+class ForensicJob(Base, TimestampMixin):
+    """Durable, bounded advisory run; never changes document workflow state."""
+
+    __tablename__ = "forensic_jobs"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    document_id: Mapped[str] = mapped_column(
+        ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True)
+    actor_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="QUEUED")
+    progress: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    error: Mapped[str | None] = mapped_column(String(128))

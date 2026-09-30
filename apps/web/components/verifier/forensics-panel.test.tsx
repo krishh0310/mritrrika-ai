@@ -15,7 +15,7 @@ beforeEach(() => {
   localStorage.clear();
   vi.resetAllMocks();
   vi.mocked(api.get).mockResolvedValue({ reports: [] });
-  vi.mocked(api.post).mockResolvedValue({ reports: [] });
+  vi.mocked(api.post).mockResolvedValue({ reports: [], job: { status: "COMPLETED", progress: 100 } });
 });
 afterEach(cleanup);
 
@@ -42,7 +42,7 @@ it("requires keyboard consent before sending a document externally and announces
   await user.tab();
   expect(document.activeElement).toBe(run);
   await user.keyboard("{Enter}");
-  await waitFor(() => expect(api.post).toHaveBeenCalledWith("/api/v1/documents/DOC-1/forensics", {}));
+  await waitFor(() => expect(api.post).toHaveBeenCalledWith("/api/v1/documents/DOC-1/forensics", { consent: true }));
   await waitFor(() => expect(screen.getByRole("status").textContent).toContain("Checks finished"));
 });
 
@@ -65,4 +65,11 @@ it("announces report retrieval errors instead of claiming checks were never run"
   expect(screen.queryByText("Not run yet.")).toBeNull();
   expect(screen.queryByText("provider-secret")).toBeNull();
   expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
+});
+
+ it("shows queued progress and prevents duplicate runs", async () => {
+  vi.mocked(api.get).mockResolvedValue({ reports: [], job: { status: "RUNNING", progress: 40 } });
+  show();
+  await waitFor(() => expect(screen.getByRole("status").textContent).toContain("40%"));
+  expect(screen.getByRole<HTMLButtonElement>("button", { name: /Checks are running/ }).disabled).toBe(true);
 });

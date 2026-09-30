@@ -425,28 +425,27 @@ def forensic_reports(
 ) -> dict:
     """The newest Gemini forensic report per check (empty until one is run)."""
     document = _document_or_404(session, document_id, principal)
-    return {"reports": [forensic_service.to_dict(r)
+    return {"job": forensic_service.job_dict(forensic_service.latest_job(session, document)),
+            "reports": [forensic_service.to_dict(r)
                         for r in forensic_service.latest(session, document)]}
 
 
-@router.post("/{document_id}/forensics")
+@router.post("/{document_id}/forensics", status_code=status.HTTP_202_ACCEPTED)
 def run_forensics(
     document_id: str,
+    consent: bool = Body(False, embed=True),
     principal: Principal = Depends(require("document:verify")),
     session: Session = Depends(get_session),
 ) -> dict:
-    """Run the five forensic checks now. Sends the scan to Gemini; blocks for
-    roughly the length of five model calls."""
+    """Queue advisory checks only after explicit external-processing consent."""
+    if consent is not True:
+        raise HTTPException(422, "External processing consent is required")
     document = _document_or_404(session, document_id, principal)
-    reports = forensic_service.run(session, document)
+    job = forensic_service.enqueue_job(session, document, principal)
     audit_service.record(
-        session,
-        action="document.forensics",
-        entity_type="document",
-        entity_id=document.id,
-        actor_id=principal.id,
-        actor_role=principal.primary_role,
-        after_state={r.check: r.verdict for r in reports},
+        session, action="document.forensics.queued", entity_type="document",
+        entity_id=document.id, actor_id=principal.id, actor_role=principal.primary_role,
+        after_state={"job_id": job.id, "external_processing_consent": True},
     )
     session.commit()
-    return {"reports": [forensic_service.to_dict(r) for r in reports]}
+    return {"job": forensic_service.job_dict(job), "reports": []}

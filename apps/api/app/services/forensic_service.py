@@ -22,6 +22,7 @@ import logging
 import math
 import threading
 import time
+from datetime import UTC, datetime, timedelta
 from typing import Literal
 
 import httpx
@@ -33,19 +34,21 @@ from mrittika_domain.area import (
     to_square_metres,
 )
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
-from sqlalchemy import cast, func, select
+from sqlalchemy import cast, func, select, text, update
 from sqlalchemy.orm import Session
 
 from app.config.settings import get_settings
 from app.models import (
     Document,
     DocumentPage,
+    ForensicJob,
     ForensicReport,
     Location,
     Mutation,
     Owner,
     OwnershipRecord,
     Parcel,
+    User,
 )
 from app.services import document_service, storage_service
 from app.services.cross_reference_service import _values, check_parcel_exists
@@ -574,3 +577,91 @@ def to_dict(report: ForensicReport) -> dict:
         "model_version": report.model_version,
         "created_at": report.created_at.isoformat() if report.created_at else None,
     }
+
+
+MAX_PENDING_JOBS = 32
+JOB_TTL = timedelta(minutes=10)
+
+
+def job_dict(job: ForensicJob | None) -> dict | None:
+    """Public progress contains no broker details or document contents."""
+    return {"id": job.id, "status": job.status, "progress": job.progress} if job else None
+
+
+def latest_job(session: Session, document: Document) -> ForensicJob | None:
+    """Get the newest run, expiring jobs abandoned by workers or the broker."""
+    expire_jobs(session)
+    return session.scalar(select(ForensicJob).where(ForensicJob.document_id == document.id)
+                          .order_by(ForensicJob.created_at.desc()).limit(1))
+
+
+def expire_jobs(session: Session) -> None:
+    """Bound queue residence and make worker loss visible to polling clients."""
+    session.execute(update(ForensicJob).where(
+        ForensicJob.status.in_(("QUEUED", "RUNNING")),
+        ForensicJob.created_at < datetime.now(UTC) - JOB_TTL,
+    ).values(status="FAILED", error="analysis deadline exceeded"))
+    session.commit()
+
+
+def enqueue_job(session: Session, document: Document, principal) -> ForensicJob:
+    """Atomically limit outstanding jobs and deduplicate a document's active run."""
+    from fastapi import HTTPException
+
+    expire_jobs(session)
+    # ponytail: one transaction lock for a small advisory queue; shard only if admission is hot.
+    session.execute(text("SELECT pg_advisory_xact_lock(94721031)"))
+    active = select(ForensicJob).where(ForensicJob.status.in_(("QUEUED", "RUNNING")))
+    existing = session.scalar(active.where(ForensicJob.document_id == document.id))
+    if existing:
+        session.commit()
+        return existing
+    if session.scalar(select(func.count()).select_from(active.subquery())) >= MAX_PENDING_JOBS:
+        session.rollback()
+        raise HTTPException(429, "Analysis queue is full; retry later", headers={"Retry-After": "30"})
+    job = ForensicJob(document_id=document.id, actor_id=principal.id)
+    session.add(job)
+    session.commit()
+    try:
+        from app.worker import forensic_task
+        forensic_task.apply_async(args=[job.id], expires=600, retry=False)
+    except Exception:
+        job.status, job.error = "FAILED", "analysis queue unavailable"
+        session.commit()
+        raise HTTPException(503, "Analysis queue unavailable") from None
+    return job
+
+
+def execute_job(session: Session, job_id: str) -> None:
+    """Run once, rechecking current authority before every external check."""
+    from app.services.auth_service import build_principal, document_in_jurisdiction
+
+    # Hold a row lock through each check; a duplicate delivery cannot run concurrently.
+    job = session.get(ForensicJob, job_id, with_for_update=True)
+    if job is None or job.status != "QUEUED":
+        return
+    for index, check in enumerate(CHECKS):
+        user = session.get(User, job.actor_id, populate_existing=True)
+        if not user or not user.is_active:
+            job.status, job.error = "FAILED", "authorization no longer valid"
+            session.commit()
+            return
+        document = session.get(Document, job.document_id)
+        principal = build_principal(session, user)
+        if (not principal.has("document:verify") or document is None
+                or not document_in_jurisdiction(session, principal, document)):
+            job.status, job.error = "FAILED", "authorization no longer valid"
+            session.commit()
+            return
+        if datetime.now(UTC) - job.created_at > JOB_TTL:
+            job.status, job.error = "FAILED", "analysis deadline exceeded"
+            session.commit()
+            return
+        job.status = "RUNNING"
+        run(session, document, (check,))
+        job.progress = (index + 1) * 20
+        job.status = "COMPLETED" if index == len(CHECKS) - 1 else "RUNNING"
+        session.commit()
+        job = session.get(ForensicJob, job_id, with_for_update=True, populate_existing=True)
+        if job.status not in ("RUNNING", "COMPLETED"):
+            return

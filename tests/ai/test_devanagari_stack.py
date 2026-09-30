@@ -156,3 +156,14 @@ def test_paddleocr_reads_devanagari():
         assert result, f"no OCR result for {sample!r}"
         joined = " ".join(t for _, t in _in_reading_order(result))
         assert joined.strip() == sample, f"expected {sample!r}, got {joined!r}"
+
+
+def test_bold_discovery_falls_back_to_installed_regular_face(tmp_path, monkeypatch):
+    from mrittika_domain import fonts
+    monkeypatch.setattr(fonts, "_LINUX", tmp_path / "linux")
+    monkeypatch.setattr(fonts, "_MAC", tmp_path)
+    monkeypatch.delenv("MRITTIKA_FONT_DEVANAGARI_BOLD", raising=False)
+    monkeypatch.delenv("MRITTIKA_FONT_DEVANAGARI", raising=False)
+    regular = tmp_path / "Devanagari Sangam MN.ttc"
+    regular.touch()
+    assert fonts.find_font(bold=True) == str(regular)
